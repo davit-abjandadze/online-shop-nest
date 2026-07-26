@@ -109,6 +109,29 @@ export class AuthService {
     return this.generateToken(user);
   }
 
+    // ⭐ ახალი მეთოდი Facebook ავტორიზაციისთვის
+  async facebookLogin(profile: { email: string; firstName: string; lastName: string }) {
+    // 1. ვეძებთ მომხმარებელს email-ით
+    let user = await this.usersService.findByEmail(profile.email);
+
+    // 2. თუ არ არსებობს, ვქმნით ახალს
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      
+      user = await this.usersService.create({
+        email: profile.email,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        password: hashedPassword,
+        role: UserRole.USER,
+      });
+    }
+
+    // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
+    return this.generateToken(user);
+  }
+
   private generateToken(user: any) {
     const payload = { sub: user.id, email: user.email, role: user.role, };
     return {

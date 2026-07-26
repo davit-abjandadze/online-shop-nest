@@ -114,4 +114,12 @@ export class AuthController {
   async googleLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
     return this.authService.googleLogin(body);
   }
+
+    @Post('facebook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Facebook-ით ავტორიზაცია/რეგისტრაცია' })
+  @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
+  async facebookLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
+    return this.authService.facebookLogin(body);
+  }
 }
