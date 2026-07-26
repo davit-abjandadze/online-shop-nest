@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserAnswerService } from './user-answer.service';
@@ -25,5 +25,14 @@ export class UserAnswerController {
   @Get('question/:questionId/results')
   getResults(@Param('questionId') questionId: string) {
     return this.userAnswerService.getQuestionResults(+questionId);
+  }
+
+  @Get('my-voted-questions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'კითხვების ID-ები, რომლებზეც მომხმარებელს აქვს ხმა მიცემული' })
+  @ApiResponse({ status: 200, description: 'კითხვების ID-ების მასივი' })
+  async getMyVotedQuestions(@CurrentUser() user: any) {
+    return this.userAnswerService.getVotedQuestionIds(user.userId);
   }
 }

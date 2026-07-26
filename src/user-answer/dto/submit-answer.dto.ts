@@ -4,5 +4,5 @@ export class SubmitAnswerDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsInt({ each: true }) // ← ეს არის სწორი!
-  answerIds: number[];
+  answerIds!: number[];
 }

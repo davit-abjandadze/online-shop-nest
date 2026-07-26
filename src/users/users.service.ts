@@ -7,6 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -53,5 +54,12 @@ export class UsersService {
   async remove(id: number) {
     const user = await this.findOne(id);
     return this.userRepository.remove(user);
+  }
+    async findById(id: number): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id } });
+  }
+   // ← ახალი მეთოდი: პაროლის განახლება
+  async updatePassword(userId: number, hashedPassword: string) {
+    await this.userRepository.update(userId, { password: hashedPassword });
   }
 }

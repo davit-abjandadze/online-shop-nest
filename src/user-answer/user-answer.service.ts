@@ -21,58 +21,58 @@ export class UserAnswerService {
   ) {}
 
   async submitAnswer(
-    userId: number,
-    questionId: number,
-    submitDto: SubmitAnswerDto,
-  ) {
-    // 1. ვიპოვოთ კითხვა (გასწორებული relations)
-    const question = await this.questionRepository.findOne({
-      where: { id: questionId },
-      relations: { answers: true }, // ← აქ შეცვალე
-    });
-    if (!question) {
-      throw new NotFoundException('Question not found');
-    }
-
-    // 2. SINGLE choice-ის შემთხვევაში, მხოლოდ 1 პასუხი შეიძლება
-    if (question.type === QuestionType.SINGLE && submitDto.answerIds.length > 1) {
-      throw new BadRequestException(
-        'This question allows only ONE answer'
-      );
-    }
-
-    // 3. შევამოწმოთ, რომ ყველა answerId ამ კითხვას ეკუთვნის
-    const validAnswerIds = question.answers.map(a => a.id);
-    for (const answerId of submitDto.answerIds) {
-      if (!validAnswerIds.includes(answerId)) {
-        throw new BadRequestException(
-          `Answer ${answerId} does not belong to this question`
-        );
-      }
-    }
-
-    // 4. SINGLE choice-ის შემთხვევაში, წავშალოთ ძველი პასუხი
-    if (question.type === QuestionType.SINGLE) {
-      await this.userAnswerRepository.delete({
-        user: { id: userId },
-        question: { id: questionId },
-      });
-    }
-
-    // 5. შევქმნათ ახალი ჩანაწერები
-    const userAnswers: UserAnswer[] = [];
-    for (const answerId of submitDto.answerIds) {
-      const userAnswer = this.userAnswerRepository.create({
-        user: { id: userId } as User,
-        question: { id: questionId } as Question,
-        answer: { id: answerId } as Answer,
-      });
-      userAnswers.push(await this.userAnswerRepository.save(userAnswer));
-    }
-
-    return userAnswers;
+  userId: number,
+  questionId: number,
+  submitDto: SubmitAnswerDto,
+) {
+  // 1. ვიპოვოთ კითხვა და მისი პასუხები
+  const question = await this.questionRepository.findOne({
+    where: { id: questionId },
+    relations: { answers: true },
+  });
+  if (!question) {
+    throw new NotFoundException('კითხვა ვერ მოიძებნა');
   }
 
+  // 2. SINGLE choice-ის შემთხვევაში, მხოლოდ 1 პასუხი შეიძლება
+  if (question.type === QuestionType.SINGLE && submitDto.answerIds.length > 1) {
+    throw new BadRequestException('ეს კითხვა მხოლოდ ერთ პასუხს ითვალისწინებს');
+  }
+
+  // ⭐ 3. შევამოწმოთ, ხომ არ მიუცია უკვე მომხმარებელს ხმა ამ კითხვაზე
+  const existingVote = await this.userAnswerRepository.findOne({
+    where: {
+      user: { id: userId },
+      question: { id: questionId },
+    },
+  });
+
+  if (existingVote) {
+    throw new BadRequestException('თქვენ უკვე მიეცით ხმა ამ კითხვაზე. ხელახლა ხმის მიცემა შეუძლებელია.');
+  }
+
+  // 4. შევამოწმოთ, რომ ყველა answerId ამ კითხვას ეკუთვნის
+  const validAnswerIds = question.answers.map(a => a.id);
+  for (const answerId of submitDto.answerIds) {
+    if (!validAnswerIds.includes(answerId)) {
+      throw new BadRequestException(`პასუხი ${answerId} არ ეკუთვნის ამ კითხვას`);
+    }
+  }
+
+  // 5. შევქმნათ და შევინახოთ ჩანაწერები
+  const userAnswers: UserAnswer[] = [];
+  for (const answerId of submitDto.answerIds) {
+    const userAnswer = this.userAnswerRepository.create({
+      user: { id: userId } as any,
+      question: { id: questionId } as any,
+      answer: { id: answerId } as any,
+    });
+    const saved = await this.userAnswerRepository.save(userAnswer);
+    userAnswers.push(saved);
+  }
+
+  return userAnswers;
+}
   // კითხვის შედეგების ნახვა
 async getQuestionResults(questionId: number) {
   const question = await this.questionRepository.findOne({
@@ -115,5 +115,16 @@ async getQuestionResults(questionId: number) {
     totalVotes, // ← ახალი ველი!
     results,
   };
+}
+
+async getVotedQuestionIds(userId: number): Promise<number[]> {
+  const userAnswers = await this.userAnswerRepository.find({
+    where: { user: { id: userId } },
+    relations: { question: true },
+  });
+
+  // უნიკალური კითხვის ID-ები
+  const uniqueQuestionIds = [...new Set(userAnswers.map(ua => ua.question.id))];
+  return uniqueQuestionIds;
 }
 }

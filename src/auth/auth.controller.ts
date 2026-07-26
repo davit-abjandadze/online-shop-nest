@@ -25,6 +25,9 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard'; 
 import { Roles } from '../common/decorators/roles.decorator'; 
 import { UserRole } from '../users/entities/user.entity'; 
+import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -77,5 +80,38 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'არ ხართ ავტორიზებული' })
   getAdminDashboard() {
     return { message: 'მოგესალმებით, ადმინისტრატორო! ეს მხოლოდ შენთვისაა.' };
+  }
+
+  // ← ახალი endpoint: პაროლის შეცვლა
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard) // მხოლოდ ავტორიზებულებს შეუძლიათ!
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'პაროლის შეცვლა (ავტორიზებული მომხმარებლისთვის)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'პაროლი წარმატებით შეიცვალა',
+    type: ChangePasswordResponseDto,
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'ძველი პაროლი არასწორია ან ახალი პაროლი ძველს ემთხვევა' 
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'არ ხართ ავტორიზებული' 
+  })
+  changePassword(
+    @CurrentUser() user: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.userId, changePasswordDto);
+  }
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Google-ით ავტორიზაცია/რეგისტრაცია' })
+  @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
+  async googleLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
+    return this.authService.googleLogin(body);
   }
 }

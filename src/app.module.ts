@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { QuestionModule } from './question/question.module';
 import { AnswerModule } from './answer/answer.module';
 import { UserAnswerModule } from './user-answer/user-answer.module';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { UserAnswerModule } from './user-answer/user-answer.module';
     TasksModule,
     AuthModule,
     QuestionModule,
+    CategoryModule,
     AnswerModule,
     UserAnswerModule,
   ],

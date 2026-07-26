@@ -1,26 +1,27 @@
 import { 
-  Entity, PrimaryGeneratedColumn, ManyToOne, 
-  CreateDateColumn, Unique 
+  Entity, 
+  PrimaryGeneratedColumn, 
+  ManyToOne, 
+  CreateDateColumn 
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Question } from '../../question/entities/question.entity';
 import { Answer } from '../../answer/entities/answer.entity';
 
 @Entity()
-@Unique(['user', 'question'])
 export class UserAnswer {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number; // ← დაამატე '!'
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  user: User;
+  user!: User; // ← დაამატე '!'
 
   @ManyToOne(() => Question, { onDelete: 'CASCADE' })
-  question: Question;
+  question!: Question; // ← დაამატე '!'
 
   @ManyToOne(() => Answer, { onDelete: 'CASCADE' })
-  answer: Answer;
+  answer!: Answer; // ← დაამატე '!'
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date; // ← დაამატე '!'
 }

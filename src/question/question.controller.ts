@@ -4,7 +4,9 @@ import {
 import { QuestionService } from './question.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('questions')
 @Controller('questions')
 export class QuestionController {
   constructor(private readonly questionService: QuestionService) {}
@@ -15,6 +17,7 @@ export class QuestionController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'ყველა კითხვა (ფილტრით)' })
   findAll() {
     return this.questionService.findAll();
   }
