@@ -28,6 +28,8 @@ import { UserRole } from '../users/entities/user.entity';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -121,5 +123,23 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
   async facebookLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
     return this.authService.facebookLogin(body);
+  }
+
+    @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'პაროლის აღდგენის მოთხოვნა (email-ის გაგზავნა)' })
+  @ApiResponse({ status: 200, description: 'ინსტრუქცია გაიგზავნა' })
+  @ApiResponse({ status: 400, description: 'არასწორი ელფოსტა' })
+  forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'პაროლის აღდგენა token-ით' })
+  @ApiResponse({ status: 200, description: 'პაროლი წარმატებით შეიცვალა' })
+  @ApiResponse({ status: 400, description: 'არასწორი ან ამოწურული token' })
+  resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }

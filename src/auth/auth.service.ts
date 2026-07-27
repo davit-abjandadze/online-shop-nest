@@ -12,11 +12,15 @@ import { LoginDto } from './dto/create-login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { EmailService } from '../common/email/email.service';
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -130,6 +134,62 @@ export class AuthService {
 
     // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
     return this.generateToken(user);
+  }
+
+  // ⭐ ახალი მეთოდი: პაროლის აღდგენის მოთხოვნა
+   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const user = await this.usersService.findByEmail(forgotPasswordDto.email);
+    
+    // უსაფრთხოებისთვის, ყოველთვის ერთსა და იმავეს ვაბრუნებთ (რათა ჰაკერმა ვერ გაიგოს, არსებობს თუ არა მეილი)
+    const successMessage = { message: 'თუ ეს ელფოსტა რეგისტრირებულია, მიიღებთ ინსტრუქციას' };
+
+    if (!user) {
+      return successMessage;
+    }
+
+    // გენერირება token-ი პაროლის აღდგენისთვის (1 საათიანი ვადით)
+    const resetToken = this.jwtService.sign(
+      { sub: user.id, email: user.email, type: 'reset' },
+      { expiresIn: '1h' }
+    );
+
+    // ⭐ აქ ვაგზავნით რეალურ მეილს!
+    await this.emailService.sendPasswordResetEmail(user.email, resetToken);
+
+    return successMessage;
+  }
+
+  // ⭐ ახალი მეთოდი: პაროლის აღდგენა token-ით
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    try {
+      // ვერიფიკაცია token-ის
+      const payload = this.jwtService.verify(resetPasswordDto.token);
+
+      // შევამოწმოთ, რომ ეს მართლაც reset token-ია
+      if (payload.type !== 'reset') {
+        throw new BadRequestException('არასწორი token-ის ტიპი');
+      }
+
+      // ვიპოვოთ მომხმარებელი
+      const user = await this.usersService.findById(payload.sub);
+      if (!user) {
+        throw new BadRequestException('მომხმარებელი ვერ მოიძებნა');
+      }
+
+      // დავაჰეშოთ ახალი პაროლი და შევინახოთ
+      const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+      await this.usersService.updatePassword(user.id, hashedPassword);
+
+      return { message: 'პაროლი წარმატებით შეიცვალა' };
+    } catch (error) {
+      if ((error as Error).name === 'TokenExpiredError') {
+        throw new BadRequestException('Token-ის ვადა ამოიწურა. გთხოვთ, ხელახლა სცადოთ');
+      }
+      if ((error as Error).name === 'JsonWebTokenError') {
+        throw new BadRequestException('არასწორი token-ი');
+      }
+      throw error;
+    }
   }
 
   private generateToken(user: any) {

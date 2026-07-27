@@ -8,6 +8,7 @@ import { QuestionModule } from './question/question.module';
 import { AnswerModule } from './answer/answer.module';
 import { UserAnswerModule } from './user-answer/user-answer.module';
 import { CategoryModule } from './category/category.module';
+import { EmailService } from './common/email/email.service';
 
 @Module({
   imports: [
@@ -40,6 +41,10 @@ import { CategoryModule } from './category/category.module';
     CategoryModule,
     AnswerModule,
     UserAnswerModule,
+    AuthModule,
+    UsersModule,
   ],
+  providers: [EmailService], // ← დარეგისტრირება
+  exports: [EmailService],   // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
 })
 export class AppModule {}
