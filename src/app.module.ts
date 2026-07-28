@@ -10,6 +10,7 @@ import { UserAnswerModule } from './user-answer/user-answer.module';
 import { CategoryModule } from './category/category.module';
 import { FavoriteModule } from './favorite/favorite.module';
 import { EmailService } from './common/email/email.service';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { EmailService } from './common/email/email.service';
     FavoriteModule,
     AuthModule,
     UsersModule,
+    StatsModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
   exports: [EmailService],   // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
