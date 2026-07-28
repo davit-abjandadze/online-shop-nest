@@ -2,7 +2,8 @@ import {
   Entity, 
   PrimaryGeneratedColumn, 
   ManyToOne, 
-  CreateDateColumn 
+  CreateDateColumn, 
+  Column
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Question } from '../../question/entities/question.entity';
@@ -14,13 +15,17 @@ export class UserAnswer {
   id!: number; // ← დაამატე '!'
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  user!: User; // ← დაამატე '!'
+  user?: User; // ← დაამატე '!'
 
   @ManyToOne(() => Question, { onDelete: 'CASCADE' })
   question!: Question; // ← დაამატე '!'
 
   @ManyToOne(() => Answer, { onDelete: 'CASCADE' })
   answer!: Answer; // ← დაამატე '!'
+
+  // ⭐ ახალი ველი: IP მისამართის შესანახად
+  @Column({ nullable: true })
+  ipAddress?: string;
 
   @CreateDateColumn()
   createdAt!: Date; // ← დაამატე '!'

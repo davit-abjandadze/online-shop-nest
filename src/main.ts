@@ -10,6 +10,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
+      'http://192.168.0.126:3000',
     ],
     credentials: true,
   });
@@ -33,6 +34,6 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(4000);
+  await app.listen(4000, '0.0.0.0');
 }
 bootstrap();

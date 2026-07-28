@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards, Req, ConflictException } from '@nestjs/common';
+import express from 'express'; // ← აუცილებელი იმპორტი IP-ის ამოსაღებად
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -10,19 +11,35 @@ export class UserAnswerController {
   constructor(private readonly userAnswerService: UserAnswerService) {}
 
   @Post('question/:questionId')
-  @UseGuards(JwtAuthGuard) // ← 1. ვაცუროთ endpoint (მხოლოდ ავტორიზებულებს შეუძლიათ)
-  @ApiBearerAuth() // ← 2. Swagger-ს ვეუბნებით, რომ ამ endpoint-ს ტოკენი სჭირდება
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'ხმის მიცემა კითხვაზე (IP ტრექინგით)' })
+  @ApiResponse({ status: 201, description: 'ხმა წარმატებით დარეგისტრირდა' })
+  @ApiResponse({ status: 409, description: 'ამ IP-დან ან მომხმარებლისგან უკვე მიცემულია ხმა' })
   submitAnswer(
+    @Req() req: express.Request, // ← ვიღებთ მთლიან Request ობიექტს
+    @CurrentUser() user: any,
     @Param('questionId') questionId: string,
     @Body() submitDto: SubmitAnswerDto,
-    @CurrentUser() user: any, // ← 3. ავტომატურად იღებს მომხმარებელს ტოკენიდან
   ) {
-    console.log('🔍 USER OBJECT:', user); // ← ეს დაამატე!
-    // user.userId არის ის ID, რაც JwtStrategy-ში დავაბრუნეთ
-    return this.userAnswerService.submitAnswer(user.userId, +questionId, submitDto);
+    // IP-ის სანდო ამოღება (მუშაობს როგორც ლოკალურად, ასევე პროდაქშენში)
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = forwarded 
+      ? (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : forwarded[0])
+      : (req.ip || req.socket.remoteAddress || 'unknown');
+
+    console.log(`🔍 ხმის მიცემა: User ID: ${user.userId}, Question ID: ${questionId}, IP: ${ip}`);
+
+    return this.userAnswerService.submitAnswer(
+      user.userId,
+      +questionId,
+      submitDto,
+      ip, // ← გადავცემთ IP-ს სერვისს
+    );
   }
 
   @Get('question/:questionId/results')
+  @ApiOperation({ summary: 'კითხვის შედეგების ნახვა' })
   getResults(@Param('questionId') questionId: string) {
     return this.userAnswerService.getQuestionResults(+questionId);
   }
