@@ -8,6 +8,7 @@ import { QuestionModule } from './question/question.module';
 import { AnswerModule } from './answer/answer.module';
 import { UserAnswerModule } from './user-answer/user-answer.module';
 import { CategoryModule } from './category/category.module';
+import { FavoriteModule } from './favorite/favorite.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -41,6 +42,7 @@ import { EmailService } from './common/email/email.service';
     CategoryModule,
     AnswerModule,
     UserAnswerModule,
+    FavoriteModule,
     AuthModule,
     UsersModule,
   ],

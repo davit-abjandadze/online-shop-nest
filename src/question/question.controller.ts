@@ -12,8 +12,8 @@ import { QuestionService } from './question.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { ApiOperation, ApiTags, ApiQuery, ApiResponse } from '@nestjs/swagger';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { FindQuestionsQueryDto } from './dto/find-questions-query.dto';
 import { Question } from './entities/question.entity';
 
 @ApiTags('questions')
@@ -33,24 +33,31 @@ export class QuestionController {
   @ApiQuery({ name: 'limit', required: false, description: 'ჩანაწერები გვერდზე', example: 10 })
   @ApiQuery({ name: 'sortBy', required: false, description: 'დალაგების ველი', example: 'createdAt' })
   @ApiQuery({ name: 'order', required: false, enum: ['ASC', 'DESC'], description: 'მიმართულება' })
+  @ApiQuery({ name: 'status', required: false, enum: ['active', 'inactive'], description: 'აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)' })
   @ApiResponse({
     status: 200,
     description: 'კითხვების სია pagination-ით',
     type: PaginatedResponseDto<Question>,
   })
-  findAll(
-    @Query('category') categoryId?: string,
-    @Query() paginationDto?: PaginationDto,
-  ) {
-    return this.questionService.findAll(
-      categoryId ? +categoryId : undefined,
-      paginationDto,
-    );
+  findAll(@Query() query: FindQuestionsQueryDto) {
+    return this.questionService.findAll(query.category, query, query.status);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.questionService.findOne(+id);
+  }
+
+  @Patch(':id/activate')
+  @ApiOperation({ summary: 'კითხვის გააქტიურება' })
+  activate(@Param('id') id: string) {
+    return this.questionService.activate(+id);
+  }
+
+  @Patch(':id/deactivate')
+  @ApiOperation({ summary: 'კითხვის დეაქტივაცია' })
+  deactivate(@Param('id') id: string) {
+    return this.questionService.deactivate(+id);
   }
 
   @Patch(':id')

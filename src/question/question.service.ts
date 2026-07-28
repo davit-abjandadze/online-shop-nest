@@ -30,10 +30,11 @@ export class QuestionService {
     return this.questionRepository.save(question);
   }
 
-  // ⭐ განახლებული findAll - pagination-ით
+  // ⭐ განახლებული findAll - pagination-ით და აქტიურობის სტატუსის ფილტრით
   async findAll(
     categoryId?: number,
     paginationDto: PaginationDto = {},
+    status?: 'active' | 'inactive',
   ): Promise<PaginatedResponseDto<Question>> {
     const {
       page = 1,
@@ -46,20 +47,35 @@ export class QuestionService {
     const allowedSortFields = ['createdAt', 'text', 'id'];
     const actualSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
 
-    // WHERE პირობის აგება
-    const where: any = {};
+    const query = this.questionRepository
+      .createQueryBuilder('question')
+      .leftJoinAndSelect('question.answers', 'answers')
+      .leftJoinAndSelect('question.category', 'category');
+
     if (categoryId) {
-      where.categoryId = categoryId;
+      query.andWhere('question.categoryId = :categoryId', { categoryId });
     }
 
-    // TypeORM-ის findAndCount - ერთდროულად იღებს მონაცემებს და total count-ს
-    const [data, total] = await this.questionRepository.findAndCount({
-      where,
-      relations: { answers: true, category: true },
-      order: { [actualSortBy]: order },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const now = new Date();
+    if (status === 'active') {
+      query.andWhere('question.isActive = :isActive', { isActive: true });
+      query.andWhere(
+        '(question.endDate IS NULL OR question.endDate > :now)',
+        { now },
+      );
+    } else if (status === 'inactive') {
+      query.andWhere(
+        '(question.isActive = :isActive OR (question.endDate IS NOT NULL AND question.endDate <= :now))',
+        { isActive: false, now },
+      );
+    }
+
+    query
+      .orderBy(`question.${actualSortBy}`, order)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await query.getManyAndCount();
 
     return new PaginatedResponseDto(data, total, page, limit);
   }
@@ -84,5 +100,28 @@ export class QuestionService {
   async remove(id: number) {
     const question = await this.findOne(id);
     return this.questionRepository.remove(question);
+  }
+
+  async activate(id: number) {
+    const question = await this.findOne(id);
+    question.isActive = true;
+    return this.questionRepository.save(question);
+  }
+
+  async deactivate(id: number) {
+    const question = await this.findOne(id);
+    question.isActive = false;
+    return this.questionRepository.save(question);
+  }
+
+  // კითხვის რეალურ დროში აქტიურობის შემოწმება (ითვალისწინებს ვადის გასვლასაც)
+  isQuestionActive(question: Question): boolean {
+    if (!question.isActive) {
+      return false;
+    }
+    if (question.endDate && new Date(question.endDate) <= new Date()) {
+      return false;
+    }
+    return true;
   }
 }

@@ -1,4 +1,6 @@
-import { IsEmail, IsString, MinLength, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Gender } from '../../users/entities/user.entity';
 
 export class RegisterDto {
   @IsString()
@@ -15,4 +17,9 @@ export class RegisterDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({ enum: Gender, description: 'მომხმარებლის სქესი' })
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
 }

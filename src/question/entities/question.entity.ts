@@ -45,6 +45,12 @@ export class Question {
   @Column({ nullable: true })
   categoryId?: number;
 
+  @Column({ default: true })
+  isActive!: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  endDate?: Date | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 }

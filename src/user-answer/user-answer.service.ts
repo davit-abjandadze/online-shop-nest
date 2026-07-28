@@ -5,12 +5,14 @@ import {
   ConflictException // ← ახალი იმპორტი
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { UserAnswer } from './entities/user-answer.entity';
 import { Question, QuestionType } from '../question/entities/question.entity';
 import { Answer } from '../answer/entities/answer.entity';
 import { User } from '../users/entities/user.entity';
 import { SubmitAnswerDto } from './dto/submit-answer.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 @Injectable()
 export class UserAnswerService {
@@ -36,6 +38,12 @@ export class UserAnswerService {
     });
     if (!question) {
       throw new NotFoundException('კითხვა ვერ მოიძებნა');
+    }
+
+    // ⭐ დეაქტივირებულ ან ვადაგასულ კითხვაზე ხმის მიცემა აკრძალულია
+    const isExpired = !!question.endDate && new Date(question.endDate) <= new Date();
+    if (!question.isActive || isExpired) {
+      throw new BadRequestException('კითხვა დეაქტივირებულია ან ვადაგასულია, ხმის მიცემა შეუძლებელია');
     }
 
     // 2. SINGLE choice-ის შემთხვევაში, მხოლოდ 1 პასუხი შეიძლება
@@ -138,5 +146,94 @@ export class UserAnswerService {
     });
     const uniqueQuestionIds = [...new Set(userAnswers.map(ua => ua.question.id))];
     return uniqueQuestionIds;
+  }
+
+  // ⭐ პროფილის "აქტივობები" - ხმა მიცემული კითხვები, pagination და ფილტრით (კატეგორია/სტატუსი)
+  async getMyActivities(
+    userId: number,
+    paginationDto: PaginationDto = {},
+    categoryId?: number,
+    status?: 'active' | 'inactive',
+  ): Promise<PaginatedResponseDto<{ question: Question; myAnswers: Answer[]; votedAt: Date }>> {
+    const { page = 1, limit = 10, order = 'DESC' } = paginationDto;
+
+    // 1. კითხვის ID-ები, რომლებზეც userId-მა მისცა ხმა (+ ბოლო ხმის მიცემის თარიღი)
+    const votesQuery = this.userAnswerRepository
+      .createQueryBuilder('ua')
+      .select('question.id', 'questionId')
+      .addSelect('MAX(ua.createdAt)', 'votedAt')
+      .innerJoin('ua.user', 'user')
+      .innerJoin('ua.question', 'question')
+      .where('user.id = :userId', { userId })
+      .groupBy('question.id');
+
+    if (categoryId) {
+      votesQuery.andWhere('question.categoryId = :categoryId', { categoryId });
+    }
+
+    const now = new Date();
+    if (status === 'active') {
+      votesQuery
+        .andWhere('question.isActive = :isActive', { isActive: true })
+        .andWhere('(question.endDate IS NULL OR question.endDate > :now)', { now });
+    } else if (status === 'inactive') {
+      votesQuery.andWhere(
+        '(question.isActive = :isActive OR (question.endDate IS NOT NULL AND question.endDate <= :now))',
+        { isActive: false, now },
+      );
+    }
+
+    const allVotes = await votesQuery.getRawMany<{ questionId: string; votedAt: Date }>();
+    const total = allVotes.length;
+
+    if (total === 0) {
+      return new PaginatedResponseDto([], total, page, limit);
+    }
+
+    const sorted = [...allVotes].sort((a, b) =>
+      order === 'ASC'
+        ? new Date(a.votedAt).getTime() - new Date(b.votedAt).getTime()
+        : new Date(b.votedAt).getTime() - new Date(a.votedAt).getTime(),
+    );
+    const pageVotes = sorted.slice((page - 1) * limit, (page - 1) * limit + limit);
+    const questionIds = pageVotes.map((v) => Number(v.questionId));
+
+    // 2. სრული კითხვები (პასუხების ვარიანტებით და კატეგორიით)
+    const questions = await this.questionRepository.find({
+      where: { id: In(questionIds) },
+      relations: { answers: true, category: true },
+    });
+    const questionById = new Map(questions.map((q) => [q.id, q]));
+
+    // 3. userId-ის მიერ ამ კითხვებზე არჩეული პასუხები
+    const myAnswers = await this.userAnswerRepository.find({
+      where: { user: { id: userId }, question: { id: In(questionIds) } },
+      relations: { answer: true, question: true },
+    });
+    const answersByQuestionId = new Map<number, Answer[]>();
+    for (const ua of myAnswers) {
+      const qId = ua.question.id;
+      if (!answersByQuestionId.has(qId)) {
+        answersByQuestionId.set(qId, []);
+      }
+      answersByQuestionId.get(qId)!.push(ua.answer);
+    }
+
+    const data = pageVotes
+      .map((v) => {
+        const qId = Number(v.questionId);
+        const question = questionById.get(qId);
+        if (!question) {
+          return null;
+        }
+        return {
+          question,
+          myAnswers: answersByQuestionId.get(qId) ?? [],
+          votedAt: v.votedAt,
+        };
+      })
+      .filter((item): item is { question: Question; myAnswers: Answer[]; votedAt: Date } => !!item);
+
+    return new PaginatedResponseDto(data, total, page, limit);
   }
 }

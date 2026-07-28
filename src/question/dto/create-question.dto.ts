@@ -1,7 +1,7 @@
-import { 
-  IsString, IsNotEmpty, IsArray, 
-  ValidateNested, IsEnum, IsOptional, 
-  IsNumber
+import {
+  IsString, IsNotEmpty, IsArray,
+  ValidateNested, IsEnum, IsOptional,
+  IsNumber, IsBoolean, IsDateString
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QuestionType } from '../entities/question.entity';
@@ -36,4 +36,21 @@ export class CreateQuestionDto {
   @ValidateNested({ each: true })
   @Type(() => CreateAnswerDto)
   answers!: CreateAnswerDto[];
+
+  @ApiPropertyOptional({
+    description: 'აქტიურია თუ არა კითხვა',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'დასრულების თარიღი (ISO ფორმატი). ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში',
+    example: '2026-12-31T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 }

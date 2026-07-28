@@ -7,6 +7,11 @@ export enum UserRole {
   USER = 'user',
 }
 
+export enum Gender {
+  MALE = 'male',
+  FEMALE = 'female',
+}
+
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
@@ -27,6 +32,14 @@ export class User {
     default: UserRole.USER,
   })
   role: UserRole;
+
+  @Column({
+    type: 'enum',
+    enum: Gender,
+    nullable: true,
+  })
+  gender?: Gender;
+
   // @ApiHideProperty() // Swagger-ში არ გამოჩნდება
   @Column()
   password: string;
