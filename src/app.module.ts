@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './users/users.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuthModule } from './auth/auth.module';
@@ -18,7 +19,10 @@ import { StatsModule } from './stats/stats.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    
+
+    // ⭐ ვადაგასული კითხვების ავტომატური დეაქტივაციისთვის (cron)
+    ScheduleModule.forRoot(),
+
     // 2. TypeORM-ის კავშირი
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

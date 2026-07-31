@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { LessThanOrEqual, Repository } from 'typeorm';
 import { Question } from './entities/question.entity';
 import { Category } from '../category/entities/category.entity';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -10,6 +11,8 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 @Injectable()
 export class QuestionService {
+  private readonly logger = new Logger(QuestionService.name);
+
   constructor(
     @InjectRepository(Question)
     private questionRepository: Repository<Question>,
@@ -112,6 +115,22 @@ export class QuestionService {
     const question = await this.findOne(id);
     question.isActive = false;
     return this.questionRepository.save(question);
+  }
+
+  // ⭐ ვადაგასული კითხვების ავტომატური დეაქტივაცია (ყოველ წუთს)
+  @Cron(CronExpression.EVERY_MINUTE)
+  async deactivateExpiredQuestions() {
+    const result = await this.questionRepository.update(
+      {
+        isActive: true,
+        endDate: LessThanOrEqual(new Date()),
+      },
+      { isActive: false },
+    );
+
+    if (result.affected) {
+      this.logger.log(`ვადაგასული კითხვები დეაქტივირდა: ${result.affected}`);
+    }
   }
 
   // კითხვის რეალურ დროში აქტიურობის შემოწმება (ითვალისწინებს ვადის გასვლასაც)
