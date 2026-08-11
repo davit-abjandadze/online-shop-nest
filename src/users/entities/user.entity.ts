@@ -40,6 +40,9 @@ export class User {
   })
   gender?: Gender;
 
+  @Column({ nullable: true })
+  age?: number;
+
   // @ApiHideProperty() // Swagger-ში არ გამოჩნდება
   @Column()
   password: string;

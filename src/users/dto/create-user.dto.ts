@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min } from 'class-validator';
 import { UserRole, Gender } from '../entities/user.entity';
 
 export class CreateUserDto {
@@ -29,4 +29,10 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
+
+  @ApiPropertyOptional({ description: 'მომხმარებლის ასაკი' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  age?: number;
 }
