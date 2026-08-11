@@ -1,13 +1,22 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { LessThanOrEqual, Repository } from 'typeorm';
-import { Question } from './entities/question.entity';
+import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { ApprovalStatus, CreatorType, Question } from './entities/question.entity';
 import { Category } from '../category/entities/category.entity';
+import { UserRole } from '../users/entities/user.entity';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
+import { RejectQuestionDto } from './dto/reject-question.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+
+// request.user-ის ფორმა (JwtStrategy.validate()-იდან)
+export interface RequestUser {
+  userId: number;
+  email: string;
+  role: UserRole;
+}
 
 @Injectable()
 export class QuestionService {
@@ -20,7 +29,11 @@ export class QuestionService {
     private categoryRepository: Repository<Category>,
   ) {}
 
-  async create(createQuestionDto: CreateQuestionDto) {
+  async create(
+    createQuestionDto: CreateQuestionDto,
+    currentUser: RequestUser,
+    creatorIp?: string,
+  ) {
     if (createQuestionDto.categoryId) {
       const categoryExists = await this.categoryRepository.findOne({
         where: { id: createQuestionDto.categoryId },
@@ -29,8 +42,105 @@ export class QuestionService {
         throw new BadRequestException(`კატეგორია ID-ით ${createQuestionDto.categoryId} ვერ მოიძებნა`);
       }
     }
-    const question = this.questionRepository.create(createQuestionDto);
+
+    const isAdmin = currentUser.role === UserRole.ADMIN;
+
+    if (!isAdmin) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      // 1. ჩვეულებრივ user-ს დღეში მხოლოდ 1 კითხვის დამატება შეუძლია (per-account)
+      const questionsToday = await this.questionRepository.count({
+        where: {
+          createdById: currentUser.userId,
+          createdAt: MoreThanOrEqual(startOfDay),
+        },
+      });
+
+      if (questionsToday >= 1) {
+        throw new ConflictException('დღეში მხოლოდ 1 კითხვის დამატება შეგიძლიათ');
+      }
+
+      // 2. იმავე დღეს იმავე მოწყობილობიდან (IP) სხვა პროფილითაც არ შეიძლება კითხვის დამატება,
+      //    რომ 1 ადამიანმა რამდენიმე ანგარიშით ვერ გამოვლის ლიმიტს
+      if (creatorIp && creatorIp !== 'unknown') {
+        const questionsTodayFromDevice = await this.questionRepository.count({
+          where: {
+            creatorIp,
+            createdAt: MoreThanOrEqual(startOfDay),
+          },
+        });
+
+        if (questionsTodayFromDevice >= 1) {
+          throw new ConflictException(
+            'ამ მოწყობილობიდან დღეს უკვე დამატებულია კითხვა (სხვა პროფილით). დღეში მხოლოდ 1 კითხვის დამატება შესაძლებელია ერთი მოწყობილობიდან.',
+          );
+        }
+      }
+    }
+
+    const question = this.questionRepository.create({
+      ...createQuestionDto,
+      createdById: currentUser.userId,
+      creatorIp,
+      creatorType: isAdmin ? CreatorType.ADMIN : CreatorType.USER,
+      // user-ის დამატებული კითხვა ყოველთვის დასადასტურებელია (isActive:false, PENDING),
+      // client-ისგან გამოგზავნილი isActive მასზე გავლენას არ ახდენს
+      isActive: isAdmin ? (createQuestionDto.isActive ?? true) : false,
+      approvalStatus: isAdmin ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+    });
     return this.questionRepository.save(question);
+  }
+
+  // admin ადასტურებს user-ის დასმულ კითხვას — ხდება აქტიური და ჩანს ვიდრე ხმის მიცემისთვის
+  async approve(id: number, adminId: number) {
+    const question = await this.findOne(id);
+    question.approvalStatus = ApprovalStatus.APPROVED;
+    question.isActive = true;
+    question.rejectionReason = null;
+    question.reviewedById = adminId;
+    question.reviewedAt = new Date();
+    return this.questionRepository.save(question);
+  }
+
+  // admin უკუაგდებს user-ის დასმულ კითხვას მიზეზის მითითებით
+  async reject(id: number, adminId: number, rejectDto: RejectQuestionDto) {
+    const question = await this.findOne(id);
+    question.approvalStatus = ApprovalStatus.REJECTED;
+    question.isActive = false;
+    question.rejectionReason = rejectDto.reason;
+    question.reviewedById = adminId;
+    question.reviewedAt = new Date();
+    return this.questionRepository.save(question);
+  }
+
+  // მიმდინარე მომხმარებლის მიერ დასმული კითხვების სია (პროფილის გვერდისთვის)
+  async findMyQuestions(
+    userId: number,
+    paginationDto: PaginationDto = {},
+  ): Promise<PaginatedResponseDto<Question>> {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      order = 'DESC',
+    } = paginationDto;
+
+    const allowedSortFields = ['createdAt', 'text', 'id'];
+    const actualSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+
+    const query = this.questionRepository
+      .createQueryBuilder('question')
+      .leftJoinAndSelect('question.answers', 'answers')
+      .leftJoinAndSelect('question.category', 'category')
+      .where('question.createdById = :userId', { userId })
+      .orderBy(`question.${actualSortBy}`, order)
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await query.getManyAndCount();
+
+    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   // ⭐ განახლებული findAll - pagination-ით და აქტიურობის სტატუსის ფილტრით
@@ -38,6 +148,8 @@ export class QuestionService {
     categoryId?: number,
     paginationDto: PaginationDto = {},
     status?: 'active' | 'inactive',
+    approvalStatus?: ApprovalStatus,
+    creatorType?: CreatorType,
   ): Promise<PaginatedResponseDto<Question>> {
     const {
       page = 1,
@@ -57,6 +169,14 @@ export class QuestionService {
 
     if (categoryId) {
       query.andWhere('question.categoryId = :categoryId', { categoryId });
+    }
+
+    if (approvalStatus) {
+      query.andWhere('question.approvalStatus = :approvalStatus', { approvalStatus });
+    }
+
+    if (creatorType) {
+      query.andWhere('question.creatorType = :creatorType', { creatorType });
     }
 
     const now = new Date();
