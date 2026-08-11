@@ -12,6 +12,9 @@ class UserDataDto {
 
   @ApiProperty({ example: 'ბერიძე' })
   lastName: string;
+
+  @ApiProperty({ example: 25, required: false })
+  age?: number;
 }
 
 class TokenDataDto {
