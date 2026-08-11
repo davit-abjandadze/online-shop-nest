@@ -16,6 +16,7 @@ import type { RequestUser } from './question.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { RejectQuestionDto } from './dto/reject-question.dto';
+import { ApproveQuestionDto } from './dto/approve-question.dto';
 import { ApiOperation, ApiTags, ApiQuery, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { FindQuestionsQueryDto } from './dto/find-questions-query.dto';
@@ -111,9 +112,13 @@ export class QuestionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'user-ის დასმული კითხვის დადასტურება (მხოლოდ admin)' })
-  approve(@CurrentUser() admin: RequestUser, @Param('id') id: string) {
-    return this.questionService.approve(+id, admin.userId);
+  @ApiOperation({ summary: 'user-ის დასმული კითხვის დადასტურება, სურვილისამებრ დამთავრების თარიღით (მხოლოდ admin)' })
+  approve(
+    @CurrentUser() admin: RequestUser,
+    @Param('id') id: string,
+    @Body() approveDto: ApproveQuestionDto,
+  ) {
+    return this.questionService.approve(+id, admin.userId, approveDto?.endDate);
   }
 
   @Patch(':id/reject')

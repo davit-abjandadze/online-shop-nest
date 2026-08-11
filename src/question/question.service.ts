@@ -88,16 +88,23 @@ export class QuestionService {
       // client-ისგან გამოგზავნილი isActive მასზე გავლენას არ ახდენს
       isActive: isAdmin ? (createQuestionDto.isActive ?? true) : false,
       approvalStatus: isAdmin ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+      // დამთავრების თარიღის მითითება მხოლოდ admin-ს შეუძლია შექმნისას;
+      // user-ის კითხვისთვის admin ამას approve-ის დროს დაუწესებს
+      endDate: isAdmin ? createQuestionDto.endDate : undefined,
     });
     return this.questionRepository.save(question);
   }
 
-  // admin ადასტურებს user-ის დასმულ კითხვას — ხდება აქტიური და ჩანს ვიდრე ხმის მიცემისთვის
-  async approve(id: number, adminId: number) {
+  // admin ადასტურებს user-ის დასმულ კითხვას — ხდება აქტიური და ჩანს ვიდრე ხმის მიცემისთვის.
+  // ამავე დროს შესაძლებელია დამთავრების თარიღის დაწესება (მხოლოდ admin-ის ხელით)
+  async approve(id: number, adminId: number, endDate?: string) {
     const question = await this.findOne(id);
     question.approvalStatus = ApprovalStatus.APPROVED;
     question.isActive = true;
     question.rejectionReason = null;
+    if (endDate !== undefined) {
+      question.endDate = endDate ? new Date(endDate) : null;
+    }
     question.reviewedById = adminId;
     question.reviewedAt = new Date();
     return this.questionRepository.save(question);

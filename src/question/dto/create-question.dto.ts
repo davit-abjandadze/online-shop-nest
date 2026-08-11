@@ -38,7 +38,7 @@ export class CreateQuestionDto {
   answers!: CreateAnswerDto[];
 
   @ApiPropertyOptional({
-    description: 'აქტიურია თუ არა კითხვა',
+    description: 'აქტიურია თუ არა კითხვა (მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის კითხვისთვის ეს ველი იგნორირდება)',
     example: true,
     default: true,
   })
@@ -47,7 +47,10 @@ export class CreateQuestionDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'დასრულების თარიღი (ISO ფორმატი). ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში',
+    description:
+      'დასრულების თარიღი (ISO ფორმატი). ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში. ' +
+      'მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის მიერ გამოგზავნილი ეს ველი იგნორირდება ' +
+      '(user-ის კითხვისთვის დამთავრების თარიღეს ადგენს admin approve-ის დროს)',
     example: '2026-12-31T23:59:59.000Z',
   })
   @IsOptional()
