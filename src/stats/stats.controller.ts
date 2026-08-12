@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { StatsService } from './stats.service';
 import { TrendsQueryDto } from './dto/trends-query.dto';
@@ -45,5 +45,25 @@ export class StatsController {
   })
   getPopularQuestions(@Query() query: PopularQuestionsQueryDto) {
     return this.statsService.getPopularQuestions(query.limit);
+  }
+
+  @Get('demographics')
+  @ApiOperation({ summary: 'ხმების გლობალური სტატისტიკა სქესისა და ასაკის მიხედვით' })
+  @ApiResponse({
+    status: 200,
+    description: 'ხმების რაოდენობა სქესის (male/female/unknown) და ასაკობრივი ჯგუფების მიხედვით',
+  })
+  getDemographics() {
+    return this.statsService.getDemographics();
+  }
+
+  @Get('questions/:id/demographics')
+  @ApiOperation({ summary: 'კონკრეტული კითხვის სტატისტიკა სქესისა და ასაკის მიხედვით (მთლიანად და თითო პასუხზე)' })
+  @ApiResponse({
+    status: 200,
+    description: 'კითხვის ხმების განაწილება სქესისა და ასაკობრივი ჯგუფების მიხედვით, დეტალურად თითოეულ პასუხზეც',
+  })
+  getQuestionDemographics(@Param('id') id: string) {
+    return this.statsService.getQuestionDemographics(+id);
   }
 }

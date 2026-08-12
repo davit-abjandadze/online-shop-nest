@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
@@ -73,6 +73,104 @@ export interface PopularQuestionsStats {
   mostVoted: MostVotedQuestion[];
   mostControversial: MostControversialQuestion[];
   fastestGrowing: FastestGrowingQuestion[];
+}
+
+// ასაკობრივი ჯგუფები, რომლის მიხედვითაც იჯგუფება ხმები
+export type AgeGroup =
+  | 'under_18'
+  | '18_24'
+  | '25_34'
+  | '35_44'
+  | '45_54'
+  | '55_64'
+  | '65_plus'
+  | 'unknown';
+
+const ALL_AGE_GROUPS: AgeGroup[] = [
+  'under_18',
+  '18_24',
+  '25_34',
+  '35_44',
+  '45_54',
+  '55_64',
+  '65_plus',
+  'unknown',
+];
+
+type GenderKey = 'male' | 'female' | 'unknown';
+
+const ALL_GENDERS: GenderKey[] = ['male', 'female', 'unknown'];
+
+// user.age-ის მიხედვით ასაკობრივ ჯგუფად დამყოფი SQL გამოსახულება
+const AGE_GROUP_SQL = `CASE
+  WHEN "user"."age" IS NULL THEN 'unknown'
+  WHEN "user"."age" < 18 THEN 'under_18'
+  WHEN "user"."age" BETWEEN 18 AND 24 THEN '18_24'
+  WHEN "user"."age" BETWEEN 25 AND 34 THEN '25_34'
+  WHEN "user"."age" BETWEEN 35 AND 44 THEN '35_44'
+  WHEN "user"."age" BETWEEN 45 AND 54 THEN '45_54'
+  WHEN "user"."age" BETWEEN 55 AND 64 THEN '55_64'
+  ELSE '65_plus'
+END`;
+
+// user.gender-ის მიხედვით ჯგუფვა (null → 'unknown')
+const GENDER_SQL = `COALESCE("user"."gender"::text, 'unknown')`;
+
+export interface GenderVotes {
+  gender: GenderKey;
+  votes: number;
+}
+
+export interface AgeGroupVotes {
+  ageGroup: AgeGroup;
+  votes: number;
+}
+
+export interface DemographicsStats {
+  totalVotes: number;
+  byGender: GenderVotes[];
+  byAge: AgeGroupVotes[];
+}
+
+export interface AnswerDemographics {
+  id: number;
+  text: string;
+  votes: number;
+  byGender: GenderVotes[];
+  byAge: AgeGroupVotes[];
+}
+
+export interface QuestionDemographicsStats {
+  questionId: number;
+  text: string;
+  totalVotes: number;
+  byGender: GenderVotes[];
+  byAge: AgeGroupVotes[];
+  answers: AnswerDemographics[];
+}
+
+function buildGenderVotes(
+  raw: { gender: string; votes: string }[],
+): GenderVotes[] {
+  const votesByGender = new Map<string, number>(
+    raw.map((row) => [row.gender, Number(row.votes)]),
+  );
+  return ALL_GENDERS.map((gender) => ({
+    gender,
+    votes: votesByGender.get(gender) ?? 0,
+  }));
+}
+
+function buildAgeGroupVotes(
+  raw: { ageGroup: string; votes: string }[],
+): AgeGroupVotes[] {
+  const votesByAgeGroup = new Map<string, number>(
+    raw.map((row) => [row.ageGroup, Number(row.votes)]),
+  );
+  return ALL_AGE_GROUPS.map((ageGroup) => ({
+    ageGroup,
+    votes: votesByAgeGroup.get(ageGroup) ?? 0,
+  }));
 }
 
 @Injectable()
@@ -380,5 +478,133 @@ export class StatsService {
       .slice(0, limit);
 
     return { mostVoted, mostControversial, fastestGrowing };
+  }
+
+  // ⭐ გლობალური სტატისტიკა ხმების მიცემისას სქესისა და ასაკის მიხედვით
+  async getDemographics(): Promise<DemographicsStats> {
+    const [totalVotes, genderRaw, ageRaw] = await Promise.all([
+      this.userAnswerRepository.count(),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select(GENDER_SQL, 'gender')
+        .addSelect('COUNT(*)', 'votes')
+        .groupBy(GENDER_SQL)
+        .getRawMany<{ gender: string; votes: string }>(),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select(AGE_GROUP_SQL, 'ageGroup')
+        .addSelect('COUNT(*)', 'votes')
+        .groupBy(AGE_GROUP_SQL)
+        .getRawMany<{ ageGroup: string; votes: string }>(),
+    ]);
+
+    return {
+      totalVotes,
+      byGender: buildGenderVotes(genderRaw),
+      byAge: buildAgeGroupVotes(ageRaw),
+    };
+  }
+
+  // ⭐ კონკრეტული კითხვის სტატისტიკა სქესისა და ასაკის მიხედვით (მთლიანად და თითო პასუხზე)
+  async getQuestionDemographics(
+    questionId: number,
+  ): Promise<QuestionDemographicsStats> {
+    const question = await this.questionRepository.findOne({
+      where: { id: questionId },
+      relations: { answers: true },
+    });
+    if (!question) {
+      throw new NotFoundException(`Question with ID ${questionId} not found`);
+    }
+
+    const [
+      totalVotes,
+      genderRaw,
+      ageRaw,
+      answerGenderRaw,
+      answerAgeRaw,
+    ] = await Promise.all([
+      this.userAnswerRepository.count({ where: { question: { id: questionId } } }),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select(GENDER_SQL, 'gender')
+        .addSelect('COUNT(*)', 'votes')
+        .where('ua.questionId = :questionId', { questionId })
+        .groupBy(GENDER_SQL)
+        .getRawMany<{ gender: string; votes: string }>(),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select(AGE_GROUP_SQL, 'ageGroup')
+        .addSelect('COUNT(*)', 'votes')
+        .where('ua.questionId = :questionId', { questionId })
+        .groupBy(AGE_GROUP_SQL)
+        .getRawMany<{ ageGroup: string; votes: string }>(),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select('ua.answerId', 'answerId')
+        .addSelect(GENDER_SQL, 'gender')
+        .addSelect('COUNT(*)', 'votes')
+        .where('ua.questionId = :questionId', { questionId })
+        .groupBy('ua.answerId')
+        .addGroupBy(GENDER_SQL)
+        .getRawMany<{ answerId: number; gender: string; votes: string }>(),
+      this.userAnswerRepository
+        .createQueryBuilder('ua')
+        .leftJoin('ua.user', 'user')
+        .select('ua.answerId', 'answerId')
+        .addSelect(AGE_GROUP_SQL, 'ageGroup')
+        .addSelect('COUNT(*)', 'votes')
+        .where('ua.questionId = :questionId', { questionId })
+        .groupBy('ua.answerId')
+        .addGroupBy(AGE_GROUP_SQL)
+        .getRawMany<{ answerId: number; ageGroup: string; votes: string }>(),
+    ]);
+
+    const genderByAnswerId = new Map<number, { gender: string; votes: string }[]>();
+    for (const row of answerGenderRaw) {
+      const answerId = Number(row.answerId);
+      const rows = genderByAnswerId.get(answerId) ?? [];
+      rows.push(row);
+      genderByAnswerId.set(answerId, rows);
+    }
+
+    const ageByAnswerId = new Map<number, { ageGroup: string; votes: string }[]>();
+    for (const row of answerAgeRaw) {
+      const answerId = Number(row.answerId);
+      const rows = ageByAnswerId.get(answerId) ?? [];
+      rows.push(row);
+      ageByAnswerId.set(answerId, rows);
+    }
+
+    const votesByAnswerId = new Map<number, number>();
+    for (const row of answerGenderRaw) {
+      const answerId = Number(row.answerId);
+      votesByAnswerId.set(
+        answerId,
+        (votesByAnswerId.get(answerId) ?? 0) + Number(row.votes),
+      );
+    }
+
+    const answers: AnswerDemographics[] = question.answers.map((answer) => ({
+      id: answer.id,
+      text: answer.text,
+      votes: votesByAnswerId.get(answer.id) ?? 0,
+      byGender: buildGenderVotes(genderByAnswerId.get(answer.id) ?? []),
+      byAge: buildAgeGroupVotes(ageByAnswerId.get(answer.id) ?? []),
+    }));
+
+    return {
+      questionId: question.id,
+      text: question.text,
+      totalVotes,
+      byGender: buildGenderVotes(genderRaw),
+      byAge: buildAgeGroupVotes(ageRaw),
+      answers,
+    };
   }
 }

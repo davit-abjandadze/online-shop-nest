@@ -51,7 +51,7 @@ export class UserAnswerService {
       throw new BadRequestException('ეს კითხვა მხოლოდ ერთ პასუხს ითვალისწინებს');
     }
 
-    
+    // datooo
     // ⭐ 3. ახალი: შევამოწმოთ, ხომ არ აქვს ამ IP-ს უკვე მიცემული ხმა ამ კითხვაზე
     const existingIpVote = await this.userAnswerRepository.findOne({
       where: {

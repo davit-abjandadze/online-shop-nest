@@ -49,6 +49,7 @@ export class QuestionService {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
+      // datooo
       // 1. ჩვეულებრივ user-ს დღეში მხოლოდ 1 კითხვის დამატება შეუძლია (per-account)
       const questionsToday = await this.questionRepository.count({
         where: {
@@ -257,6 +258,22 @@ export class QuestionService {
 
     if (result.affected) {
       this.logger.log(`ვადაგასული კითხვები დეაქტივირდა: ${result.affected}`);
+    }
+  }
+
+  // ⭐ კითხვები, რომლებიც 5 დღეში ადმინმა არ დაადასტურა (PENDING-ში დარჩა), ავტომატურად წაიშლება ბაზიდან (ყოველდღიურად)
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async removeUnapprovedQuestions() {
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+
+    const result = await this.questionRepository.delete({
+      approvalStatus: ApprovalStatus.PENDING,
+      createdAt: LessThanOrEqual(fiveDaysAgo),
+    });
+
+    if (result.affected) {
+      this.logger.log(`5 დღეზე მეტი უპასუხოდ დარჩენილი (PENDING) კითხვები წაშლილია: ${result.affected}`);
     }
   }
 
