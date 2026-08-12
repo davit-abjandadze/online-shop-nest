@@ -21,7 +21,14 @@ export class PaginationMetaDto {
 }
 
 export class PaginatedResponseDto<T> {
-  @ApiProperty({ isArray: true, description: 'მონაცემთა მასივი' })
+  // შენიშვნა: T გენერიკია და runtime-ზე იკარგება, ამიტომ swagger-ისთვის
+  // item-ის ტიპი ვერ ვიცით ზუსტად — ვაფიქსირებთ, როგორც თავისუფალი ობიექტების მასივს,
+  // რომ OpenAPI schema ვალიდური დარჩეს (items აუცილებელია) და კოდგენერაცია არ გატყდეს.
+  @ApiProperty({
+    type: () => Object,
+    isArray: true,
+    description: 'მონაცემთა მასივი',
+  })
   data: T[];
 
   @ApiProperty({ type: PaginationMetaDto, description: 'პაგინაციის მეტაინფორმაცია' })

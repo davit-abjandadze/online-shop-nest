@@ -315,11 +315,25 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "წარმატებული რეგისტრაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "409": {
+            "description": "ელფოსტა უკვე დაკავებულია"
           }
         },
+        "summary": "მომხმარებლის რეგისტრაცია",
         "tags": [
-          "Auth"
+          "auth"
         ]
       }
     },
@@ -338,12 +352,218 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "წარმატებული ავტორიზაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "401": {
+            "description": "არასწორი ელფოსტა ან პაროლი"
           }
         },
+        "summary": "მომხმარებლის ავტორიზაცია",
         "tags": [
-          "Auth"
+          "auth"
+        ]
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "operationId": "AuthController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული წვდომა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მიმდინარე მომხმარებლის პროფილი",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/dashboard": {
+      "get": {
+        "operationId": "AuthController_getAdminDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული წვდომა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          },
+          "403": {
+            "description": "არ გაქვს ადმინისტრატორის უფლებები"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მხოლოდ ადმინისტრატორის პანელი",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პაროლი წარმატებით შეიცვალა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ძველი პაროლი არასწორია ან ახალი პაროლი ძველს ემთხვევა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პაროლის შეცვლა (ავტორიზებული მომხმარებლისთვის)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "operationId": "AuthController_googleLogin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული ავტორიზაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Google-ით ავტორიზაცია/რეგისტრაცია",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/facebook": {
+      "post": {
+        "operationId": "AuthController_facebookLogin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული ავტორიზაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Facebook-ით ავტორიზაცია/რეგისტრაცია",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ინსტრუქცია გაიგზავნა"
+          },
+          "400": {
+            "description": "არასწორი ელფოსტა"
+          }
+        },
+        "summary": "პაროლის აღდგენის მოთხოვნა (email-ის გაგზავნა)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პაროლი წარმატებით შეიცვალა"
+          },
+          "400": {
+            "description": "არასწორი ან ამოწურული token"
+          }
+        },
+        "summary": "პაროლის აღდგენა token-ით",
+        "tags": [
+          "auth"
         ]
       }
     },
@@ -371,32 +591,211 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "user-მა (ან ამ მოწყობილობიდან სხვა პროფილმა) უკვე დასვა კითხვა დღეს"
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის დამატება (user-ს დღეში 1-ხელ, ერთი მოწყობილობიდან; user-ის კითხვა isActive:false/PENDING იქმნება)",
         "tags": [
-          "Question"
+          "questions"
         ]
       },
       "get": {
         "operationId": "QuestionController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერები გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "მიმართულება",
+            "schema": {
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "კატეგორიის ID",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)",
+            "schema": {
+              "enum": [
+                "active",
+                "inactive"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "approvalStatus",
+            "required": false,
+            "in": "query",
+            "description": "admin-ის განხილვის სტატუსი",
+            "schema": {
+              "enum": [
+                "pending",
+                "approved",
+                "rejected"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "creatorType",
+            "required": false,
+            "in": "query",
+            "description": "ვინ დასვა კითხვა",
+            "schema": {
+              "enum": [
+                "admin",
+                "user"
+              ],
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "კითხვების სია pagination-ით",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Question"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponseDto"
                 }
               }
             }
           }
         },
+        "summary": "ყველა კითხვა (pagination, ფილტრით)",
         "tags": [
-          "Question"
+          "questions"
+        ]
+      }
+    },
+    "/questions/my-questions": {
+      "get": {
+        "operationId": "QuestionController_findMyQuestions",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემ მიერ დასმული კითხვების სია (პროფილის გვერდისთვის, admin-ის დასტურის სტატუსით)",
+        "tags": [
+          "questions"
         ]
       }
     },
@@ -426,7 +825,7 @@
           }
         },
         "tags": [
-          "Question"
+          "questions"
         ]
       },
       "patch": {
@@ -463,8 +862,14 @@
             }
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის რედაქტირება, მათ შორის user-ის დასმული კითხვის ტექსტის/პასუხების ცვლილება (მხოლოდ admin)",
         "tags": [
-          "Question"
+          "questions"
         ]
       },
       "delete": {
@@ -491,8 +896,320 @@
             }
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის წაშლა (მხოლოდ admin)",
         "tags": [
-          "Question"
+          "questions"
+        ]
+      }
+    },
+    "/questions/{id}/activate": {
+      "patch": {
+        "operationId": "QuestionController_activate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის გააქტიურება (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/questions/{id}/deactivate": {
+      "patch": {
+        "operationId": "QuestionController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის დეაქტივაცია (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/questions/{id}/approve": {
+      "patch": {
+        "operationId": "QuestionController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveQuestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "user-ის დასმული კითხვის დადასტურება, სურვილისამებრ დამთავრების თარიღით (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/questions/{id}/reject": {
+      "patch": {
+        "operationId": "QuestionController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectQuestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "user-ის დასმული კითხვის უკუგდება მიზეზის მითითებით (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/categories": {
+      "get": {
+        "operationId": "CategoryController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კატეგორიების სია"
+          }
+        },
+        "summary": "ყველა კატეგორიის მიღება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "post": {
+        "operationId": "CategoryController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "კატეგორია შეიქმნა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          }
+        },
+        "summary": "ახალი კატეგორიის შექმნა",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/{id}": {
+      "get": {
+        "operationId": "CategoryController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კატეგორია"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული კატეგორიის მიღება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "put": {
+        "operationId": "CategoryController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "კატეგორია განახლდა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის განახლება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "delete": {
+        "operationId": "CategoryController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კატეგორია წაიშალა"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის წაშლა",
+        "tags": [
+          "categories"
         ]
       }
     },
@@ -629,17 +1346,10 @@
         },
         "responses": {
           "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserAnswer"
-                  }
-                }
-              }
-            }
+            "description": "ხმა წარმატებით დარეგისტრირდა"
+          },
+          "409": {
+            "description": "ამ IP-დან ან მომხმარებლისგან უკვე მიცემულია ხმა"
           }
         },
         "security": [
@@ -647,6 +1357,7 @@
             "bearer": []
           }
         ],
+        "summary": "ხმის მიცემა კითხვაზე (IP ტრექინგით)",
         "tags": [
           "UserAnswer"
         ]
@@ -670,8 +1381,417 @@
             "description": ""
           }
         },
+        "summary": "კითხვის შედეგების ნახვა",
         "tags": [
           "UserAnswer"
+        ]
+      }
+    },
+    "/user-answers/my-voted-questions": {
+      "get": {
+        "operationId": "UserAnswerController_getMyVotedQuestions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კითხვების ID-ების მასივი"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვების ID-ები, რომლებზეც მომხმარებელს აქვს ხმა მიცემული",
+        "tags": [
+          "UserAnswer"
+        ]
+      }
+    },
+    "/user-answers/my-activities": {
+      "get": {
+        "operationId": "UserAnswerController_getMyActivities",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "კატეგორიის ID",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive"
+              ]
+            }
+          },
+          {
+            "name": "approvalStatus",
+            "required": false,
+            "in": "query",
+            "description": "admin-ის განხილვის სტატუსი (მხ. user-ის დასმულ კითხვებს ეხება; admin-ის კითხვები ყოველთვის approved-ია)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            }
+          },
+          {
+            "name": "creatorType",
+            "required": false,
+            "in": "query",
+            "description": "ვინ დასვა კითხვა — admin თუ user",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "user"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ხმა მიცემული კითხვები pagination-ით"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროფილის \"აქტივობები\" - ხმა მიცემული კითხვები (pagination, ფილტრით)",
+        "tags": [
+          "UserAnswer"
+        ]
+      }
+    },
+    "/favorites/{questionId}": {
+      "post": {
+        "operationId": "FavoriteController_addFavorite",
+        "parameters": [
+          {
+            "name": "questionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "ფავორიტებში დაემატა"
+          },
+          "409": {
+            "description": "უკვე ფავორიტებშია დამატებული"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის დამატება ფავორიტებში",
+        "tags": [
+          "favorites"
+        ]
+      },
+      "delete": {
+        "operationId": "FavoriteController_removeFavorite",
+        "parameters": [
+          {
+            "name": "questionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Favorite"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის წაშლა ფავორიტებიდან",
+        "tags": [
+          "favorites"
+        ]
+      }
+    },
+    "/favorites": {
+      "get": {
+        "operationId": "FavoriteController_findMyFavorites",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემი ფავორიტი კითხვები (pagination-ით)",
+        "tags": [
+          "favorites"
+        ]
+      }
+    },
+    "/stats/global": {
+      "get": {
+        "operationId": "StatsController_getGlobalStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "გლობალური სტატისტიკის მონაცემები"
+          }
+        },
+        "summary": "გლობალური სტატისტიკა",
+        "tags": [
+          "Stats"
+        ]
+      }
+    },
+    "/stats/trends": {
+      "get": {
+        "operationId": "StatsController_getTrends",
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "პერიოდი, რომლისთვისაც აიგება ტრენდი",
+            "schema": {
+              "default": "week",
+              "type": "string",
+              "enum": [
+                "week",
+                "month",
+                "year"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ყოველდღიური ხმების რაოდენობა, პიკური საათი და ტრენდის მიმართულება"
+          }
+        },
+        "summary": "ხმების ტრენდები პერიოდის მიხედვით",
+        "tags": [
+          "Stats"
+        ]
+      }
+    },
+    "/stats/categories": {
+      "get": {
+        "operationId": "StatsController_getCategoriesStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "თითოეული კატეგორიის კითხვების, ხმების, საშუალო აქტივობისა და ყველაზე აქტიური კითხვის მონაცემები"
+          }
+        },
+        "summary": "სტატისტიკა კატეგორიების მიხედვით",
+        "tags": [
+          "Stats"
+        ]
+      }
+    },
+    "/stats/popular-questions": {
+      "get": {
+        "operationId": "StatsController_getPopularQuestions",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "თითო კატეგორიაში დასაბრუნებელი ჩანაწერების რაოდენობა",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ყველაზე ხმებიანი, ყველაზე კონტროვერსიული და ბოლო 24 საათში ყველაზე სწრაფად მზარდი კითხვები"
+          }
+        },
+        "summary": "პოპულარული კითხვები",
+        "tags": [
+          "Stats"
+        ]
+      }
+    },
+    "/stats/demographics": {
+      "get": {
+        "operationId": "StatsController_getDemographics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ხმების რაოდენობა სქესის (male/female/unknown) და ასაკობრივი ჯგუფების მიხედვით"
+          }
+        },
+        "summary": "ხმების გლობალური სტატისტიკა სქესისა და ასაკის მიხედვით",
+        "tags": [
+          "Stats"
+        ]
+      }
+    },
+    "/stats/questions/{id}/demographics": {
+      "get": {
+        "operationId": "StatsController_getQuestionDemographics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კითხვის ხმების განაწილება სქესისა და ასაკობრივი ჯგუფების მიხედვით, დეტალურად თითოეულ პასუხზეც"
+          }
+        },
+        "summary": "კონკრეტული კითხვის სტატისტიკა სქესისა და ასაკის მიხედვით (მთლიანად და თითო პასუხზე)",
+        "tags": [
+          "Stats"
         ]
       }
     }
@@ -696,6 +1816,27 @@
       "CreateUserDto": {
         "type": "object",
         "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string",
+            "default": "user"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
           "firstName": {
             "type": "string"
           },
@@ -732,6 +1873,23 @@
           "email": {
             "type": "string"
           },
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string"
+          },
+          "age": {
+            "type": "number"
+          },
           "password": {
             "type": "string"
           },
@@ -745,6 +1903,7 @@
           "firstName",
           "lastName",
           "email",
+          "role",
           "password",
           "createdAt"
         ]
@@ -752,6 +1911,27 @@
       "UpdateUserDto": {
         "type": "object",
         "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string",
+            "default": "user"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
           "firstName": {
             "type": "string"
           },
@@ -832,6 +2012,19 @@
       "RegisterDto": {
         "type": "object",
         "properties": {
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
           "firstName": {
             "type": "string"
           },
@@ -854,6 +2047,74 @@
           "password"
         ]
       },
+      "UserDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "test@test.com"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "გიორგი"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "ბერიძე"
+          },
+          "age": {
+            "type": "number",
+            "example": 25
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName"
+        ]
+      },
+      "TokenDataDto": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserDataDto"
+          }
+        },
+        "required": [
+          "access_token",
+          "user"
+        ]
+      },
+      "RegisterResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 201
+          },
+          "message": {
+            "type": "string",
+            "example": "მომხმარებელი წარმატებით დარეგისტრირდა"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TokenDataDto"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "data"
+        ]
+      },
       "LoginDto": {
         "type": "object",
         "properties": {
@@ -869,6 +2130,97 @@
         "required": [
           "email",
           "password"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "წარმატებით შეხვედით სისტემაში"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TokenDataDto"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "data"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "type": "string",
+            "description": "ძველი პაროლი",
+            "example": "oldPassword123"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "ახალი პაროლი (მინიმუმ 6 სიმბოლო)",
+            "example": "newPassword456"
+          }
+        },
+        "required": [
+          "oldPassword",
+          "newPassword"
+        ]
+      },
+      "ChangePasswordResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "პაროლი წარმატებით შეიცვალა"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "dato@gmail.com",
+            "description": "მომხმარებლის ელფოსტა"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token, რომელიც მიღებულია email-იდან"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "ახალი პაროლი",
+            "example": "newPassword123"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
         ]
       },
       "CreateAnswerDto": {
@@ -887,6 +2239,22 @@
       "CreateQuestionDto": {
         "type": "object",
         "properties": {
+          "categoryId": {
+            "type": "number",
+            "description": "კატეგორიის ID (optional)",
+            "example": 1
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კითხვა (მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის კითხვისთვის ეს ველი იგნორირდება)",
+            "example": true,
+            "default": true
+          },
+          "endDate": {
+            "type": "string",
+            "description": "დასრულების თარიღი (ISO ფორმატი). ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში. მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის მიერ გამოგზავნილი ეს ველი იგნორირდება (user-ის კითხვისთვის დამთავრების თარიღეს ადგენს admin approve-ის დროს)",
+            "example": "2026-12-31T23:59:59.000Z"
+          },
           "text": {
             "type": "string"
           },
@@ -907,6 +2275,30 @@
         "required": [
           "text",
           "answers"
+        ]
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Question"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name"
         ]
       },
       "Question": {
@@ -931,6 +2323,59 @@
               "$ref": "#/components/schemas/Answer"
             }
           },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "categoryId": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "endDate": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "creatorType": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/User"
+          },
+          "createdById": {
+            "type": "number"
+          },
+          "creatorIp": {
+            "type": "string"
+          },
+          "approvalStatus": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "reviewedBy": {
+            "$ref": "#/components/schemas/User"
+          },
+          "reviewedById": {
+            "type": "number"
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -941,6 +2386,9 @@
           "text",
           "type",
           "answers",
+          "isActive",
+          "creatorType",
+          "approvalStatus",
           "createdAt"
         ]
       },
@@ -963,9 +2411,115 @@
           "question"
         ]
       },
+      "PaginationMetaDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "example": 150,
+            "description": "ჩანაწერების საერთო რაოდენობა"
+          },
+          "page": {
+            "type": "number",
+            "example": 1,
+            "description": "მიმდინარე გვერდი"
+          },
+          "limit": {
+            "type": "number",
+            "example": 10,
+            "description": "ჩანაწერები თითო გვერდზე"
+          },
+          "totalPages": {
+            "type": "number",
+            "example": 15,
+            "description": "გვერდების საერთო რაოდენობა"
+          },
+          "hasNext": {
+            "type": "boolean",
+            "example": true,
+            "description": "არის თუ არა შემდეგი გვერდი"
+          },
+          "hasPrevious": {
+            "type": "boolean",
+            "example": false,
+            "description": "არის თუ არა წინა გვერდი"
+          }
+        },
+        "required": [
+          "total",
+          "page",
+          "limit",
+          "totalPages",
+          "hasNext",
+          "hasPrevious"
+        ]
+      },
+      "PaginatedResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "მონაცემთა მასივი",
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "meta": {
+            "description": "პაგინაციის მეტაინფორმაცია",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaginationMetaDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "ApproveQuestionDto": {
+        "type": "object",
+        "properties": {
+          "endDate": {
+            "type": "string",
+            "description": "დამთავრების თარიღი (ISO ფორმატი) — მხოლოდ admin-ს შეუძლია დაწესება დასტურის დროს. ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში",
+            "example": "2026-12-31T23:59:59.000Z"
+          }
+        }
+      },
+      "RejectQuestionDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "რატომ არ დაადასტურა admin-მა ეს კითხვა",
+            "example": "კითხვის ტექსტი არ არის ნათელი"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
       "UpdateQuestionDto": {
         "type": "object",
         "properties": {
+          "categoryId": {
+            "type": "number",
+            "description": "კატეგორიის ID (optional)",
+            "example": 1
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კითხვა (მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის კითხვისთვის ეს ველი იგნორირდება)",
+            "example": true,
+            "default": true
+          },
+          "endDate": {
+            "type": "string",
+            "description": "დასრულების თარიღი (ISO ფორმატი). ვადის გასვლის შემდეგ კითხვა ავტომატურად გადავა დეაქტივირებულ სიაში. მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის მიერ გამოგზავნილი ეს ველი იგნორირდება (user-ის კითხვისთვის დამთავრების თარიღეს ადგენს admin approve-ის დროს)",
+            "example": "2026-12-31T23:59:59.000Z"
+          },
           "text": {
             "type": "string"
           },
@@ -981,6 +2535,67 @@
             "items": {
               "$ref": "#/components/schemas/CreateAnswerDto"
             }
+          }
+        }
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კატეგორიის სახელი",
+            "example": "პოლიტიკა"
+          },
+          "description": {
+            "type": "string",
+            "description": "კატეგორიის მოკლე აღწერა",
+            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "CategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "კატეგორია წარმატებით შეიქმნა"
+          },
+          "data": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ]
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კატეგორიის სახელი",
+            "example": "პოლიტიკა"
+          },
+          "description": {
+            "type": "string",
+            "description": "კატეგორიის მოკლე აღწერა",
+            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
           }
         }
       },
@@ -1009,7 +2624,7 @@
           "answerIds"
         ]
       },
-      "UserAnswer": {
+      "Favorite": {
         "type": "object",
         "properties": {
           "id": {
@@ -1021,9 +2636,6 @@
           "question": {
             "$ref": "#/components/schemas/Question"
           },
-          "answer": {
-            "$ref": "#/components/schemas/Answer"
-          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1033,7 +2645,6 @@
           "id",
           "user",
           "question",
-          "answer",
           "createdAt"
         ]
       }
