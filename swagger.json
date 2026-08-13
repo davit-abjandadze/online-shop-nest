@@ -979,6 +979,81 @@
         ]
       }
     },
+    "/questions/{id}/pin": {
+      "patch": {
+        "operationId": "QuestionController_pin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "დაპინული კითხვების მაქსიმალური რაოდენობა ამოწურულია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის დაპინვა მთავარ გვერდზე, როგორც მნიშვნელოვანი (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/questions/{id}/unpin": {
+      "patch": {
+        "operationId": "QuestionController_unpin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კითხვის დაპინვის გაუქმება (მხოლოდ admin)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
     "/questions/{id}/approve": {
       "patch": {
         "operationId": "QuestionController_approve",
@@ -2379,6 +2454,14 @@
           "createdAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "isPinned": {
+            "type": "boolean"
+          },
+          "pinnedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -2389,7 +2472,8 @@
           "isActive",
           "creatorType",
           "approvalStatus",
-          "createdAt"
+          "createdAt",
+          "isPinned"
         ]
       },
       "Answer": {

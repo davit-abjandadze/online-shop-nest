@@ -18,6 +18,9 @@ export interface RequestUser {
   role: UserRole;
 }
 
+// მთავარ გვერდზე ერთდროულად დაპინული კითხვების მაქსიმალური რაოდენობა
+const MAX_PINNED_QUESTIONS = 5;
+
 @Injectable()
 export class QuestionService {
   private readonly logger = new Logger(QuestionService.name);
@@ -202,7 +205,10 @@ export class QuestionService {
     }
 
     query
-      .orderBy(`question.${actualSortBy}`, order)
+      // დაპინული კითხვები ყოველთვის ზემოთაა, მათ შორის — ბოლოს დაპინული ყველაზე პირველი
+      .orderBy('question.isPinned', 'DESC')
+      .addOrderBy('question.pinnedAt', 'DESC')
+      .addOrderBy(`question.${actualSortBy}`, order)
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -242,6 +248,34 @@ export class QuestionService {
   async deactivate(id: number) {
     const question = await this.findOne(id);
     question.isActive = false;
+    return this.questionRepository.save(question);
+  }
+
+  // admin-ის მიერ კითხვის მთავარ გვერდზე დაპინვა (მნიშვნელოვნად მიჩნეული)
+  async pin(id: number) {
+    const question = await this.findOne(id);
+
+    if (!question.isPinned) {
+      const pinnedCount = await this.questionRepository.count({
+        where: { isPinned: true },
+      });
+      if (pinnedCount >= MAX_PINNED_QUESTIONS) {
+        throw new ConflictException(
+          `ერთდროულად მაქსიმუმ ${MAX_PINNED_QUESTIONS} კითხვის დაპინვა შესაძლებელია. ჯერ გააუქმეთ ერთი დაპინული კითხვა.`,
+        );
+      }
+    }
+
+    question.isPinned = true;
+    question.pinnedAt = new Date();
+    return this.questionRepository.save(question);
+  }
+
+  // admin-ის მიერ დაპინვის გაუქმება
+  async unpin(id: number) {
+    const question = await this.findOne(id);
+    question.isPinned = false;
+    question.pinnedAt = null;
     return this.questionRepository.save(question);
   }
 

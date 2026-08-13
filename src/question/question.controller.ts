@@ -108,6 +108,25 @@ export class QuestionController {
     return this.questionService.deactivate(+id);
   }
 
+  @Patch(':id/pin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'კითხვის დაპინვა მთავარ გვერდზე, როგორც მნიშვნელოვანი (მხოლოდ admin)' })
+  @ApiResponse({ status: 409, description: 'დაპინული კითხვების მაქსიმალური რაოდენობა ამოწურულია' })
+  pin(@Param('id') id: string) {
+    return this.questionService.pin(+id);
+  }
+
+  @Patch(':id/unpin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'კითხვის დაპინვის გაუქმება (მხოლოდ admin)' })
+  unpin(@Param('id') id: string) {
+    return this.questionService.unpin(+id);
+  }
+
   @Patch(':id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

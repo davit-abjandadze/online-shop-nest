@@ -102,4 +102,12 @@ export class Question {
 
   @CreateDateColumn()
   createdAt!: Date;
+
+  // admin-ის მიერ მთავარ გვერდზე დაპინული კითხვა (მნიშვნელოვნად მიჩნეული)
+  @Column({ default: false })
+  isPinned!: boolean;
+
+  // როდის დაპინა admin-მა — რამდენიმე დაპინულის შემთხვევაში ამის მიხედვით ლაგდება (ბოლოს დაპინული ზემოთ)
+  @Column({ type: 'timestamp', nullable: true })
+  pinnedAt?: Date | null;
 }
