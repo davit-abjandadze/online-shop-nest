@@ -8,8 +8,11 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prestart": "node scripts/update-graphify-wiki.js",
     "start": "nest start",
+    "prestart:dev": "node scripts/update-graphify-wiki.js",
     "start:dev": "nest start --watch",
+    "prestart:debug": "node scripts/update-graphify-wiki.js",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
