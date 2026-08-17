@@ -17,6 +17,14 @@ resource "aws_iam_openid_connect_provider" "github" {
   thumbprint_list = [data.tls_certificate.github.certificates[0].sha1_fingerprint]
 }
 
+locals {
+  # sub claim ფორმატია "repo:{owner}[@id]/{repo}[@id]:ref:refs/heads/{branch}" —
+  # "@id" ნაწილი ორივე ადგილას (owner-ის და repo-ის სახელის შემდეგ) ცალ-ცალკე
+  # უნდა დაიფაროს wildcard-ით, ერთმა wildcard-მა სტრიქონის ბოლოში ეს ვერ ჩაანაცვლებს.
+  github_owner = split("/", var.github_repository)[0]
+  github_repo  = split("/", var.github_repository)[1]
+}
+
 data "aws_iam_policy_document" "github_actions_assume" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -35,10 +43,15 @@ data "aws_iam_policy_document" "github_actions_assume" {
     # master branch-ზე push-იც და workflow_dispatch-იც (ორივეს "ref:refs/heads/master"
     # claim აქვს ბოლო შემთხვევაშიც, თუ master-იდან გაუშვით ხელით) დაშვებულია, სხვა
     # branch/PR-ს — არა. თუ სხვა branch-იდანაც გინდათ deploy, აქ დაამატეთ.
+    #
+    # wildcard-ები (*) owner/repo-ს სახელის შემდეგ საჭიროა, რადგან GitHub-მა repo ან
+    # owner-ის სახელის ცვლილების შემდეგ sub claim-ს "@<immutable-id>" სუფიქსი
+    # დაამატა (მაგ. "repo:owner@123/repo@456:ref:..."), რომ ძველი გადარქმეული
+    # სახელის claim-ი ხელახლა ვერავინ დაიმფლოს.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/master"]
+      values   = ["repo:${local.github_owner}*/${local.github_repo}*:ref:refs/heads/master"]
     }
   }
 }
