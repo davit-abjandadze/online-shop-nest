@@ -71,11 +71,30 @@ Container ბუთზე production რეჟიმში (`NODE_ENV=production
 yarn migration:generate src/migrations/SomeChange
 ```
 
+## CI/CD (GitHub Actions)
+
+[.github/workflows/deploy.yml](../.github/workflows/deploy.yml) `master`-ზე push-ზე
+აშენებს image-ს, push-ავს ECR-ში (`:latest` და `:<git-sha>` ტეგებით) და
+`aws apprunner start-deployment`-ს იძახებს — გრძელვადიანი AWS access key-ების
+გარეშე, GitHub-ის OIDC-ით ([github-oidc.tf](github-oidc.tf)-ით შექმნილი role).
+
+`terraform apply`-ის შემდეგ, repo Settings → Secrets and variables → Actions →
+**Variables**-ში დაამატეთ:
+
+| Variable | წყარო |
+|---|---|
+| `AWS_ROLE_ARN` | `terraform output github_actions_role_arn` |
+| `AWS_REGION` | `var.aws_region` (default `eu-central-1`) |
+| `ECR_REPOSITORY` | `var.project_name` (default `referendum-backend`) |
+| `APPRUNNER_SERVICE_ARN` | `terraform output apprunner_service_arn` |
+
+OIDC role-ის trust policy მხოლოდ `master` branch-იდან push/dispatch-ს უშვებს
+(`github-oidc.tf`-ის `github_repository` variable-ით repo-ც არის შეზღუდული) — სხვა
+branch-იდან workflow-ის გაშვება assume-ზე უარს ეტყვის.
+
 ## რა არ შედის აქ (განზრახ)
 
 - **Route53/ACM domain** — App Runner-ს აქვს default HTTPS URL; საკუთარი დომენი დაამატეთ
   ცალკე `aws_apprunner_custom_domain_association`-ით, თუ დაგჭირდებათ.
 - **Remote Terraform state (S3+DynamoDB lock)** — [versions.tf](versions.tf)-ში კომენტარშია, ჩართეთ
   გუნდურ მუშაობამდე.
-- **CI/CD (GitHub Actions)** — ეს ფაილები მხოლოდ infra-ს ქმნის; build/push/deploy
-  ავტომატიზაცია ცალკე workflow-ია.

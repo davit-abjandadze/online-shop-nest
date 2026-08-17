@@ -6,6 +6,10 @@ output "apprunner_service_url" {
   value = "https://${aws_apprunner_service.this.service_url}"
 }
 
+output "apprunner_service_arn" {
+  value = aws_apprunner_service.this.arn
+}
+
 output "rds_endpoint" {
   value = aws_db_instance.this.address
 }
