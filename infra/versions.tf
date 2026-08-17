@@ -28,3 +28,10 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
+
+# CloudFront-ს ACM სერტიფიკატი მხოლოდ us-east-1-დან შეუძლია მიიღოს, მიუხედავად
+# იმისა, სად არის თავად distribution/დანარჩენი infra (custom domain-ისთვის, api.evote.ge).
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
