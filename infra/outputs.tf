@@ -6,6 +6,10 @@ output "backend_url" {
   value = "http://${aws_eip.ec2.public_ip}"
 }
 
+output "backend_https_url" {
+  value = "https://${aws_cloudfront_distribution.backend.domain_name}"
+}
+
 output "ec2_instance_id" {
   value = aws_instance.this.id
 }
