@@ -8,12 +8,18 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS_ORIGINS env-ით (მძიმით გამოყოფილი სია) production დომენების დასამატებლად,
+  // ხოლო თუ არაა მითითებული — ლოკალური dev origin-ები ისევ მუშაობს, როგორც ადრე.
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
+    : [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://192.168.0.126:3000',
+      ];
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://192.168.0.126:3000',
-    ],
+    origin: allowedOrigins,
     credentials: true,
   });
   // ვალიდაციის პაიპი - ავტომატურად შეამოწმებს DTO-ებს
@@ -37,12 +43,19 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // ყოველ სტარტზე ავტომატურად გენერირდება/განახლდება swagger.json,
-  // რომ ფრონტმა ყოველთვის ახალი schema-დან შეძლოს ტიპების/კლიენტის გენერაცია
-  writeFileSync(
-    join(process.cwd(), 'swagger.json'),
-    JSON.stringify(document, null, 2),
-  );
+  // რომ ფრონტმა ყოველთვის ახალი schema-დან შეძლოს ტიპების/კლიენტის გენერაცია.
+  // production კონტეინერში ფაილსისტემა ეფემერულია და ეს ფაილი არავის სჭირდება იქ,
+  // ამიტომ ჩავარდნაზე მხოლოდ warning-ს ვწერთ და ბუთს არ ვწყვეტთ.
+  try {
+    writeFileSync(
+      join(process.cwd(), 'swagger.json'),
+      JSON.stringify(document, null, 2),
+    );
+  } catch (err) {
+    console.warn('swagger.json ვერ ჩაიწერა:', err.message);
+  }
 
-  await app.listen(4000, '0.0.0.0');
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();

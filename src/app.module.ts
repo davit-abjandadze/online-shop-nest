@@ -35,7 +35,11 @@ import { StatsModule } from './stats/stats.module';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
         autoLoadEntities: true, // ავტომატურად იპოვის ყველა Entity-ს
-        synchronize: true, // მხოლოდ დეველოპმენტისთვის!
+        // synchronize მხოლოდ ლოკალურ დეველოპმენტში — production-ში schema
+        // migrations მართავს (იხ. src/migrations/, src/data-source.ts).
+        synchronize: process.env.NODE_ENV !== 'production',
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
+        migrationsRun: process.env.NODE_ENV === 'production',
       }),
     }),
 

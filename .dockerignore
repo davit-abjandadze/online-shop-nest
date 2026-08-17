@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+.env
+.env.*
+graphify-out
+test
+*.md
+.vscode
+.idea
+Dockerfile
+.dockerignore
