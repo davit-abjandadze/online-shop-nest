@@ -9,10 +9,10 @@ resource "aws_db_subnet_group" "this" {
   tags       = { Name = "${var.project_name}-db-subnets" }
 }
 
-# მხოლოდ App Runner-ის VPC connector security group-იდან 5432-ზე შემოსვლა.
+# მხოლოდ EC2-ის security group-იდან 5432-ზე შემოსვლა.
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
-  description = "Postgres access only from the App Runner VPC connector"
+  description = "Postgres access only from the backend EC2 instance"
   vpc_id      = aws_vpc.this.id
 
   egress {
@@ -25,13 +25,13 @@ resource "aws_security_group" "rds" {
   tags = { Name = "${var.project_name}-rds-sg" }
 }
 
-resource "aws_security_group_rule" "rds_from_apprunner" {
+resource "aws_security_group_rule" "rds_from_ec2" {
   type                     = "ingress"
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
   security_group_id        = aws_security_group.rds.id
-  source_security_group_id = aws_security_group.apprunner.id
+  source_security_group_id = aws_security_group.ec2.id
 }
 
 resource "aws_db_instance" "this" {
@@ -41,7 +41,9 @@ resource "aws_db_instance" "this" {
 
   instance_class    = var.db_instance_class
   allocated_storage = var.db_allocated_storage
-  storage_type      = "gp3"
+  # gp2 (და არა gp3) — AWS free tier-ის "20 GB General Purpose SSD storage"
+  # ზუსტად gp2-ს გულისხმობს; gp3-ს ცალკე ფასდება.
+  storage_type      = "gp2"
   storage_encrypted = true
 
   db_name  = var.db_name
@@ -54,8 +56,10 @@ resource "aws_db_instance" "this" {
 
   # hobby/small-scale პროექტისთვის საკმარისია — production ტრაფიკის ზრდისას
   # ჩართეთ multi_az = true (ორმაგდება ღირებულებაც).
-  multi_az                = false
-  backup_retention_period = 7
+  multi_az = false
+  # free tier ანგარიშებზე backup retention 7 დღეზე მეტს არ უშვებს — 1 დღეზე
+  # ვამცირებთ, რომ FreeTierRestrictionError არ დაგვხვდეს.
+  backup_retention_period = 1
   skip_final_snapshot     = true
   deletion_protection     = false
 

@@ -40,6 +40,13 @@ import { StatsModule } from './stats/stats.module';
         synchronize: process.env.NODE_ENV !== 'production',
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         migrationsRun: process.env.NODE_ENV === 'production',
+        // RDS-ის default parameter group-ს rds.force_ssl=1 აქვს (SSL-ის გარეშე
+        // კავშირს pg_hba.conf საერთოდ არ უშვებს) — production-ში ვრთავთ SSL-ს.
+        // rejectUnauthorized: false, რადგან RDS-ის CA bundle-ს არ ვამატებთ.
+        ssl:
+          process.env.NODE_ENV === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
       }),
     }),
 

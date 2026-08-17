@@ -70,9 +70,16 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    sid       = "AppRunnerDeploy"
-    actions   = ["apprunner:StartDeployment", "apprunner:DescribeService"]
-    resources = [aws_apprunner_service.this.arn]
+    sid = "SSMDeploy"
+    actions = [
+      "ssm:SendCommand",
+      "ssm:GetCommandInvocation",
+      "ssm:ListCommandInvocations",
+    ]
+    resources = [
+      aws_instance.this.arn,
+      "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript",
+    ]
   }
 }
 

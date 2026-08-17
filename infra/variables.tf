@@ -34,20 +34,14 @@ variable "db_allocated_storage" {
   default     = 20
 }
 
-variable "apprunner_cpu" {
-  description = "App Runner CPU (App Runner-ის დასაშვები მნიშვნელობები: 256/512/1024/2048/4096)"
+variable "ec2_instance_type" {
+  description = "EC2 instance ტიპი — free tier-ის ფარგლებში (t3.micro/t2.micro, 750სთ/თვე, 12 თვე ახალი ანგარიშისთვის)"
   type        = string
-  default     = "256"
-}
-
-variable "apprunner_memory" {
-  description = "App Runner RAM (MB) — 256 CPU-სთვის დასაშვებია 512 ან 1024"
-  type        = string
-  default     = "512"
+  default     = "t3.micro"
 }
 
 variable "ecr_image_tag" {
-  description = "რომელი image tag გაუშვას App Runner-მა ECR-დან (პირველი apply-მდე image-ს push სჭირდება)"
+  description = "რომელი image tag გაუშვას EC2-მ ECR-დან (პირველი apply-მდე image-ს push სჭირდება)"
   type        = string
   default     = "latest"
 }

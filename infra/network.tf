@@ -1,8 +1,7 @@
-# VPC ორი AZ-ით: public subnets (IGW + NAT Gateway) და private subnets
-# (RDS + App Runner-ის VPC connector). App Runner-ის ყველა outbound ტრაფიკი
-# (RDS-იც და ინტერნეტისკენაც, მაგ. Gmail SMTP) private subnet-იდან NAT-ის
-# გავლით გადის, რადგან App Runner-ს VPC connector-ის მიბმის შემდეგ static
-# public IP აღარ აქვს.
+# VPC ორი AZ-ით: public subnets (IGW-ით, EC2-სთვის — პირდაპირი public IP,
+# NAT Gateway-ის გარეშე, რომ ხარჯი არ დაგვერიცხოს) და private/isolated subnets
+# (მხოლოდ RDS-ისთვის — DB subnet group-ს მინიმუმ 2 AZ სჭირდება, ინტერნეტთან
+# კავშირი საერთოდ არ სჭირდება, ამიტომ route table ცარიელია/local-ონლი).
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -40,22 +39,6 @@ resource "aws_subnet" "private" {
   tags = { Name = "${var.project_name}-private-${count.index}" }
 }
 
-resource "aws_eip" "nat" {
-  domain = "vpc"
-  tags   = { Name = "${var.project_name}-nat-eip" }
-}
-
-# ერთი NAT Gateway (ორივე AZ-ის private subnet-ისთვის) — ხარჯის შესამცირებლად.
-# production-ში high-availability-სთვის თითო AZ-ს თითო NAT სჯობს, მაგრამ
-# ეს აორმაგებს NAT-ის ხარჯს (~$32/თვე თითოზე).
-resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
-  tags          = { Name = "${var.project_name}-nat" }
-
-  depends_on = [aws_internet_gateway.this]
-}
-
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -73,15 +56,12 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+# private subnets-ს გარე ინტერნეტისკენ route საერთოდ არ სჭირდება (RDS-ს
+# EC2-სთან კავშირი იგივე VPC-ს შიგნით, local route-ით გადის, NAT-ის გარეშე) —
+# route table-ს მხოლოდ default local route ექნება.
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this.id
-  }
-
-  tags = { Name = "${var.project_name}-private-rt" }
+  tags   = { Name = "${var.project_name}-private-rt" }
 }
 
 resource "aws_route_table_association" "private" {
