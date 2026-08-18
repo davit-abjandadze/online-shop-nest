@@ -64,6 +64,6 @@ import { StatsModule } from './stats/stats.module';
     StatsModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
-  exports: [EmailService],   // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
+  exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
 })
 export class AppModule {}

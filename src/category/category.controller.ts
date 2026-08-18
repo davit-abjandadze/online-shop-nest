@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -28,7 +38,11 @@ export class CategoryController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი კატეგორიის შექმნა' })
-  @ApiResponse({ status: 201, description: 'კატეგორია შეიქმნა', type: CategoryResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'კატეგორია შეიქმნა',
+    type: CategoryResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   create(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoryService.create(createCategoryDto);
@@ -36,9 +50,16 @@ export class CategoryController {
 
   @Put(':id')
   @ApiOperation({ summary: 'კატეგორიის განახლება' })
-  @ApiResponse({ status: 200, description: 'კატეგორია განახლდა', type: CategoryResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'კატეგორია განახლდა',
+    type: CategoryResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() updateCategoryDto: UpdateCategoryDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateCategoryDto: UpdateCategoryDto,
+  ) {
     return this.categoryService.update(+id, updateCategoryDto);
   }
 

@@ -35,8 +35,8 @@ export class FavoriteService {
     }
 
     const favorite = this.favoriteRepository.create({
-      user: { id: userId } as any,
-      question: { id: questionId } as any,
+      user: { id: userId },
+      question: { id: questionId },
     });
     return this.favoriteRepository.save(favorite);
   }

@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Param, Body, Query, UseGuards, Req, ConflictException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  Req,
+  ConflictException,
+} from '@nestjs/common';
 import express from 'express'; // ← აუცილებელი იმპორტი IP-ის ამოსაღებად
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -16,7 +26,10 @@ export class UserAnswerController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'ხმის მიცემა კითხვაზე (IP ტრექინგით)' })
   @ApiResponse({ status: 201, description: 'ხმა წარმატებით დარეგისტრირდა' })
-  @ApiResponse({ status: 409, description: 'ამ IP-დან ან მომხმარებლისგან უკვე მიცემულია ხმა' })
+  @ApiResponse({
+    status: 409,
+    description: 'ამ IP-დან ან მომხმარებლისგან უკვე მიცემულია ხმა',
+  })
   submitAnswer(
     @Req() req: express.Request, // ← ვიღებთ მთლიან Request ობიექტს
     @CurrentUser() user: any,
@@ -25,11 +38,15 @@ export class UserAnswerController {
   ) {
     // IP-ის სანდო ამოღება (მუშაობს როგორც ლოკალურად, ასევე პროდაქშენში)
     const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded 
-      ? (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : forwarded[0])
-      : (req.ip || req.socket.remoteAddress || 'unknown');
+    const ip = forwarded
+      ? typeof forwarded === 'string'
+        ? forwarded.split(',')[0].trim()
+        : forwarded[0]
+      : req.ip || req.socket.remoteAddress || 'unknown';
 
-    console.log(`🔍 ხმის მიცემა: User ID: ${user.userId}, Question ID: ${questionId}, IP: ${ip}`);
+    console.log(
+      `🔍 ხმის მიცემა: User ID: ${user.userId}, Question ID: ${questionId}, IP: ${ip}`,
+    );
 
     return this.userAnswerService.submitAnswer(
       user.userId,
@@ -48,7 +65,9 @@ export class UserAnswerController {
   @Get('my-voted-questions')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'კითხვების ID-ები, რომლებზეც მომხმარებელს აქვს ხმა მიცემული' })
+  @ApiOperation({
+    summary: 'კითხვების ID-ები, რომლებზეც მომხმარებელს აქვს ხმა მიცემული',
+  })
   @ApiResponse({ status: 200, description: 'კითხვების ID-ების მასივი' })
   async getMyVotedQuestions(@CurrentUser() user: any) {
     return this.userAnswerService.getVotedQuestionIds(user.userId);
@@ -57,9 +76,23 @@ export class UserAnswerController {
   @Get('my-activities')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'პროფილის "აქტივობები" - ხმა მიცემული კითხვები (pagination, ფილტრით)' })
-  @ApiResponse({ status: 200, description: 'ხმა მიცემული კითხვები pagination-ით' })
-  getMyActivities(@CurrentUser() user: any, @Query() query: FindQuestionsQueryDto) {
-    return this.userAnswerService.getMyActivities(user.userId, query, query.category, query.status);
+  @ApiOperation({
+    summary:
+      'პროფილის "აქტივობები" - ხმა მიცემული კითხვები (pagination, ფილტრით)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ხმა მიცემული კითხვები pagination-ით',
+  })
+  getMyActivities(
+    @CurrentUser() user: any,
+    @Query() query: FindQuestionsQueryDto,
+  ) {
+    return this.userAnswerService.getMyActivities(
+      user.userId,
+      query,
+      query.category,
+      query.status,
+    );
   }
 }

@@ -16,7 +16,7 @@ import { User } from '../../users/entities/user.entity';
 
 // კითხვის ტიპები
 export enum QuestionType {
-  SINGLE = 'single',     // ერთი პასუხის არჩევა (radio button)
+  SINGLE = 'single', // ერთი პასუხის არჩევა (radio button)
   MULTIPLE = 'multiple', // რამდენიმე პასუხის მონიშვნა (checkbox)
 }
 
@@ -28,7 +28,7 @@ export enum CreatorType {
 
 // user-ის დასმული კითხვის განხილვის სტატუსი admin-ის მხრიდან
 export enum ApprovalStatus {
-  PENDING = 'pending',   // ჯერ არ განხილულა
+  PENDING = 'pending', // ჯერ არ განხილულა
   APPROVED = 'approved', // admin-მა დაადასტურა
   REJECTED = 'rejected', // admin-მა უკუაგდო
 }
@@ -85,7 +85,11 @@ export class Question {
   creatorIp?: string;
 
   // user-ის დასმული კითხვის განხილვის სტატუსი (admin-ის მიერ დამატებული კითხვები APPROVED-ია თავიდანვე)
-  @Column({ type: 'enum', enum: ApprovalStatus, default: ApprovalStatus.APPROVED })
+  @Column({
+    type: 'enum',
+    enum: ApprovalStatus,
+    default: ApprovalStatus.APPROVED,
+  })
   approvalStatus!: ApprovalStatus;
 
   // უკუგდების მიზეზი, თუ admin-მა REJECTED-ად მონიშნა

@@ -1,9 +1,9 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  ManyToOne, 
-  CreateDateColumn, 
-  Column
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  CreateDateColumn,
+  Column,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Question } from '../../question/entities/question.entity';

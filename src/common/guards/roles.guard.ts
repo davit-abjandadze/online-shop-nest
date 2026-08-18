@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { UserRole } from '../../users/entities/user.entity';
@@ -9,10 +14,10 @@ export class RolesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     // 1. ვიღებთ მოთხოვნილ როლებს დეკორატორიდან
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // თუ როლი არ არის მითითებული, ნებისმიერს შეუძლია შესვლა
     if (!requiredRoles) {
@@ -24,9 +29,11 @@ export class RolesGuard implements CanActivate {
 
     // 3. ვამოწმებთ, შეესაბამება თუ არა მომხმარებლის როლი მოთხოვნილ როლს
     const hasRole = requiredRoles.some((role) => user.role === role);
-    
+
     if (!hasRole) {
-      throw new ForbiddenException('თქვენ არ გაქვთ ამ მოქმედების შესრულების უფლება');
+      throw new ForbiddenException(
+        'თქვენ არ გაქვთ ამ მოქმედების შესრულების უფლება',
+      );
     }
 
     return hasRole;

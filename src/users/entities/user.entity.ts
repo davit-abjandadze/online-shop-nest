@@ -1,4 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+} from 'typeorm';
 import { ApiHideProperty } from '@nestjs/swagger';
 
 // 1. შევქმნათ როლების Enum
@@ -26,7 +31,7 @@ export class User {
   @Column({ unique: true })
   email: string;
 
- @Column({
+  @Column({
     type: 'enum',
     enum: UserRole,
     default: UserRole.USER,

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -7,7 +11,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -55,10 +58,10 @@ export class UsersService {
     const user = await this.findOne(id);
     return this.userRepository.remove(user);
   }
-    async findById(id: number): Promise<User | null> {
+  async findById(id: number): Promise<User | null> {
     return this.userRepository.findOne({ where: { id } });
   }
-   // ← ახალი მეთოდი: პაროლის განახლება
+  // ← ახალი მეთოდი: პაროლის განახლება
   async updatePassword(userId: number, hashedPassword: string) {
     await this.userRepository.update(userId, { password: hashedPassword });
   }

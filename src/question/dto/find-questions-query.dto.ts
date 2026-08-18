@@ -12,7 +12,8 @@ export class FindQuestionsQueryDto extends PaginationDto {
   category?: number;
 
   @ApiPropertyOptional({
-    description: 'აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)',
+    description:
+      'აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)',
     enum: ['active', 'inactive'],
   })
   @IsOptional()
@@ -20,7 +21,8 @@ export class FindQuestionsQueryDto extends PaginationDto {
   status?: 'active' | 'inactive';
 
   @ApiPropertyOptional({
-    description: 'admin-ის განხილვის სტატუსი (მხ. user-ის დასმულ კითხვებს ეხება; admin-ის კითხვები ყოველთვის approved-ია)',
+    description:
+      'admin-ის განხილვის სტატუსი (მხ. user-ის დასმულ კითხვებს ეხება; admin-ის კითხვები ყოველთვის approved-ია)',
     enum: ApprovalStatus,
   })
   @IsOptional()

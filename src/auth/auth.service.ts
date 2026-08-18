@@ -1,8 +1,8 @@
-import { 
-  Injectable, 
-  UnauthorizedException, 
-  ConflictException, 
-  BadRequestException 
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -45,7 +45,10 @@ export class AuthService {
     }
 
     // შევამოწმოთ პაროლი
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -53,11 +56,10 @@ export class AuthService {
     return this.generateToken(user);
   }
 
-
-    // ← ახალი მეთოდი: პაროლის შეცვლა
+  // ← ახალი მეთოდი: პაროლის შეცვლა
   async changePassword(
-    userId: number, 
-    changePasswordDto: ChangePasswordDto
+    userId: number,
+    changePasswordDto: ChangePasswordDto,
   ): Promise<ChangePasswordResponseDto> {
     // 1. ვიპოვოთ მომხმარებელი
     const user = await this.usersService.findById(userId);
@@ -67,8 +69,8 @@ export class AuthService {
 
     // 2. შევამოწმოთ, რომ ძველი პაროლი სწორია
     const isOldPasswordValid = await bcrypt.compare(
-      changePasswordDto.oldPassword, 
-      user.password
+      changePasswordDto.oldPassword,
+      user.password,
     );
     if (!isOldPasswordValid) {
       throw new BadRequestException('ძველი პაროლი არასწორია');
@@ -76,11 +78,16 @@ export class AuthService {
 
     // 3. შევამოწმოთ, რომ ახალი პაროლი არ ემთხვევა ძველს
     if (changePasswordDto.oldPassword === changePasswordDto.newPassword) {
-      throw new BadRequestException('ახალი პაროლი არ უნდა ემთხვეოდეს ძველ პაროლს');
+      throw new BadRequestException(
+        'ახალი პაროლი არ უნდა ემთხვეოდეს ძველ პაროლს',
+      );
     }
 
     // 4. დავაჰეშოთ ახალი პაროლი და შევინახოთ
-    const hashedNewPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    const hashedNewPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      10,
+    );
     await this.usersService.updatePassword(userId, hashedNewPassword);
 
     // 5. სტანდარტიზებული პასუხი
@@ -90,8 +97,12 @@ export class AuthService {
     };
   }
 
-    // ⭐ ახალი მეთოდი Google ავტორიზაციისთვის
-  async googleLogin(profile: { email: string; firstName: string; lastName: string }) {
+  // ⭐ ახალი მეთოდი Google ავტორიზაციისთვის
+  async googleLogin(profile: {
+    email: string;
+    firstName: string;
+    lastName: string;
+  }) {
     // 1. ვეძებთ მომხმარებელს email-ით
     let user = await this.usersService.findByEmail(profile.email);
 
@@ -99,7 +110,7 @@ export class AuthService {
     if (!user) {
       const randomPassword = Math.random().toString(36).slice(-8); // შემთხვევითი პაროლი
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
-      
+
       user = await this.usersService.create({
         email: profile.email,
         firstName: profile.firstName,
@@ -113,7 +124,7 @@ export class AuthService {
     return this.generateToken(user);
   }
 
-    // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
+  // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
   // // ⭐ ახალი მეთოდი Facebook ავტორიზაციისთვის
   // async facebookLogin(profile: { email: string; firstName: string; lastName: string }) {
   //   // 1. ვეძებთ მომხმარებელს email-ით
@@ -138,11 +149,13 @@ export class AuthService {
   // }
 
   // ⭐ ახალი მეთოდი: პაროლის აღდგენის მოთხოვნა
-   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
     const user = await this.usersService.findByEmail(forgotPasswordDto.email);
-    
+
     // უსაფრთხოებისთვის, ყოველთვის ერთსა და იმავეს ვაბრუნებთ (რათა ჰაკერმა ვერ გაიგოს, არსებობს თუ არა მეილი)
-    const successMessage = { message: 'თუ ეს ელფოსტა რეგისტრირებულია, მიიღებთ ინსტრუქციას' };
+    const successMessage = {
+      message: 'თუ ეს ელფოსტა რეგისტრირებულია, მიიღებთ ინსტრუქციას',
+    };
 
     if (!user) {
       return successMessage;
@@ -151,7 +164,7 @@ export class AuthService {
     // გენერირება token-ი პაროლის აღდგენისთვის (1 საათიანი ვადით)
     const resetToken = this.jwtService.sign(
       { sub: user.id, email: user.email, type: 'reset' },
-      { expiresIn: '1h' }
+      { expiresIn: '1h' },
     );
 
     // ⭐ აქ ვაგზავნით რეალურ მეილს!
@@ -178,13 +191,18 @@ export class AuthService {
       }
 
       // დავაჰეშოთ ახალი პაროლი და შევინახოთ
-      const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+      const hashedPassword = await bcrypt.hash(
+        resetPasswordDto.newPassword,
+        10,
+      );
       await this.usersService.updatePassword(user.id, hashedPassword);
 
       return { message: 'პაროლი წარმატებით შეიცვალა' };
     } catch (error) {
       if ((error as Error).name === 'TokenExpiredError') {
-        throw new BadRequestException('Token-ის ვადა ამოიწურა. გთხოვთ, ხელახლა სცადოთ');
+        throw new BadRequestException(
+          'Token-ის ვადა ამოიწურა. გთხოვთ, ხელახლა სცადოთ',
+        );
       }
       if ((error as Error).name === 'JsonWebTokenError') {
         throw new BadRequestException('არასწორი token-ი');
@@ -194,7 +212,7 @@ export class AuthService {
   }
 
   private generateToken(user: any) {
-    const payload = { sub: user.id, email: user.email, role: user.role, };
+    const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
       user: {

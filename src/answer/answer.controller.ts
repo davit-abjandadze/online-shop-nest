@@ -18,10 +18,7 @@ export class AnswerController {
 
   // PATCH /answers/1 - პასუხის განახლება
   @Patch('answers/:id')
-  update(
-    @Param('id') id: string,
-    @Body() updateAnswerDto: UpdateAnswerDto,
-  ) {
+  update(@Param('id') id: string, @Body() updateAnswerDto: UpdateAnswerDto) {
     return this.answerService.updateAnswer(+id, updateAnswerDto);
   }
 

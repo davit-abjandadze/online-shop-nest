@@ -1,17 +1,17 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
-  HttpStatus, 
-  Get,          // ← დაემატა
-  UseGuards     // ← დაემატა
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get, // ← დაემატა
+  UseGuards, // ← დაემატა
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBearerAuth // ← დაემატა (Swagger-ში ტოკენის ველის საჩვენებლად)
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth, // ← დაემატა (Swagger-ში ტოკენის ველის საჩვენებლად)
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -21,10 +21,10 @@ import { LoginResponseDto } from './dto/login-response.dto';
 
 // ↓↓↓ ახალი იმპორტები როლების სისტემისთვის ↓↓↓
 // შენი ფოლდერების სტრუქტურის მიხედვით შეცვალე გზები (paths) თუ საჭიროა
-import { JwtAuthGuard } from './jwt-auth.guard'; 
-import { RolesGuard } from '../common/guards/roles.guard'; 
-import { Roles } from '../common/decorators/roles.decorator'; 
-import { UserRole } from '../users/entities/user.entity'; 
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -39,7 +39,11 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'მომხმარებლის რეგისტრაცია' })
-  @ApiResponse({ status: 201, description: 'წარმატებული რეგისტრაცია', type: RegisterResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'წარმატებული რეგისტრაცია',
+    type: RegisterResponseDto,
+  })
   @ApiResponse({ status: 409, description: 'ელფოსტა უკვე დაკავებულია' })
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   register(@Body() registerDto: RegisterDto) {
@@ -49,7 +53,11 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'მომხმარებლის ავტორიზაცია' })
-  @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'წარმატებული ავტორიზაცია',
+    type: LoginResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'არასწორი ელფოსტა ან პაროლი' })
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   login(@Body() loginDto: LoginDto) {
@@ -78,7 +86,10 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'მხოლოდ ადმინისტრატორის პანელი' })
   @ApiResponse({ status: 200, description: 'წარმატებული წვდომა' })
-  @ApiResponse({ status: 403, description: 'არ გაქვს ადმინისტრატორის უფლებები' })
+  @ApiResponse({
+    status: 403,
+    description: 'არ გაქვს ადმინისტრატორის უფლებები',
+  })
   @ApiResponse({ status: 401, description: 'არ ხართ ავტორიზებული' })
   getAdminDashboard() {
     return { message: 'მოგესალმებით, ადმინისტრატორო! ეს მხოლოდ შენთვისაა.' };
@@ -90,18 +101,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'პაროლის შეცვლა (ავტორიზებული მომხმარებლისთვის)' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'პაროლი წარმატებით შეიცვალა',
     type: ChangePasswordResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'ძველი პაროლი არასწორია ან ახალი პაროლი ძველს ემთხვევა' 
+  @ApiResponse({
+    status: 400,
+    description: 'ძველი პაროლი არასწორია ან ახალი პაროლი ძველს ემთხვევა',
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'არ ხართ ავტორიზებული' 
+  @ApiResponse({
+    status: 401,
+    description: 'არ ხართ ავტორიზებული',
   })
   changePassword(
     @CurrentUser() user: any,
@@ -112,8 +123,14 @@ export class AuthController {
   @Post('google')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Google-ით ავტორიზაცია/რეგისტრაცია' })
-  @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
-  async googleLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
+  @ApiResponse({
+    status: 200,
+    description: 'წარმატებული ავტორიზაცია',
+    type: LoginResponseDto,
+  })
+  async googleLogin(
+    @Body() body: { email: string; firstName: string; lastName: string },
+  ) {
     return this.authService.googleLogin(body);
   }
 
@@ -126,7 +143,7 @@ export class AuthController {
   //   return this.authService.facebookLogin(body);
   // }
 
-    @Post('forgot-password')
+  @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'პაროლის აღდგენის მოთხოვნა (email-ის გაგზავნა)' })
   @ApiResponse({ status: 200, description: 'ინსტრუქცია გაიგზავნა' })

@@ -285,7 +285,9 @@ export class StatsService {
       dailyVotes.push({ date: dateKey, votes: votesByDate.get(dateKey) ?? 0 });
     }
 
-    const peakHour = peakHourResult ? Math.round(Number(peakHourResult.hour)) : 0;
+    const peakHour = peakHourResult
+      ? Math.round(Number(peakHourResult.hour))
+      : 0;
 
     const lastThree = dailyVotes.slice(-3).reduce((sum, d) => sum + d.votes, 0);
     const prevThree = dailyVotes
@@ -407,7 +409,10 @@ export class StatsService {
     const questionsById = new Map(questions.map((q) => [q.id, q]));
 
     const totalVotesByQuestionId = new Map<number, number>(
-      votesByQuestionRaw.map((row) => [Number(row.questionId), Number(row.votes)]),
+      votesByQuestionRaw.map((row) => [
+        Number(row.questionId),
+        Number(row.votes),
+      ]),
     );
 
     const maxAnswerVotesByQuestionId = new Map<number, number>();
@@ -424,7 +429,10 @@ export class StatsService {
       votesTodayRaw.map((row) => [Number(row.questionId), Number(row.votes)]),
     );
     const votesYesterdayByQuestionId = new Map<number, number>(
-      votesYesterdayRaw.map((row) => [Number(row.questionId), Number(row.votes)]),
+      votesYesterdayRaw.map((row) => [
+        Number(row.questionId),
+        Number(row.votes),
+      ]),
     );
 
     const mostVoted: MostVotedQuestion[] = [...totalVotesByQuestionId.entries()]
@@ -523,53 +531,53 @@ export class StatsService {
       throw new NotFoundException(`Question with ID ${questionId} not found`);
     }
 
-    const [
-      totalVotes,
-      genderRaw,
-      ageRaw,
-      answerGenderRaw,
-      answerAgeRaw,
-    ] = await Promise.all([
-      this.userAnswerRepository.count({ where: { question: { id: questionId } } }),
-      this.userAnswerRepository
-        .createQueryBuilder('ua')
-        .leftJoin('ua.user', 'user')
-        .select(GENDER_SQL, 'gender')
-        .addSelect('COUNT(*)', 'votes')
-        .where('ua.questionId = :questionId', { questionId })
-        .groupBy(GENDER_SQL)
-        .getRawMany<{ gender: string; votes: string }>(),
-      this.userAnswerRepository
-        .createQueryBuilder('ua')
-        .leftJoin('ua.user', 'user')
-        .select(AGE_GROUP_SQL, 'ageGroup')
-        .addSelect('COUNT(*)', 'votes')
-        .where('ua.questionId = :questionId', { questionId })
-        .groupBy(AGE_GROUP_SQL)
-        .getRawMany<{ ageGroup: string; votes: string }>(),
-      this.userAnswerRepository
-        .createQueryBuilder('ua')
-        .leftJoin('ua.user', 'user')
-        .select('ua.answerId', 'answerId')
-        .addSelect(GENDER_SQL, 'gender')
-        .addSelect('COUNT(*)', 'votes')
-        .where('ua.questionId = :questionId', { questionId })
-        .groupBy('ua.answerId')
-        .addGroupBy(GENDER_SQL)
-        .getRawMany<{ answerId: number; gender: string; votes: string }>(),
-      this.userAnswerRepository
-        .createQueryBuilder('ua')
-        .leftJoin('ua.user', 'user')
-        .select('ua.answerId', 'answerId')
-        .addSelect(AGE_GROUP_SQL, 'ageGroup')
-        .addSelect('COUNT(*)', 'votes')
-        .where('ua.questionId = :questionId', { questionId })
-        .groupBy('ua.answerId')
-        .addGroupBy(AGE_GROUP_SQL)
-        .getRawMany<{ answerId: number; ageGroup: string; votes: string }>(),
-    ]);
+    const [totalVotes, genderRaw, ageRaw, answerGenderRaw, answerAgeRaw] =
+      await Promise.all([
+        this.userAnswerRepository.count({
+          where: { question: { id: questionId } },
+        }),
+        this.userAnswerRepository
+          .createQueryBuilder('ua')
+          .leftJoin('ua.user', 'user')
+          .select(GENDER_SQL, 'gender')
+          .addSelect('COUNT(*)', 'votes')
+          .where('ua.questionId = :questionId', { questionId })
+          .groupBy(GENDER_SQL)
+          .getRawMany<{ gender: string; votes: string }>(),
+        this.userAnswerRepository
+          .createQueryBuilder('ua')
+          .leftJoin('ua.user', 'user')
+          .select(AGE_GROUP_SQL, 'ageGroup')
+          .addSelect('COUNT(*)', 'votes')
+          .where('ua.questionId = :questionId', { questionId })
+          .groupBy(AGE_GROUP_SQL)
+          .getRawMany<{ ageGroup: string; votes: string }>(),
+        this.userAnswerRepository
+          .createQueryBuilder('ua')
+          .leftJoin('ua.user', 'user')
+          .select('ua.answerId', 'answerId')
+          .addSelect(GENDER_SQL, 'gender')
+          .addSelect('COUNT(*)', 'votes')
+          .where('ua.questionId = :questionId', { questionId })
+          .groupBy('ua.answerId')
+          .addGroupBy(GENDER_SQL)
+          .getRawMany<{ answerId: number; gender: string; votes: string }>(),
+        this.userAnswerRepository
+          .createQueryBuilder('ua')
+          .leftJoin('ua.user', 'user')
+          .select('ua.answerId', 'answerId')
+          .addSelect(AGE_GROUP_SQL, 'ageGroup')
+          .addSelect('COUNT(*)', 'votes')
+          .where('ua.questionId = :questionId', { questionId })
+          .groupBy('ua.answerId')
+          .addGroupBy(AGE_GROUP_SQL)
+          .getRawMany<{ answerId: number; ageGroup: string; votes: string }>(),
+      ]);
 
-    const genderByAnswerId = new Map<number, { gender: string; votes: string }[]>();
+    const genderByAnswerId = new Map<
+      number,
+      { gender: string; votes: string }[]
+    >();
     for (const row of answerGenderRaw) {
       const answerId = Number(row.answerId);
       const rows = genderByAnswerId.get(answerId) ?? [];
@@ -577,7 +585,10 @@ export class StatsService {
       genderByAnswerId.set(answerId, rows);
     }
 
-    const ageByAnswerId = new Map<number, { ageGroup: string; votes: string }[]>();
+    const ageByAnswerId = new Map<
+      number,
+      { ageGroup: string; votes: string }[]
+    >();
     for (const row of answerAgeRaw) {
       const answerId = Number(row.answerId);
       const rows = ageByAnswerId.get(answerId) ?? [];

@@ -17,7 +17,13 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { RejectQuestionDto } from './dto/reject-question.dto';
 import { ApproveQuestionDto } from './dto/approve-question.dto';
-import { ApiOperation, ApiTags, ApiQuery, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiQuery,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { FindQuestionsQueryDto } from './dto/find-questions-query.dto';
 import { Question } from './entities/question.entity';
@@ -36,8 +42,15 @@ export class QuestionController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'კითხვის დამატება (user-ს დღეში 1-ხელ, ერთი მოწყობილობიდან; user-ის კითხვა isActive:false/PENDING იქმნება)' })
-  @ApiResponse({ status: 409, description: 'user-მა (ან ამ მოწყობილობიდან სხვა პროფილმა) უკვე დასვა კითხვა დღეს' })
+  @ApiOperation({
+    summary:
+      'კითხვის დამატება (user-ს დღეში 1-ხელ, ერთი მოწყობილობიდან; user-ის კითხვა isActive:false/PENDING იქმნება)',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'user-მა (ან ამ მოწყობილობიდან სხვა პროფილმა) უკვე დასვა კითხვა დღეს',
+  })
   create(
     @Req() req: express.Request,
     @CurrentUser() user: RequestUser,
@@ -46,8 +59,10 @@ export class QuestionController {
     // IP-ის სანდო ამოღება (მუშაობს როგორც ლოკალურად, ასევე პროდაქშენში)
     const forwarded = req.headers['x-forwarded-for'];
     const ip = forwarded
-      ? (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : forwarded[0])
-      : (req.ip || req.socket.remoteAddress || 'unknown');
+      ? typeof forwarded === 'string'
+        ? forwarded.split(',')[0].trim()
+        : forwarded[0]
+      : req.ip || req.socket.remoteAddress || 'unknown';
 
     return this.questionService.create(createQuestionDto, user, ip);
   }
@@ -55,21 +70,63 @@ export class QuestionController {
   @Get('my-questions')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'ჩემ მიერ დასმული კითხვების სია (პროფილის გვერდისთვის, admin-ის დასტურის სტატუსით)' })
-  findMyQuestions(@CurrentUser() user: RequestUser, @Query() query: PaginationDto) {
+  @ApiOperation({
+    summary:
+      'ჩემ მიერ დასმული კითხვების სია (პროფილის გვერდისთვის, admin-ის დასტურის სტატუსით)',
+  })
+  findMyQuestions(
+    @CurrentUser() user: RequestUser,
+    @Query() query: PaginationDto,
+  ) {
     return this.questionService.findMyQuestions(user.userId, query);
   }
 
   @Get()
   @ApiOperation({ summary: 'ყველა კითხვა (pagination, ფილტრით)' })
   @ApiQuery({ name: 'category', required: false, description: 'კატეგორიის ID' })
-  @ApiQuery({ name: 'page', required: false, description: 'გვერდის ნომერი', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, description: 'ჩანაწერები გვერდზე', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, description: 'დალაგების ველი', example: 'createdAt' })
-  @ApiQuery({ name: 'order', required: false, enum: ['ASC', 'DESC'], description: 'მიმართულება' })
-  @ApiQuery({ name: 'status', required: false, enum: ['active', 'inactive'], description: 'აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)' })
-  @ApiQuery({ name: 'approvalStatus', required: false, enum: ['pending', 'approved', 'rejected'], description: 'admin-ის განხილვის სტატუსი' })
-  @ApiQuery({ name: 'creatorType', required: false, enum: ['admin', 'user'], description: 'ვინ დასვა კითხვა' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'გვერდის ნომერი',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'ჩანაწერები გვერდზე',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    description: 'დალაგების ველი',
+    example: 'createdAt',
+  })
+  @ApiQuery({
+    name: 'order',
+    required: false,
+    enum: ['ASC', 'DESC'],
+    description: 'მიმართულება',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['active', 'inactive'],
+    description:
+      'აქტიურობის სტატუსი (ვადაგასული კითხვები ავტომატურად ითვლება inactive-ად)',
+  })
+  @ApiQuery({
+    name: 'approvalStatus',
+    required: false,
+    enum: ['pending', 'approved', 'rejected'],
+    description: 'admin-ის განხილვის სტატუსი',
+  })
+  @ApiQuery({
+    name: 'creatorType',
+    required: false,
+    enum: ['admin', 'user'],
+    description: 'ვინ დასვა კითხვა',
+  })
   @ApiResponse({
     status: 200,
     description: 'კითხვების სია pagination-ით',
@@ -112,8 +169,14 @@ export class QuestionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'კითხვის დაპინვა მთავარ გვერდზე, როგორც მნიშვნელოვანი (მხოლოდ admin)' })
-  @ApiResponse({ status: 409, description: 'დაპინული კითხვების მაქსიმალური რაოდენობა ამოწურულია' })
+  @ApiOperation({
+    summary:
+      'კითხვის დაპინვა მთავარ გვერდზე, როგორც მნიშვნელოვანი (მხოლოდ admin)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'დაპინული კითხვების მაქსიმალური რაოდენობა ამოწურულია',
+  })
   pin(@Param('id') id: string) {
     return this.questionService.pin(+id);
   }
@@ -131,7 +194,10 @@ export class QuestionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'user-ის დასმული კითხვის დადასტურება, სურვილისამებრ დამთავრების თარიღით (მხოლოდ admin)' })
+  @ApiOperation({
+    summary:
+      'user-ის დასმული კითხვის დადასტურება, სურვილისამებრ დამთავრების თარიღით (მხოლოდ admin)',
+  })
   approve(
     @CurrentUser() admin: RequestUser,
     @Param('id') id: string,
@@ -144,7 +210,10 @@ export class QuestionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'user-ის დასმული კითხვის უკუგდება მიზეზის მითითებით (მხოლოდ admin)' })
+  @ApiOperation({
+    summary:
+      'user-ის დასმული კითხვის უკუგდება მიზეზის მითითებით (მხოლოდ admin)',
+  })
   reject(
     @CurrentUser() admin: RequestUser,
     @Param('id') id: string,
@@ -157,8 +226,14 @@ export class QuestionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'კითხვის რედაქტირება, მათ შორის user-ის დასმული კითხვის ტექსტის/პასუხების ცვლილება (მხოლოდ admin)' })
-  update(@Param('id') id: string, @Body() updateQuestionDto: UpdateQuestionDto) {
+  @ApiOperation({
+    summary:
+      'კითხვის რედაქტირება, მათ შორის user-ის დასმული კითხვის ტექსტის/პასუხების ცვლილება (მხოლოდ admin)',
+  })
+  update(
+    @Param('id') id: string,
+    @Body() updateQuestionDto: UpdateQuestionDto,
+  ) {
     return this.questionService.update(+id, updateQuestionDto);
   }
 

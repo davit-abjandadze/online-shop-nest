@@ -1,8 +1,8 @@
 import {
-  Injectable, 
-  BadRequestException, 
-  NotFoundException, 
-  ConflictException // ← ახალი იმპორტი
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException, // ← ახალი იმპორტი
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -41,14 +41,22 @@ export class UserAnswerService {
     }
 
     // ⭐ დეაქტივირებულ ან ვადაგასულ კითხვაზე ხმის მიცემა აკრძალულია
-    const isExpired = !!question.endDate && new Date(question.endDate) <= new Date();
+    const isExpired =
+      !!question.endDate && new Date(question.endDate) <= new Date();
     if (!question.isActive || isExpired) {
-      throw new BadRequestException('კითხვა დეაქტივირებულია ან ვადაგასულია, ხმის მიცემა შეუძლებელია');
+      throw new BadRequestException(
+        'კითხვა დეაქტივირებულია ან ვადაგასულია, ხმის მიცემა შეუძლებელია',
+      );
     }
 
     // 2. SINGLE choice-ის შემთხვევაში, მხოლოდ 1 პასუხი შეიძლება
-    if (question.type === QuestionType.SINGLE && submitDto.answerIds.length > 1) {
-      throw new BadRequestException('ეს კითხვა მხოლოდ ერთ პასუხს ითვალისწინებს');
+    if (
+      question.type === QuestionType.SINGLE &&
+      submitDto.answerIds.length > 1
+    ) {
+      throw new BadRequestException(
+        'ეს კითხვა მხოლოდ ერთ პასუხს ითვალისწინებს',
+      );
     }
 
     // datooo
@@ -61,7 +69,9 @@ export class UserAnswerService {
     });
 
     if (existingIpVote) {
-      throw new ConflictException('ამ IP მისამართიდან უკვე მიცემულია ხმა ამ კითხვაზე. ერთი მომხმარებელი = ერთი ხმა.');
+      throw new ConflictException(
+        'ამ IP მისამართიდან უკვე მიცემულია ხმა ამ კითხვაზე. ერთი მომხმარებელი = ერთი ხმა.',
+      );
     }
 
     // ⭐ 4. შევამოწმოთ, ხომ არ მიუცია უკვე მომხმარებელს ხმა ამ კითხვაზე
@@ -73,14 +83,18 @@ export class UserAnswerService {
     });
 
     if (existingUserVote) {
-      throw new ConflictException('თქვენ უკვე მიეცით ხმა ამ კითხვაზე. ხელახლა ხმის მიცემა შეუძლებელია.');
+      throw new ConflictException(
+        'თქვენ უკვე მიეცით ხმა ამ კითხვაზე. ხელახლა ხმის მიცემა შეუძლებელია.',
+      );
     }
 
     // 5. შევამოწმოთ, რომ ყველა answerId ამ კითხვას ეკუთვნის
-    const validAnswerIds = question.answers.map(a => a.id);
+    const validAnswerIds = question.answers.map((a) => a.id);
     for (const answerId of submitDto.answerIds) {
       if (!validAnswerIds.includes(answerId)) {
-        throw new BadRequestException(`პასუხი ${answerId} არ ეკუთვნის ამ კითხვას`);
+        throw new BadRequestException(
+          `პასუხი ${answerId} არ ეკუთვნის ამ კითხვას`,
+        );
       }
     }
 
@@ -88,9 +102,9 @@ export class UserAnswerService {
     const userAnswers: UserAnswer[] = [];
     for (const answerId of submitDto.answerIds) {
       const userAnswer = this.userAnswerRepository.create({
-        user: { id: userId } as any,
-        question: { id: questionId } as any,
-        answer: { id: answerId } as any,
+        user: { id: userId },
+        question: { id: questionId },
+        answer: { id: answerId },
         ipAddress: ipAddress, // ⭐ ვინახავთ IP-ს ბაზაში
       });
       const saved = await this.userAnswerRepository.save(userAnswer);
@@ -119,16 +133,15 @@ export class UserAnswerService {
         const votes = await this.userAnswerRepository.count({
           where: { answer: { id: answer.id } },
         });
-        const percentage = totalVotes > 0 
-          ? Math.round((votes / totalVotes) * 100) 
-          : 0;
+        const percentage =
+          totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
         return {
           answerId: answer.id,
           answerText: answer.text,
           votes,
           percentage,
         };
-      })
+      }),
     );
 
     return {
@@ -145,7 +158,9 @@ export class UserAnswerService {
       where: { user: { id: userId } },
       relations: { question: true },
     });
-    const uniqueQuestionIds = [...new Set(userAnswers.map(ua => ua.question.id))];
+    const uniqueQuestionIds = [
+      ...new Set(userAnswers.map((ua) => ua.question.id)),
+    ];
     return uniqueQuestionIds;
   }
 
@@ -155,7 +170,13 @@ export class UserAnswerService {
     paginationDto: PaginationDto = {},
     categoryId?: number,
     status?: 'active' | 'inactive',
-  ): Promise<PaginatedResponseDto<{ question: Question; myAnswers: Answer[]; votedAt: Date }>> {
+  ): Promise<
+    PaginatedResponseDto<{
+      question: Question;
+      myAnswers: Answer[];
+      votedAt: Date;
+    }>
+  > {
     const { page = 1, limit = 10, order = 'DESC' } = paginationDto;
 
     // 1. კითხვის ID-ები, რომლებზეც userId-მა მისცა ხმა (+ ბოლო ხმის მიცემის თარიღი)
@@ -185,7 +206,9 @@ export class UserAnswerService {
     if (status === 'active') {
       votesQuery
         .andWhere('question.isActive = :isActive', { isActive: true })
-        .andWhere('(question.endDate IS NULL OR question.endDate > :now)', { now });
+        .andWhere('(question.endDate IS NULL OR question.endDate > :now)', {
+          now,
+        });
     } else if (status === 'inactive') {
       votesQuery.andWhere(
         '(question.isActive = :isActive OR (question.endDate IS NOT NULL AND question.endDate <= :now))',
@@ -193,7 +216,10 @@ export class UserAnswerService {
       );
     }
 
-    const allVotes = await votesQuery.getRawMany<{ questionId: string; votedAt: Date }>();
+    const allVotes = await votesQuery.getRawMany<{
+      questionId: string;
+      votedAt: Date;
+    }>();
     const total = allVotes.length;
 
     if (total === 0) {
@@ -205,7 +231,10 @@ export class UserAnswerService {
         ? new Date(a.votedAt).getTime() - new Date(b.votedAt).getTime()
         : new Date(b.votedAt).getTime() - new Date(a.votedAt).getTime(),
     );
-    const pageVotes = sorted.slice((page - 1) * limit, (page - 1) * limit + limit);
+    const pageVotes = sorted.slice(
+      (page - 1) * limit,
+      (page - 1) * limit + limit,
+    );
     const questionIds = pageVotes.map((v) => Number(v.questionId));
 
     // 2. სრული კითხვები (პასუხების ვარიანტებით და კატეგორიით)
@@ -242,7 +271,12 @@ export class UserAnswerService {
           votedAt: v.votedAt,
         };
       })
-      .filter((item): item is { question: Question; myAnswers: Answer[]; votedAt: Date } => !!item);
+      .filter(
+        (
+          item,
+        ): item is { question: Question; myAnswers: Answer[]; votedAt: Date } =>
+          !!item,
+      );
 
     return new PaginatedResponseDto(data, total, page, limit);
   }

@@ -1,7 +1,13 @@
 import {
-  IsString, IsNotEmpty, IsArray,
-  ValidateNested, IsEnum, IsOptional,
-  IsNumber, IsBoolean, IsDateString
+  IsString,
+  IsNotEmpty,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsOptional,
+  IsNumber,
+  IsBoolean,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QuestionType } from '../entities/question.entity';
@@ -23,14 +29,18 @@ export class CreateQuestionDto {
   @IsOptional()
   type?: QuestionType; // ნაგულისხმევად SINGLE იქნება
 
- @ApiPropertyOptional({
-    description: 'კატეგორიების ID-ები (optional, ერთ კითხვას შეიძლება რამდენიმე კატეგორია ჰქონდეს)',
+  @ApiPropertyOptional({
+    description:
+      'კატეგორიების ID-ები (optional, ერთ კითხვას შეიძლება რამდენიმე კატეგორია ჰქონდეს)',
     example: [1, 2],
     type: [Number],
   })
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true, message: 'თითოეული კატეგორიის ID უნდა იყოს რიცხვი' })
+  @IsNumber(
+    {},
+    { each: true, message: 'თითოეული კატეგორიის ID უნდა იყოს რიცხვი' },
+  )
   @Type(() => Number)
   categoryIds?: number[];
 
@@ -40,7 +50,8 @@ export class CreateQuestionDto {
   answers!: CreateAnswerDto[];
 
   @ApiPropertyOptional({
-    description: 'აქტიურია თუ არა კითხვა (მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის კითხვისთვის ეს ველი იგნორირდება)',
+    description:
+      'აქტიურია თუ არა კითხვა (მხოლოდ admin-ის შექმნილ კითხვას ეხება — user-ის კითხვისთვის ეს ველი იგნორირდება)',
     example: true,
     default: true,
   })

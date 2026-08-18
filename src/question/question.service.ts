@@ -1,8 +1,18 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
-import { ApprovalStatus, CreatorType, Question } from './entities/question.entity';
+import {
+  ApprovalStatus,
+  CreatorType,
+  Question,
+} from './entities/question.entity';
 import { Category } from '../category/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -33,7 +43,9 @@ export class QuestionService {
   ) {}
 
   // categoryIds-ის მიხედვით კატეგორია entity-ების წამოღება, ID-ების არსებობის შემოწმებით
-  private async resolveCategories(categoryIds?: number[]): Promise<Category[] | undefined> {
+  private async resolveCategories(
+    categoryIds?: number[],
+  ): Promise<Category[] | undefined> {
     if (!categoryIds) {
       return undefined;
     }
@@ -49,7 +61,9 @@ export class QuestionService {
     if (categories.length !== uniqueIds.length) {
       const foundIds = new Set(categories.map((c) => c.id));
       const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
-      throw new BadRequestException(`კატეგორია ID-ით ${missingIds.join(', ')} ვერ მოიძებნა`);
+      throw new BadRequestException(
+        `კატეგორია ID-ით ${missingIds.join(', ')} ვერ მოიძებნა`,
+      );
     }
 
     return categories;
@@ -60,7 +74,9 @@ export class QuestionService {
     currentUser: RequestUser,
     creatorIp?: string,
   ) {
-    const categories = await this.resolveCategories(createQuestionDto.categoryIds);
+    const categories = await this.resolveCategories(
+      createQuestionDto.categoryIds,
+    );
 
     const isAdmin = currentUser.role === UserRole.ADMIN;
 
@@ -78,7 +94,9 @@ export class QuestionService {
       });
 
       if (questionsToday >= 1) {
-        throw new ConflictException('დღეში მხოლოდ 1 კითხვის დამატება შეგიძლიათ');
+        throw new ConflictException(
+          'დღეში მხოლოდ 1 კითხვის დამატება შეგიძლიათ',
+        );
       }
 
       // 2. იმავე დღეს იმავე მოწყობილობიდან (IP) სხვა პროფილითაც არ შეიძლება კითხვის დამატება,
@@ -99,7 +117,8 @@ export class QuestionService {
       }
     }
 
-    const { categoryIds, ...questionData } = createQuestionDto;
+    const questionData = { ...createQuestionDto };
+    delete questionData.categoryIds;
     const question = this.questionRepository.create({
       ...questionData,
       categories,
@@ -109,7 +128,9 @@ export class QuestionService {
       // user-ის დამატებული კითხვა ყოველთვის დასადასტურებელია (isActive:false, PENDING),
       // client-ისგან გამოგზავნილი isActive მასზე გავლენას არ ახდენს
       isActive: isAdmin ? (createQuestionDto.isActive ?? true) : false,
-      approvalStatus: isAdmin ? ApprovalStatus.APPROVED : ApprovalStatus.PENDING,
+      approvalStatus: isAdmin
+        ? ApprovalStatus.APPROVED
+        : ApprovalStatus.PENDING,
       // დამთავრების თარიღის მითითება მხოლოდ admin-ს შეუძლია შექმნისას;
       // user-ის კითხვისთვის admin ამას approve-ის დროს დაუწესებს
       endDate: isAdmin ? createQuestionDto.endDate : undefined,
@@ -156,7 +177,9 @@ export class QuestionService {
     } = paginationDto;
 
     const allowedSortFields = ['createdAt', 'text', 'id'];
-    const actualSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const actualSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : 'createdAt';
 
     const query = this.questionRepository
       .createQueryBuilder('question')
@@ -189,7 +212,9 @@ export class QuestionService {
 
     // დასაშვები sort ველების სია (უსაფრთხოებისთვის)
     const allowedSortFields = ['createdAt', 'text', 'id'];
-    const actualSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const actualSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : 'createdAt';
 
     const query = this.questionRepository
       .createQueryBuilder('question')
@@ -212,7 +237,9 @@ export class QuestionService {
     }
 
     if (approvalStatus) {
-      query.andWhere('question.approvalStatus = :approvalStatus', { approvalStatus });
+      query.andWhere('question.approvalStatus = :approvalStatus', {
+        approvalStatus,
+      });
     }
 
     if (creatorType) {
@@ -222,10 +249,9 @@ export class QuestionService {
     const now = new Date();
     if (status === 'active') {
       query.andWhere('question.isActive = :isActive', { isActive: true });
-      query.andWhere(
-        '(question.endDate IS NULL OR question.endDate > :now)',
-        { now },
-      );
+      query.andWhere('(question.endDate IS NULL OR question.endDate > :now)', {
+        now,
+      });
     } else if (status === 'inactive') {
       query.andWhere(
         '(question.isActive = :isActive OR (question.endDate IS NOT NULL AND question.endDate <= :now))',
@@ -340,7 +366,9 @@ export class QuestionService {
     });
 
     if (result.affected) {
-      this.logger.log(`5 დღეზე მეტი უპასუხოდ დარჩენილი (PENDING) კითხვები წაშლილია: ${result.affected}`);
+      this.logger.log(
+        `5 დღეზე მეტი უპასუხოდ დარჩენილი (PENDING) კითხვები წაშლილია: ${result.affected}`,
+      );
     }
   }
 

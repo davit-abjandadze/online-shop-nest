@@ -31,7 +31,10 @@ export class PaginatedResponseDto<T> {
   })
   data: T[];
 
-  @ApiProperty({ type: PaginationMetaDto, description: 'პაგინაციის მეტაინფორმაცია' })
+  @ApiProperty({
+    type: PaginationMetaDto,
+    description: 'პაგინაციის მეტაინფორმაცია',
+  })
   meta: PaginationMetaDto;
 
   constructor(data: T[], total: number, page: number, limit: number) {

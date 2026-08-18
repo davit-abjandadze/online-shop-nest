@@ -44,7 +44,10 @@ export class EmailService {
       await this.transporter.sendMail(mailOptions);
       this.logger.log(`Password reset email sent successfully to ${to}`);
     } catch (error) {
-      this.logger.error(`Failed to send email to ${to}`, (error as Error).stack);
+      this.logger.error(
+        `Failed to send email to ${to}`,
+        (error as Error).stack,
+      );
       throw new Error('მეილის გაგზავნა ვერ მოხერხდა');
     }
   }

@@ -16,7 +16,10 @@ export class AnswerService {
   ) {}
 
   // ახალი პასუხის დამატება არსებულ კითხვაზე
-  async addAnswerToQuestion(questionId: number, createAnswerDto: CreateAnswerDto) {
+  async addAnswerToQuestion(
+    questionId: number,
+    createAnswerDto: CreateAnswerDto,
+  ) {
     // 1. ვიპოვოთ კითხვა
     const question = await this.questionRepository.findOne({
       where: { id: questionId },
