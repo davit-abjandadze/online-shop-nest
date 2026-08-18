@@ -59,20 +59,9 @@ export class UserAnswerService {
       );
     }
 
-    // datooo
-    // ⭐ 3. ახალი: შევამოწმოთ, ხომ არ აქვს ამ IP-ს უკვე მიცემული ხმა ამ კითხვაზე
-    const existingIpVote = await this.userAnswerRepository.findOne({
-      where: {
-        question: { id: questionId },
-        ipAddress: ipAddress,
-      },
-    });
-
-    if (existingIpVote) {
-      throw new ConflictException(
-        'ამ IP მისამართიდან უკვე მიცემულია ხმა ამ კითხვაზე. ერთი მომხმარებელი = ერთი ხმა.',
-      );
-    }
+    // ⭐ 3. IP-ზე დაფუძნებული შეზღუდვა მოხსნილია — ერთ IP-ზე (მაგ. ერთ ოჯახში)
+    // რამდენიმე ადამიანს შეუძლია ხმის მიცემა. IP მისამართი კვლავ ინახება
+    // ჩანაწერში (ქვემოთ) სტატისტიკის/აუდიტისთვის, უბრალოდ აღარ ბლოკავს ხმის მიცემას.
 
     // ⭐ 4. შევამოწმოთ, ხომ არ მიუცია უკვე მომხმარებელს ხმა ამ კითხვაზე
     const existingUserVote = await this.userAnswerRepository.findOne({
