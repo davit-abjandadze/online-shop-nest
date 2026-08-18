@@ -2292,10 +2292,16 @@
       "CreateQuestionDto": {
         "type": "object",
         "properties": {
-          "categoryId": {
-            "type": "number",
-            "description": "კატეგორიის ID (optional)",
-            "example": 1
+          "categoryIds": {
+            "description": "კატეგორიების ID-ები (optional, ერთ კითხვას შეიძლება რამდენიმე კატეგორია ჰქონდეს)",
+            "example": [
+              1,
+              2
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
           },
           "isActive": {
             "type": "boolean",
@@ -2376,11 +2382,11 @@
               "$ref": "#/components/schemas/Answer"
             }
           },
-          "category": {
-            "$ref": "#/components/schemas/Category"
-          },
-          "categoryId": {
-            "type": "number"
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
           },
           "isActive": {
             "type": "boolean"
@@ -2566,10 +2572,16 @@
       "UpdateQuestionDto": {
         "type": "object",
         "properties": {
-          "categoryId": {
-            "type": "number",
-            "description": "კატეგორიის ID (optional)",
-            "example": 1
+          "categoryIds": {
+            "description": "კატეგორიების ID-ები (optional, ერთ კითხვას შეიძლება რამდენიმე კატეგორია ჰქონდეს)",
+            "example": [
+              1,
+              2
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
           },
           "isActive": {
             "type": "boolean",

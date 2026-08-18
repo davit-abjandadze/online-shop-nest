@@ -169,7 +169,16 @@ export class UserAnswerService {
       .groupBy('question.id');
 
     if (categoryId) {
-      votesQuery.andWhere('question.categoryId = :categoryId', { categoryId });
+      votesQuery.andWhere(
+        (qb) =>
+          `question.id IN ${qb
+            .subQuery()
+            .select('qc."questionId"')
+            .from('question_categories', 'qc')
+            .where('qc."categoryId" = :categoryId')
+            .getQuery()}`,
+        { categoryId },
+      );
     }
 
     const now = new Date();
@@ -202,7 +211,7 @@ export class UserAnswerService {
     // 2. სრული კითხვები (პასუხების ვარიანტებით და კატეგორიით)
     const questions = await this.questionRepository.find({
       where: { id: In(questionIds) },
-      relations: { answers: true, category: true },
+      relations: { answers: true, categories: true },
     });
     const questionById = new Map(questions.map((q) => [q.id, q]));
 

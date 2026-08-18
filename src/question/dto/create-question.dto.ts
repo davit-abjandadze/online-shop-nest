@@ -23,14 +23,16 @@ export class CreateQuestionDto {
   @IsOptional()
   type?: QuestionType; // ნაგულისხმევად SINGLE იქნება
 
- @ApiPropertyOptional({ 
-    description: 'კატეგორიის ID (optional)', 
-    example: 1 
+ @ApiPropertyOptional({
+    description: 'კატეგორიების ID-ები (optional, ერთ კითხვას შეიძლება რამდენიმე კატეგორია ჰქონდეს)',
+    example: [1, 2],
+    type: [Number],
   })
   @IsOptional()
-  @IsNumber({}, { message: 'კატეგორიის ID უნდა იყოს რიცხვი' })
+  @IsArray()
+  @IsNumber({}, { each: true, message: 'თითოეული კატეგორიის ID უნდა იყოს რიცხვი' })
   @Type(() => Number)
-  categoryId?: number;
+  categoryIds?: number[];
 
   @IsArray()
   @ValidateNested({ each: true })

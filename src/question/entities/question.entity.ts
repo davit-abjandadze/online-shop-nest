@@ -5,7 +5,9 @@ import {
   OneToMany,
   CreateDateColumn,
   JoinColumn,
-  ManyToOne // ← ეს აუცილებლად უნდა დაამატო!
+  JoinTable,
+  ManyToOne,
+  ManyToMany,
 } from 'typeorm';
 import { Answer } from '../../answer/entities/answer.entity';
 // რეკომენდებულია ფარდობითი გზა (relative path):
@@ -51,13 +53,14 @@ export class Question {
   })
   answers!: Answer[];
 
-  // ← ახალი ველები კატეგორიისთვის
-  @ManyToOne(() => Category, (category) => category.questions, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'categoryId' })
-  category?: Category;
-
-  @Column({ nullable: true })
-  categoryId?: number;
+  // ერთ კითხვას შეიძლება ჰქონდეს რამდენიმე კატეგორია (many-to-many, join table: question_categories)
+  @ManyToMany(() => Category, (category) => category.questions)
+  @JoinTable({
+    name: 'question_categories',
+    joinColumn: { name: 'questionId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'categoryId', referencedColumnName: 'id' },
+  })
+  categories?: Category[];
 
   @Column({ default: true })
   isActive!: boolean;

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany } from 'typeorm';
 import { Question } from '../../question/entities/question.entity';
 
 @Entity()
@@ -12,6 +12,6 @@ export class Category {
   @Column({ nullable: true })
   description?: string;
 
-  @OneToMany(() => Question, (question) => question.category)
+  @ManyToMany(() => Question, (question) => question.categories)
   questions?: Question[];
 }

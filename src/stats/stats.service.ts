@@ -310,7 +310,7 @@ export class StatsService {
   async getCategoriesStats(): Promise<{ categories: CategoryStats[] }> {
     const [categories, questions, questionVotes] = await Promise.all([
       this.categoryRepository.find(),
-      this.questionRepository.find(),
+      this.questionRepository.find({ relations: { categories: true } }),
       this.userAnswerRepository
         .createQueryBuilder('ua')
         .select('ua.questionId', 'questionId')
@@ -324,8 +324,8 @@ export class StatsService {
     );
 
     const categoryStats: CategoryStats[] = categories.map((category) => {
-      const categoryQuestions = questions.filter(
-        (question) => question.categoryId === category.id,
+      const categoryQuestions = questions.filter((question) =>
+        question.categories?.some((c) => c.id === category.id),
       );
       const totalQuestions = categoryQuestions.length;
 
@@ -372,7 +372,7 @@ export class StatsService {
       votesTodayRaw,
       votesYesterdayRaw,
     ] = await Promise.all([
-      this.questionRepository.find({ relations: { category: true } }),
+      this.questionRepository.find({ relations: { categories: true } }),
       this.userAnswerRepository
         .createQueryBuilder('ua')
         .select('ua.questionId', 'questionId')
@@ -435,7 +435,7 @@ export class StatsService {
           id: questionId,
           text: question?.text ?? '',
           votes,
-          category: question?.category?.name ?? '',
+          category: question?.categories?.map((c) => c.name).join(', ') ?? '',
         };
       })
       .sort((a, b) => b.votes - a.votes)

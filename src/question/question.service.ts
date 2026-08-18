@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { ApprovalStatus, CreatorType, Question } from './entities/question.entity';
 import { Category } from '../category/entities/category.entity';
 import { UserRole } from '../users/entities/user.entity';
@@ -32,19 +32,35 @@ export class QuestionService {
     private categoryRepository: Repository<Category>,
   ) {}
 
+  // categoryIds-ის მიხედვით კატეგორია entity-ების წამოღება, ID-ების არსებობის შემოწმებით
+  private async resolveCategories(categoryIds?: number[]): Promise<Category[] | undefined> {
+    if (!categoryIds) {
+      return undefined;
+    }
+    if (categoryIds.length === 0) {
+      return [];
+    }
+
+    const uniqueIds = [...new Set(categoryIds)];
+    const categories = await this.categoryRepository.find({
+      where: { id: In(uniqueIds) },
+    });
+
+    if (categories.length !== uniqueIds.length) {
+      const foundIds = new Set(categories.map((c) => c.id));
+      const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
+      throw new BadRequestException(`კატეგორია ID-ით ${missingIds.join(', ')} ვერ მოიძებნა`);
+    }
+
+    return categories;
+  }
+
   async create(
     createQuestionDto: CreateQuestionDto,
     currentUser: RequestUser,
     creatorIp?: string,
   ) {
-    if (createQuestionDto.categoryId) {
-      const categoryExists = await this.categoryRepository.findOne({
-        where: { id: createQuestionDto.categoryId },
-      });
-      if (!categoryExists) {
-        throw new BadRequestException(`კატეგორია ID-ით ${createQuestionDto.categoryId} ვერ მოიძებნა`);
-      }
-    }
+    const categories = await this.resolveCategories(createQuestionDto.categoryIds);
 
     const isAdmin = currentUser.role === UserRole.ADMIN;
 
@@ -83,8 +99,10 @@ export class QuestionService {
       }
     }
 
+    const { categoryIds, ...questionData } = createQuestionDto;
     const question = this.questionRepository.create({
-      ...createQuestionDto,
+      ...questionData,
+      categories,
       createdById: currentUser.userId,
       creatorIp,
       creatorType: isAdmin ? CreatorType.ADMIN : CreatorType.USER,
@@ -143,7 +161,7 @@ export class QuestionService {
     const query = this.questionRepository
       .createQueryBuilder('question')
       .leftJoinAndSelect('question.answers', 'answers')
-      .leftJoinAndSelect('question.category', 'category')
+      .leftJoinAndSelect('question.categories', 'categories')
       .where('question.createdById = :userId', { userId })
       .orderBy(`question.${actualSortBy}`, order)
       .skip((page - 1) * limit)
@@ -176,10 +194,21 @@ export class QuestionService {
     const query = this.questionRepository
       .createQueryBuilder('question')
       .leftJoinAndSelect('question.answers', 'answers')
-      .leftJoinAndSelect('question.category', 'category');
+      .leftJoinAndSelect('question.categories', 'categories');
 
     if (categoryId) {
-      query.andWhere('question.categoryId = :categoryId', { categoryId });
+      // many-to-many ფილტრი: question.id-ები, რომლებსაც join table-ში (question_categories)
+      // მითითებული კატეგორია აქვს მიბმული (subquery, რომ categories-ის leftJoinAndSelect არ დაზიანდეს)
+      query.andWhere(
+        (qb) =>
+          `question.id IN ${qb
+            .subQuery()
+            .select('qc."questionId"')
+            .from('question_categories', 'qc')
+            .where('qc."categoryId" = :categoryId')
+            .getQuery()}`,
+        { categoryId },
+      );
     }
 
     if (approvalStatus) {
@@ -220,7 +249,7 @@ export class QuestionService {
   async findOne(id: number) {
     const question = await this.questionRepository.findOne({
       where: { id },
-      relations: { answers: true, category: true },
+      relations: { answers: true, categories: true },
     });
     if (!question) {
       throw new NotFoundException(`Question with ID ${id} not found`);
@@ -230,7 +259,11 @@ export class QuestionService {
 
   async update(id: number, updateQuestionDto: UpdateQuestionDto) {
     const question = await this.findOne(id);
-    Object.assign(question, updateQuestionDto);
+    const { categoryIds, ...questionData } = updateQuestionDto;
+    Object.assign(question, questionData);
+    if (categoryIds !== undefined) {
+      question.categories = await this.resolveCategories(categoryIds);
+    }
     return this.questionRepository.save(question);
   }
 

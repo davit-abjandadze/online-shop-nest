@@ -59,7 +59,7 @@ export class FavoriteService {
 
     const [favorites, total] = await this.favoriteRepository.findAndCount({
       where: { user: { id: userId } },
-      relations: { question: { answers: true, category: true } },
+      relations: { question: { answers: true, categories: true } },
       order: { createdAt: order },
       skip: (page - 1) * limit,
       take: limit,
