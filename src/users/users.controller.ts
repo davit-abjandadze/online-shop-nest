@@ -6,12 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SearchUserDto } from './dto/search-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -50,6 +52,20 @@ export class UsersController {
   async findAll() {
     const users = await this.usersService.findAll();
     return users.map(sanitizeUser);
+  }
+
+  // გაფართოებული ძიება (search/role/gender ფილტრები + პაგინაცია/დალაგება) —
+  // მხოლოდ ადმინისთვის, იმავე მიზეზით რაც findAll-ია (მომხმარებელთა მონაცემები).
+  // შენიშვნა: route-ი /:id-ზე მაღლა უნდა იდგეს, თორემ Nest "search"-ს
+  // :id პარამეტრად აღიქვამს.
+  @Get('search')
+  @Roles(UserRole.ADMIN)
+  async search(@Query() searchUserDto: SearchUserDto) {
+    const result = await this.usersService.findAllPaginated(searchUserDto);
+    return {
+      ...result,
+      data: result.data.map(sanitizeUser),
+    };
   }
 
   @Get(':id')

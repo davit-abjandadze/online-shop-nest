@@ -8,6 +8,22 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SearchUserDto } from './dto/search-user.dto';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+
+// sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — თუ პირდაპირ
+// orderBy-ში ჩავსვამთ, SQL injection-ის რისკია. ამიტომ ვუშვებთ მხოლოდ
+// ცნობილ, არსებულ სვეტებს — ყველა დანარჩენ შემთხვევაში ვუბრუნდებით createdAt-ს.
+const SORTABLE_COLUMNS = new Set([
+  'id',
+  'firstName',
+  'lastName',
+  'email',
+  'role',
+  'gender',
+  'age',
+  'createdAt',
+]);
 
 @Injectable()
 export class UsersService {
@@ -29,6 +45,49 @@ export class UsersService {
 
   findAll() {
     return this.userRepository.find();
+  }
+
+  // გაფართოებული ძიება: firstName/lastName/email-ში თავისუფალი ტექსტით
+  // (ILike — case-insensitive, ნაწილობრივი დამთხვევა), + role/gender ფილტრები,
+  // პაგინაციითა და დალაგებით. სისტემურ (whitelist) სვეტებზეღა ვუშვებთ დალაგებას.
+  async findAllPaginated(
+    searchUserDto: SearchUserDto,
+  ): Promise<PaginatedResponseDto<User>> {
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      order = 'DESC',
+      search,
+      role,
+      gender,
+    } = searchUserDto;
+
+    const qb = this.userRepository.createQueryBuilder('user');
+
+    if (search) {
+      qb.andWhere(
+        '(user.firstName ILIKE :search OR user.lastName ILIKE :search OR user.email ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (role) {
+      qb.andWhere('user.role = :role', { role });
+    }
+
+    if (gender) {
+      qb.andWhere('user.gender = :gender', { gender });
+    }
+
+    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';
+    qb.orderBy(`user.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
+
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   async findOne(id: number) {
