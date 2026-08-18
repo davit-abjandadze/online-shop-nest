@@ -40,7 +40,14 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+
+  // production-ში Swagger UI (/api) საჯაროდ არ იხსნება — API-ის სტრუქტურის
+  // (endpoint-ები, DTO-ები) გამჟღავნება არ გვინდა გარეშე პირისთვის.
+  // swagger.json ფაილი მაინც იწერება ქვემოთ ყოველთვის, რადგან ის ფრონტენდის
+  // `yarn generate:api`-ს სჭირდება (წაკითხვა ხდება ფაილიდან, არა HTTP-ით).
+  if (process.env.NODE_ENV !== 'production') {
+    SwaggerModule.setup('api', app, document);
+  }
 
   // ყოველ სტარტზე ავტომატურად გენერირდება/განახლდება swagger.json,
   // რომ ფრონტმა ყოველთვის ახალი schema-დან შეძლოს ტიპების/კლიენტის გენერაცია.
