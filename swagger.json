@@ -489,28 +489,6 @@
         ]
       }
     },
-    "/auth/facebook": {
-      "post": {
-        "operationId": "AuthController_facebookLogin",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "წარმატებული ავტორიზაცია",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Facebook-ით ავტორიზაცია/რეგისტრაცია",
-        "tags": [
-          "auth"
-        ]
-      }
-    },
     "/auth/forgot-password": {
       "post": {
         "operationId": "AuthController_forgotPassword",

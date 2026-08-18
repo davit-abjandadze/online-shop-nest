@@ -117,13 +117,14 @@ export class AuthController {
     return this.authService.googleLogin(body);
   }
 
-    @Post('facebook')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Facebook-ით ავტორიზაცია/რეგისტრაცია' })
-  @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
-  async facebookLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
-    return this.authService.facebookLogin(body);
-  }
+  // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
+  // @Post('facebook')
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({ summary: 'Facebook-ით ავტორიზაცია/რეგისტრაცია' })
+  // @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
+  // async facebookLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
+  //   return this.authService.facebookLogin(body);
+  // }
 
     @Post('forgot-password')
   @HttpCode(HttpStatus.OK)

@@ -113,28 +113,29 @@ export class AuthService {
     return this.generateToken(user);
   }
 
-    // ⭐ ახალი მეთოდი Facebook ავტორიზაციისთვის
-  async facebookLogin(profile: { email: string; firstName: string; lastName: string }) {
-    // 1. ვეძებთ მომხმარებელს email-ით
-    let user = await this.usersService.findByEmail(profile.email);
+    // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
+  // // ⭐ ახალი მეთოდი Facebook ავტორიზაციისთვის
+  // async facebookLogin(profile: { email: string; firstName: string; lastName: string }) {
+  //   // 1. ვეძებთ მომხმარებელს email-ით
+  //   let user = await this.usersService.findByEmail(profile.email);
 
-    // 2. თუ არ არსებობს, ვქმნით ახალს
-    if (!user) {
-      const randomPassword = Math.random().toString(36).slice(-8);
-      const hashedPassword = await bcrypt.hash(randomPassword, 10);
-      
-      user = await this.usersService.create({
-        email: profile.email,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        password: hashedPassword,
-        role: UserRole.USER,
-      });
-    }
+  //   // 2. თუ არ არსებობს, ვქმნით ახალს
+  //   if (!user) {
+  //     const randomPassword = Math.random().toString(36).slice(-8);
+  //     const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-    // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
-    return this.generateToken(user);
-  }
+  //     user = await this.usersService.create({
+  //       email: profile.email,
+  //       firstName: profile.firstName,
+  //       lastName: profile.lastName,
+  //       password: hashedPassword,
+  //       role: UserRole.USER,
+  //     });
+  //   }
+
+  //   // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
+  //   return this.generateToken(user);
+  // }
 
   // ⭐ ახალი მეთოდი: პაროლის აღდგენის მოთხოვნა
    async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
