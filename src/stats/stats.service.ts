@@ -27,6 +27,9 @@ export interface TrendsStats {
   trend: 'up' | 'down' | 'stable';
 }
 
+// პოპულარულ განცხადებად ჩასათვლელად საჭირო მინიმალური ხმების რაოდენობა (20-ზე მეტი)
+const POPULAR_QUESTION_MIN_VOTES = 20;
+
 const PERIOD_DAYS: Record<TrendsPeriod, number> = {
   week: 7,
   month: 30,
@@ -425,6 +428,7 @@ export class StatsService {
     );
 
     const mostVoted: MostVotedQuestion[] = [...totalVotesByQuestionId.entries()]
+      .filter(([, votes]) => votes > POPULAR_QUESTION_MIN_VOTES)
       .map(([questionId, votes]) => {
         const question = questionsById.get(questionId);
         return {
