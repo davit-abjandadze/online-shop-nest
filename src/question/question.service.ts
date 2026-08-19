@@ -188,17 +188,38 @@ export class QuestionService {
       ? sortBy
       : 'createdAt';
 
-    const query = this.questionRepository
+    // იგივე ორსაფეხურიანი მიდგომა, რაც findAll-ში — leftJoinAndSelect('answers') + skip/take
+    // ერთად one-to-many row-გამრავლების გამო LIMIT/OFFSET-ს არასწორ row-ებზე სჭრიდა.
+    const baseQuery = this.questionRepository
       .createQueryBuilder('question')
-      .leftJoinAndSelect('question.answers', 'answers')
-      .leftJoinAndSelect('question.categories', 'categories')
-      .where('question.createdById = :userId', { userId })
-      .orderBy(`question.${actualSortBy}`, order)
-      .addOrderBy('answers.order', 'ASC')
-      .skip((page - 1) * limit)
-      .take(limit);
+      .where('question.createdById = :userId', { userId });
 
-    const [data, total] = await query.getManyAndCount();
+    const total = await baseQuery.getCount();
+
+    const idRows = await baseQuery
+      .clone()
+      .select('question.id', 'id')
+      .orderBy(`question.${actualSortBy}`, order)
+      .addOrderBy('question.id', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getRawMany<{ id: number }>();
+
+    const ids = idRows.map((row) => row.id);
+    let data: Question[] = [];
+
+    if (ids.length) {
+      data = await this.questionRepository
+        .createQueryBuilder('question')
+        .leftJoinAndSelect('question.answers', 'answers')
+        .leftJoinAndSelect('question.categories', 'categories')
+        .where('question.id IN (:...ids)', { ids })
+        .addOrderBy('answers.order', 'ASC')
+        .getMany();
+
+      const orderIndex = new Map(ids.map((id, index) => [id, index]));
+      data.sort((a, b) => orderIndex.get(a.id)! - orderIndex.get(b.id)!);
+    }
 
     return new PaginatedResponseDto(data, total, page, limit);
   }
@@ -224,15 +245,18 @@ export class QuestionService {
       ? sortBy
       : 'createdAt';
 
-    const query = this.questionRepository
-      .createQueryBuilder('question')
-      .leftJoinAndSelect('question.answers', 'answers')
-      .leftJoinAndSelect('question.categories', 'categories');
+    // ⚠️ ფილტრები (answers/categories join-ის გარეშე) — ID-ების და total-ის დასათვლელად.
+    // leftJoinAndSelect('question.answers', ...) + skip/take ერთად გამოყენება არასწორია:
+    // one-to-many join-ი კითხვას პასუხების რაოდენობის მიხედვით ამრავლებს SQL-row-ებად,
+    // ხოლო LIMIT/OFFSET სწორედ ამ row-ებზე მუშაობს (და არა უნიკალურ კითხვებზე), ასე რომ
+    // sortBy/order-ის შეცვლისას LIMIT window სხვადასხვა row-ებზე ჭრიდა და კითხვები ან
+    // ქრებოდნენ, ან ორმაგდებოდნენ გვერდზე.
+    const baseQuery = this.questionRepository.createQueryBuilder('question');
 
     if (categoryId) {
       // many-to-many ფილტრი: question.id-ები, რომლებსაც join table-ში (question_categories)
       // მითითებული კატეგორია აქვს მიბმული (subquery, რომ categories-ის leftJoinAndSelect არ დაზიანდეს)
-      query.andWhere(
+      baseQuery.andWhere(
         (qb) =>
           `question.id IN ${qb
             .subQuery()
@@ -245,38 +269,61 @@ export class QuestionService {
     }
 
     if (approvalStatus) {
-      query.andWhere('question.approvalStatus = :approvalStatus', {
+      baseQuery.andWhere('question.approvalStatus = :approvalStatus', {
         approvalStatus,
       });
     }
 
     if (creatorType) {
-      query.andWhere('question.creatorType = :creatorType', { creatorType });
+      baseQuery.andWhere('question.creatorType = :creatorType', {
+        creatorType,
+      });
     }
 
     const now = new Date();
     if (status === 'active') {
-      query.andWhere('question.isActive = :isActive', { isActive: true });
-      query.andWhere('(question.endDate IS NULL OR question.endDate > :now)', {
-        now,
-      });
+      baseQuery.andWhere('question.isActive = :isActive', { isActive: true });
+      baseQuery.andWhere(
+        '(question.endDate IS NULL OR question.endDate > :now)',
+        { now },
+      );
     } else if (status === 'inactive') {
-      query.andWhere(
+      baseQuery.andWhere(
         '(question.isActive = :isActive OR (question.endDate IS NOT NULL AND question.endDate <= :now))',
         { isActive: false, now },
       );
     }
 
-    query
+    const total = await baseQuery.getCount();
+
+    const idRows = await baseQuery
+      .clone()
+      .select('question.id', 'id')
       // დაპინული კითხვები ყოველთვის ზემოთაა, მათ შორის — ბოლოს დაპინული ყველაზე პირველი
       .orderBy('question.isPinned', 'DESC')
       .addOrderBy('question.pinnedAt', 'DESC')
       .addOrderBy(`question.${actualSortBy}`, order)
-      .addOrderBy('answers.order', 'ASC')
+      .addOrderBy('question.id', 'ASC') // ტაი-ბრეიკერი სტაბილური pagination-სთვის
       .skip((page - 1) * limit)
-      .take(limit);
+      .take(limit)
+      .getRawMany<{ id: number }>();
 
-    const [data, total] = await query.getManyAndCount();
+    const ids = idRows.map((row) => row.id);
+    let data: Question[] = [];
+
+    if (ids.length) {
+      data = await this.questionRepository
+        .createQueryBuilder('question')
+        .leftJoinAndSelect('question.answers', 'answers')
+        .leftJoinAndSelect('question.categories', 'categories')
+        .where('question.id IN (:...ids)', { ids })
+        .addOrderBy('answers.order', 'ASC')
+        .getMany();
+
+      // getMany()-ის შედეგი IN-ის რიგს არ იმეორებს — ვაბრუნებთ ზემოთ დათვლილ თანმიმდევრობას
+      const orderIndex = new Map(ids.map((id, index) => [id, index]));
+      data.sort((a, b) => orderIndex.get(a.id)! - orderIndex.get(b.id)!);
+    }
 
     return new PaginatedResponseDto(data, total, page, limit);
   }
