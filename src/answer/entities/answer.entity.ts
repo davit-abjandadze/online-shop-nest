@@ -9,6 +9,10 @@ export class Answer {
   @Column()
   text!: string;
 
+  // პასუხების თანმიმდევრობა კითხვის ფარგლებში (0-დან იწყება) — დრაგ-ენდ-დროპით იცვლება
+  @Column({ default: 0 })
+  order!: number;
+
   @ManyToOne(() => Question, (question) => question.answers, {
     onDelete: 'CASCADE',
   })

@@ -117,10 +117,17 @@ export class QuestionService {
       }
     }
 
-    const questionData = { ...createQuestionDto };
+    const { answers, ...questionData } = createQuestionDto;
     delete questionData.categoryIds;
+    // პასუხების თანმიმდევრობა მასივის ინდექსით ფიქსირდება, რომ read-ისას იგივე
+    // მიმდევრობა დაბრუნდეს, რაც შექმნისას იყო გამოგზავნილი
+    const answersWithOrder = answers.map((answer, index) => ({
+      ...answer,
+      order: index,
+    }));
     const question = this.questionRepository.create({
       ...questionData,
+      answers: answersWithOrder,
       categories,
       createdById: currentUser.userId,
       creatorIp,
@@ -187,6 +194,7 @@ export class QuestionService {
       .leftJoinAndSelect('question.categories', 'categories')
       .where('question.createdById = :userId', { userId })
       .orderBy(`question.${actualSortBy}`, order)
+      .addOrderBy('answers.order', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -264,6 +272,7 @@ export class QuestionService {
       .orderBy('question.isPinned', 'DESC')
       .addOrderBy('question.pinnedAt', 'DESC')
       .addOrderBy(`question.${actualSortBy}`, order)
+      .addOrderBy('answers.order', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
 
@@ -276,6 +285,7 @@ export class QuestionService {
     const question = await this.questionRepository.findOne({
       where: { id },
       relations: { answers: true, categories: true },
+      order: { answers: { order: 'ASC' } },
     });
     if (!question) {
       throw new NotFoundException(`Question with ID ${id} not found`);
