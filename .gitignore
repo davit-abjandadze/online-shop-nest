@@ -35,6 +35,10 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# npm lockfile — this project standardizes on yarn.lock (see CLAUDE.md commands);
+# package-lock.json used to drift with a stale project name from the copied repo
+package-lock.json
+
 # dotenv environment variable files
 .env
 .env.development.local

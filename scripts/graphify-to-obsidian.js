@@ -109,7 +109,7 @@ function main() {
   const indexLines = [];
   indexLines.push('# Graphify Wiki');
   indexLines.push('');
-  indexLines.push(`\`my-first-nest-app\`-ის knowledge graph-ის Obsidian vault. გენერირებულია ${nodes.length} node-იდან და ${links.length} edge-იდან.`);
+  indexLines.push(`\`online-shop-nest\`-ის knowledge graph-ის Obsidian vault. გენერირებულია ${nodes.length} node-იდან და ${links.length} edge-იდან.`);
   indexLines.push('');
   indexLines.push('## Communities');
   for (const community of [...byCommunity.keys()].sort((a, b) => a - b)) {

@@ -3,15 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './users/users.module';
-import { TasksModule } from './tasks/tasks.module';
 import { AuthModule } from './auth/auth.module';
-import { QuestionModule } from './question/question.module';
-import { AnswerModule } from './answer/answer.module';
-import { UserAnswerModule } from './user-answer/user-answer.module';
 import { CategoryModule } from './category/category.module';
-import { FavoriteModule } from './favorite/favorite.module';
 import { EmailService } from './common/email/email.service';
-import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -20,7 +14,7 @@ import { StatsModule } from './stats/stats.module';
       isGlobal: true,
     }),
 
-    // ⭐ ვადაგასული კითხვების ავტომატური დეაქტივაციისთვის (cron)
+    // ⭐ სამომავლო cron job-ებისთვის (მაგ. შეკვეთების/ვაუჩერების ვადის გასულობის შემოწმება)
     ScheduleModule.forRoot(),
 
     // 2. TypeORM-ის კავშირი
@@ -52,16 +46,8 @@ import { StatsModule } from './stats/stats.module';
 
     // 3. შენი მოდულები
     UsersModule,
-    TasksModule,
     AuthModule,
-    QuestionModule,
     CategoryModule,
-    AnswerModule,
-    UserAnswerModule,
-    FavoriteModule,
-    AuthModule,
-    UsersModule,
-    StatsModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
   exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს

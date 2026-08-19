@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany } from 'typeorm';
-import { Question } from '../../question/entities/question.entity';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
+// TODO: შემდეგ ეტაპზე დაემატება ManyToMany/OneToMany კავშირი Product-თან,
+// როცა პროდუქტის მოდული შეიქმნება.
 @Entity()
 export class Category {
   @PrimaryGeneratedColumn()
@@ -11,7 +12,4 @@ export class Category {
 
   @Column({ nullable: true })
   description?: string;
-
-  @ManyToMany(() => Question, (question) => question.categories)
-  questions?: Question[];
 }

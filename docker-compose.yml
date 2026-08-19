@@ -1,16 +1,14 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: nest_postgres
+    container_name: shop_postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: nest_db
+      POSTGRES_DB: shop_db
     ports:
-      - '5433:5432' # <--- აქ შევცვალეთ 5433-ზე
+      - '5434:5432' # 5433 არის დამოკავშირებული ორიგინალ (referendum) პროექტის nest_postgres კონტეინერზე — განზრახ სხვა პორტი, რომ ორივე პარალელურად, ერთმანეთის მონაცემების გარეშე დგებოდეს.
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

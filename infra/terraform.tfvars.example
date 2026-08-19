@@ -1,7 +1,0 @@
-aws_region   = "eu-central-1"
-project_name = "referendum-backend"
-
-email_user   = "your-gmail-address@gmail.com"
-email_pass   = "your-16-char-gmail-app-password"
-frontend_url = "https://your-frontend-domain.com"
-cors_origins = "https://your-frontend-domain.com"

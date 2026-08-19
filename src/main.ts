@@ -33,8 +33,8 @@ async function bootstrap() {
 
   // Swagger-ის კონფიგურაცია
   const config = new DocumentBuilder()
-    .setTitle('My First Nest API')
-    .setDescription('The API description')
+    .setTitle('Online Shop API')
+    .setDescription('REST API for the online shop backend')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

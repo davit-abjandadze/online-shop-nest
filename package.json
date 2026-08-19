@@ -1,7 +1,7 @@
 {
-  "name": "my-first-nest-app",
+  "name": "online-shop-nest",
   "version": "0.0.1",
-  "description": "",
+  "description": "NestJS backend for an online shop",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

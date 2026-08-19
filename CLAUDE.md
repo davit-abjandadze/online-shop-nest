@@ -4,10 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-NestJS backend for a referendum/polling platform. It is the API for a separate Next.js frontend (sibling
-repo `../nest-referendum`), which consumes this backend through an OpenAPI-generated client built from
-`swagger.json` (see "Swagger / OpenAPI" below). Postgres via TypeORM. Georgian-language comments are the
-norm throughout `src/` — match that style in new code/comments unless told otherwise.
+NestJS backend being converted from a copied referendum/polling-platform project into an **online shop**
+backend. The referendum-specific domain (`question`, `answer`, `user-answer`, `favorite`, `stats`) and the
+unrelated tutorial leftover (`tasks`) have been removed; only the generic, reusable infrastructure was
+kept: `auth`, `users`, `category` (currently just a bare name/description entity, no longer linked to
+`question` — intended to become the product-category module), and `common/` (pagination, roles guard,
+email service). Shop domain modules (products, orders, cart, payments, etc.) still need to be designed and
+built from scratch. Postgres via TypeORM. Georgian-language comments are the norm throughout `src/` — match
+that style in new code/comments unless told otherwise.
+
+An OpenAPI document is still generated to `swagger.json` on every boot (see "Swagger / OpenAPI" below) in
+case a frontend is wired up again later, but there is currently no known consuming frontend repo — update
+this section once one exists.
 
 ## Commands
 
@@ -30,9 +38,12 @@ npx jest -t "test name substring"    # single test by name
 yarn test:e2e          # jest --config ./test/jest-e2e.json (test/*.e2e-spec.ts)
 ```
 
-Postgres is provided via `docker-compose.yml` (postgres:16-alpine, mapped to host port `5433`, container
-`nest_postgres`, db `nest_db`) — run `docker compose up -d` before starting the app locally if you don't
-already have a Postgres instance matching `.env`'s `DB_*` vars.
+Postgres is provided via `docker-compose.yml` (postgres:16-alpine, mapped to host port `5434`, container
+`shop_postgres`, db `shop_db`) — run `docker compose up -d` before starting the app locally if you don't
+already have a Postgres instance matching `.env`'s `DB_*` vars. **Deliberately different from the original
+referendum project's `nest_postgres`/`nest_db`/`5433`** — this repo was copied from that project and still
+shares its git history (see below); the container name/port/db were changed so the two can run side by
+side without one's `synchronize: true` boot silently altering or dropping the other's tables.
 
 There is no separate "generate swagger" script — `swagger.json` is written automatically every time the
 app boots (see below). To regenerate it, just start the app (`yarn start` or `yarn start:dev`) and let it
@@ -42,16 +53,19 @@ finish bootstrapping.
 
 ### Module structure
 Each domain is a self-contained Nest module under `src/<domain>/` with the usual `*.module.ts` /
-`*.controller.ts` / `*.service.ts` / `dto/` / `entities/` layout: `auth`, `users`, `question` (with
-`answer`, `user-answer` for the referendum voting flow), `category`, `favorite`, `stats`, `tasks`. Cross-
-cutting pieces live in `src/common/`: `guards/roles.guard.ts`, `decorators/roles.decorator.ts` and
+`*.controller.ts` / `*.service.ts` / `dto/` / `entities/` layout. Currently only `auth`, `users`, and
+`category` exist — everything else (products, orders, cart, etc.) is yet to be built. Cross-cutting pieces
+live in `src/common/`: `guards/roles.guard.ts`, `decorators/roles.decorator.ts` and
 `current-user.decorator.ts`, `dto/pagination.dto.ts` + `paginated-response.dto.ts` (shared pagination
 envelope: `{ data: T[], meta: { total, page, limit, totalPages, hasNext, hasPrevious } }`), and
-`email/email.service.ts` (nodemailer, used for password-reset emails). `AppModule` wires
+`email/email.service.ts` (nodemailer, used for password-reset emails; "from" name is currently the
+placeholder `"Online Shop"` — rename once the shop has a real name). `AppModule` wires
 `TypeOrmModule.forRootAsync` (reads `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD`/`DB_DATABASE` from
-`ConfigModule`, `autoLoadEntities: true`, **`synchronize: true`** — dev-only schema sync, no migrations) and
-`ScheduleModule.forRoot()` for cron jobs. `QuestionService` has `@Cron` jobs (`EVERY_MINUTE`,
-`EVERY_DAY_AT_MIDNIGHT`) that auto-deactivate expired questions.
+`ConfigModule`, `autoLoadEntities: true`, `synchronize` true outside `production`) and
+`ScheduleModule.forRoot()`, kept registered for future cron jobs (e.g. expiring unpaid orders) — there are
+no `@Cron` jobs left in the codebase right now. `src/migrations/` is currently empty; the old
+referendum-schema migrations were deleted and no shop migrations exist yet (`synchronize: true` handles
+schema sync in dev in the meantime).
 
 ### Auth
 JWT-based, via `@nestjs/passport` + `@nestjs/jwt` + `passport-jwt`. `AuthService.login`/`register` verify
@@ -73,22 +87,18 @@ claim and 1h expiry, emailed via `EmailService` using `FRONTEND_URL`).
 TypeORM with `postgres` (`pg` driver). Entities under `src/<domain>/entities/`. Note the `typeorm` version
 pinned in `package.json` is unusually old (`^1.1.0`) relative to `@nestjs/typeorm` `^11` — if TypeORM APIs
 don't behave as the v0.3.x docs suggest, check the actually-installed version in `node_modules` before
-assuming a bug. Enums are modeled as Postgres `enum` columns (e.g. `UserRole`, `Gender` on `User`;
-`QuestionType`, `CreatorType`, `ApprovalStatus` on `Question`). `Question` in particular encodes the
-user-submitted-question moderation workflow: `creatorType` (admin/user), `approvalStatus`
-(pending/approved/rejected), `isActive`, `isPinned`, plus IP-based one-question-per-day throttling for user
-submissions.
+assuming a bug. Enums are modeled as Postgres `enum` columns (e.g. `UserRole`, `Gender` on `User`) — this
+pattern should be followed for new shop entities too (e.g. an `OrderStatus` enum on a future `Order`).
 
-### Swagger / OpenAPI (feeds the frontend)
+### Swagger / OpenAPI
 `src/main.ts` builds the OpenAPI document with `@nestjs/swagger`'s `DocumentBuilder` (bearer auth enabled),
-serves it at `/api`, and — on every single app startup — writes it to `swagger.json` at the project root
-via `writeFileSync`. The frontend's `scripts/generate-api.js` reads that exact file
-(`../my-first-nest-app/swagger.json`) to regenerate its typescript-axios API client. **This means the
-backend must be started at least once after any controller/DTO change before the frontend can pick up the
-new API shape** — if swagger.json looks stale, run `yarn start` (or `start:dev`) here first. CORS in
-`main.ts` is currently limited to a hardcoded allowlist of localhost/LAN origins — add new frontend origins
-there if needed. A global `ValidationPipe` runs with `whitelist: true`, `forbidNonWhitelisted: true`,
-`transform: true`, so DTOs are the strict contract for every request body/query.
+serves it at `/api` outside `production`, and — on every single app startup — writes it to `swagger.json`
+at the project root via `writeFileSync`. This was originally consumed by a sibling frontend's codegen
+script; that wiring is no longer known-current for this project — reconnect it once a frontend exists. CORS
+in `main.ts` is currently limited to a hardcoded allowlist of localhost/LAN origins via `CORS_ORIGINS` (env)
+— add new frontend origins there if needed. A global `ValidationPipe` runs with `whitelist: true`,
+`forbidNonWhitelisted: true`, `transform: true`, so DTOs are the strict contract for every request
+body/query.
 
 ### Request/response conventions
 Entities and DTOs use **camelCase** properties throughout (`firstName`, `createdAt`, `categoryId`, etc.) —

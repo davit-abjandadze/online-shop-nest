@@ -22,7 +22,7 @@ export class EmailService {
     const resetUrl = `${this.configService.get('FRONTEND_URL')}/ka/reset-password?token=${token}`;
 
     const mailOptions = {
-      from: `"Referendum App" <${this.configService.get('EMAIL_USER')}>`,
+      from: `"Online Shop" <${this.configService.get('EMAIL_USER')}>`,
       to: to,
       subject: 'პაროლის აღდგენა',
       html: `

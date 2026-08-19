@@ -13,13 +13,12 @@ export class CategoryService {
   ) {}
 
   async findAll() {
-    return this.categoryRepository.find({ relations: { questions: true } });
+    return this.categoryRepository.find();
   }
 
   async findOne(id: number) {
     const category = await this.categoryRepository.findOne({
       where: { id },
-      relations: { questions: true },
     });
     if (!category) {
       throw new NotFoundException(`კატეგორია ID-ით ${id} ვერ მოიძებნა`);
