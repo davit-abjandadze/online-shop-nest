@@ -1,0 +1,2032 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/users": {
+      "post": {
+        "operationId": "UsersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "get": {
+        "operationId": "UsersController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/search": {
+      "get": {
+        "operationId": "UsersController_search",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "საძიებო ტექსტი — ეძებს firstName, lastName და email ველებში (case-insensitive, ნაწილობრივი დამთხვევაც კმარა)",
+            "schema": {
+              "example": "giorgi",
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა როლის მიხედვით",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "user"
+              ]
+            }
+          },
+          {
+            "name": "gender",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა სქესის მიხედვით",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "male",
+                "female"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "წარმატებული რეგისტრაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "409": {
+            "description": "ელფოსტა უკვე დაკავებულია"
+          }
+        },
+        "summary": "მომხმარებლის რეგისტრაცია",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "წარმატებული ავტორიზაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "401": {
+            "description": "არასწორი ელფოსტა ან პაროლი"
+          }
+        },
+        "summary": "მომხმარებლის ავტორიზაცია",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "operationId": "AuthController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული წვდომა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მიმდინარე მომხმარებლის პროფილი",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/dashboard": {
+      "get": {
+        "operationId": "AuthController_getAdminDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული წვდომა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          },
+          "403": {
+            "description": "არ გაქვს ადმინისტრატორის უფლებები"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მხოლოდ ადმინისტრატორის პანელი",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პაროლი წარმატებით შეიცვალა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangePasswordResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ძველი პაროლი არასწორია ან ახალი პაროლი ძველს ემთხვევა"
+          },
+          "401": {
+            "description": "არ ხართ ავტორიზებული"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პაროლის შეცვლა (ავტორიზებული მომხმარებლისთვის)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "operationId": "AuthController_googleLogin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "წარმატებული ავტორიზაცია",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Google-ით ავტორიზაცია/რეგისტრაცია",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ინსტრუქცია გაიგზავნა"
+          },
+          "400": {
+            "description": "არასწორი ელფოსტა"
+          }
+        },
+        "summary": "პაროლის აღდგენის მოთხოვნა (email-ის გაგზავნა)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პაროლი წარმატებით შეიცვალა"
+          },
+          "400": {
+            "description": "არასწორი ან ამოწურული token"
+          }
+        },
+        "summary": "პაროლის აღდგენა token-ით",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/categories": {
+      "get": {
+        "operationId": "CategoryController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კატეგორიების სია"
+          }
+        },
+        "summary": "ყველა კატეგორიის მიღება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "post": {
+        "operationId": "CategoryController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "კატეგორია შეიქმნა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          }
+        },
+        "summary": "ახალი კატეგორიის შექმნა",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/{id}": {
+      "get": {
+        "operationId": "CategoryController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კატეგორია"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული კატეგორიის მიღება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "put": {
+        "operationId": "CategoryController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "კატეგორია განახლდა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის განახლება",
+        "tags": [
+          "categories"
+        ]
+      },
+      "delete": {
+        "operationId": "CategoryController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კატეგორია წაიშალა"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის წაშლა",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/products": {
+      "get": {
+        "operationId": "ProductsController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "საძიებო ტექსტი — ეძებს name და description ველებში",
+            "schema": {
+              "example": "ყურსასმენი",
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა კატეგორიის მიხედვით",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "minPrice",
+            "required": false,
+            "in": "query",
+            "description": "მინიმალური ფასი",
+            "schema": {
+              "minimum": 0,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxPrice",
+            "required": false,
+            "in": "query",
+            "description": "მაქსიმალური ფასი",
+            "schema": {
+              "minimum": 0,
+              "example": 500,
+              "type": "number"
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა აქტიურობის მიხედვით",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "პროდუქტების გვერდიანი სია"
+          }
+        },
+        "summary": "პროდუქტების სია — ძიება, ფილტრები, პაგინაცია",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "პროდუქტი შეიქმნა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი პროდუქტის შექმნა (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "operationId": "ProductsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "პროდუქტი"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული პროდუქტის მიღება",
+        "tags": [
+          "products"
+        ]
+      },
+      "put": {
+        "operationId": "ProductsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პროდუქტი განახლდა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის განახლება (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      },
+      "delete": {
+        "operationId": "ProductsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "პროდუქტი წაიშალა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის წაშლა (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/cart": {
+      "get": {
+        "operationId": "CartController_getCart",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კალათა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემი კალათის მიღება (თუ არ არსებობს — იქმნება)",
+        "tags": [
+          "cart"
+        ]
+      },
+      "delete": {
+        "operationId": "CartController_clearCart",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "დაცარიელებული კალათა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მთელი კალათის გასუფთავება",
+        "tags": [
+          "cart"
+        ]
+      }
+    },
+    "/cart/items": {
+      "post": {
+        "operationId": "CartController_addItem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCartItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "განახლებული კალათა"
+          },
+          "400": {
+            "description": "არასაკმარისი მარაგი"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის დამატება კალათაში",
+        "tags": [
+          "cart"
+        ]
+      }
+    },
+    "/cart/items/{id}": {
+      "patch": {
+        "operationId": "CartController_updateItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCartItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "განახლებული კალათა"
+          },
+          "404": {
+            "description": "ჩანაწერი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კალათის ჩანაწერის რაოდენობის განახლება",
+        "tags": [
+          "cart"
+        ]
+      },
+      "delete": {
+        "operationId": "CartController_removeItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "განახლებული კალათა"
+          },
+          "404": {
+            "description": "ჩანაწერი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩანაწერის წაშლა კალათიდან",
+        "tags": [
+          "cart"
+        ]
+      }
+    },
+    "/orders": {
+      "post": {
+        "operationId": "OrdersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "შეკვეთა შეიქმნა"
+          },
+          "400": {
+            "description": "კალათა ცარიელია ან არასაკმარისი მარაგი"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "შეკვეთის შექმნა საკუთარი კალათიდან",
+        "tags": [
+          "orders"
+        ]
+      },
+      "get": {
+        "operationId": "OrdersController_findMine",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა სტატუსის მიხედვით",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "paid",
+                "processing",
+                "shipped",
+                "delivered",
+                "cancelled",
+                "expired"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "შეკვეთების გვერდიანი სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემი შეკვეთების სია",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/admin/all": {
+      "get": {
+        "operationId": "OrdersController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა სტატუსის მიხედვით",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "paid",
+                "processing",
+                "shipped",
+                "delivered",
+                "cancelled",
+                "expired"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "შეკვეთების გვერდიანი სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ყველა შეკვეთის სია (ADMIN)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "შეკვეთა"
+          },
+          "403": {
+            "description": "სხვისი შეკვეთის ნახვის უფლება არ გაქვთ"
+          },
+          "404": {
+            "description": "შეკვეთა ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კონკრეტული შეკვეთის მიღება (საკუთარი ან ADMIN)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}/status": {
+      "patch": {
+        "operationId": "OrdersController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "სტატუსი განახლდა"
+          },
+          "404": {
+            "description": "შეკვეთა ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "შეკვეთის სტატუსის განახლება (ADMIN)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/payments/{orderId}/initiate": {
+      "post": {
+        "operationId": "PaymentsController_initiate",
+        "parameters": [
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "redirectUrl — მომხმარებელი აქ უნდა გადამისამართდეს"
+          },
+          "400": {
+            "description": "შეკვეთა უკვე გადახდილია ან PENDING არაა"
+          },
+          "403": {
+            "description": "სხვისი შეკვეთაა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "BOG გადახდის დაწყება კონკრეტული შეკვეთისთვის",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/payments/callback/bog": {
+      "post": {
+        "operationId": "PaymentsController_bogCallback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "BOG-ის გადახდის callback (არაავტორიზებული, ხელმოწერით დაცული)",
+        "tags": [
+          "payments"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Online Shop API",
+    "description": "REST API for the online shop backend",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string",
+            "default": "user"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "password",
+          "email"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string",
+            "default": "user"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string",
+            "description": "მომხმარებლის სქესი"
+          },
+          "age": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მომხმარებლის ასაკი"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "email",
+          "password"
+        ]
+      },
+      "UserDataDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "email": {
+            "type": "string",
+            "example": "test@test.com"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "გიორგი"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "ბერიძე"
+          },
+          "age": {
+            "type": "number",
+            "example": 25
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName"
+        ]
+      },
+      "TokenDataDto": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserDataDto"
+          }
+        },
+        "required": [
+          "access_token",
+          "user"
+        ]
+      },
+      "RegisterResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 201
+          },
+          "message": {
+            "type": "string",
+            "example": "მომხმარებელი წარმატებით დარეგისტრირდა"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TokenDataDto"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "data"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "LoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "წარმატებით შეხვედით სისტემაში"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TokenDataDto"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message",
+          "data"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "type": "string",
+            "description": "ძველი პაროლი",
+            "example": "oldPassword123"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "ახალი პაროლი (მინიმუმ 6 სიმბოლო)",
+            "example": "newPassword456"
+          }
+        },
+        "required": [
+          "oldPassword",
+          "newPassword"
+        ]
+      },
+      "ChangePasswordResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "პაროლი წარმატებით შეიცვალა"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "dato@gmail.com",
+            "description": "მომხმარებლის ელფოსტა"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token, რომელიც მიღებულია email-იდან"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "description": "ახალი პაროლი",
+            "example": "newPassword123"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კატეგორიის სახელი",
+            "example": "პოლიტიკა"
+          },
+          "description": {
+            "type": "string",
+            "description": "კატეგორიის მოკლე აღწერა",
+            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "number"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price",
+          "stock",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "CategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "კატეგორია წარმატებით შეიქმნა"
+          },
+          "data": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ]
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კატეგორიის სახელი",
+            "example": "პოლიტიკა"
+          },
+          "description": {
+            "type": "string",
+            "description": "კატეგორიის მოკლე აღწერა",
+            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
+          }
+        }
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "პროდუქტის სახელი",
+            "example": "უსადენო ყურსასმენი"
+          },
+          "description": {
+            "type": "string",
+            "description": "პროდუქტის აღწერა",
+            "example": "ბლუთუზ ყურსასმენი, 20 საათი მუშაობის დრო"
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ფასი",
+            "example": 99.99
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მარაგში რაოდენობა",
+            "example": 50,
+            "default": 0
+          },
+          "images": {
+            "description": "სურათების URL-ების სია",
+            "example": [
+              "https://example.com/img1.jpg"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა პროდუქტი",
+            "default": true
+          },
+          "categoryId": {
+            "type": "number",
+            "description": "კატეგორიის ID",
+            "example": 1
+          }
+        },
+        "required": [
+          "name",
+          "price"
+        ]
+      },
+      "ProductResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "პროდუქტი წარმატებით შეიქმნა"
+          },
+          "data": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Product"
+              }
+            ]
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "პროდუქტის სახელი",
+            "example": "უსადენო ყურსასმენი"
+          },
+          "description": {
+            "type": "string",
+            "description": "პროდუქტის აღწერა",
+            "example": "ბლუთუზ ყურსასმენი, 20 საათი მუშაობის დრო"
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ფასი",
+            "example": 99.99
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "description": "მარაგში რაოდენობა",
+            "example": 50,
+            "default": 0
+          },
+          "images": {
+            "description": "სურათების URL-ების სია",
+            "example": [
+              "https://example.com/img1.jpg"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა პროდუქტი",
+            "default": true
+          },
+          "categoryId": {
+            "type": "number",
+            "description": "კატეგორიის ID",
+            "example": 1
+          }
+        }
+      },
+      "AddCartItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "number",
+            "description": "პროდუქტის ID",
+            "example": 1
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 1,
+            "description": "რაოდენობა",
+            "example": 1
+          }
+        },
+        "required": [
+          "productId",
+          "quantity"
+        ]
+      },
+      "UpdateCartItemDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "minimum": 1,
+            "description": "ახალი რაოდენობა",
+            "example": 2
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "shippingAddress": {
+            "type": "string",
+            "description": "მიწოდების მისამართი",
+            "example": "თბილისი, რუსთაველის გამზირი 1"
+          }
+        },
+        "required": [
+          "shippingAddress"
+        ]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "processing",
+              "shipped",
+              "delivered",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string",
+            "example": "processing"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    }
+  }
+}

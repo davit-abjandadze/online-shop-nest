@@ -85,7 +85,10 @@ export class UsersController {
 
     // role-ის შეცვლა მხოლოდ ADMIN-ს შეუძლია — თორემ ნებისმიერს შეეძლო
     // საკუთარი თავისთვის { "role": "admin" } გაეგზავნა და ადმინი გამხდარიყო.
-    if (updateUserDto.role !== undefined && currentUser?.role !== UserRole.ADMIN) {
+    if (
+      updateUserDto.role !== undefined &&
+      currentUser?.role !== UserRole.ADMIN
+    ) {
       throw new ForbiddenException('როლის შეცვლის უფლება არ გაქვთ');
     }
 

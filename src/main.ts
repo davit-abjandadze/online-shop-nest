@@ -6,7 +6,11 @@ import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true — Payments-ის BOG callback route-ს (POST /payments/callback/bog)
+  // სჭირდება ნედლი (raw) request body ბაიტები ხელმოწერის (Callback-Signature)
+  // ვერიფიკაციისთვის; parse-ილი JSON-ის ხელახლა serialize-ვა ველების
+  // თანმიმდევრობას არღვევს და ხელმოწერას ბათილს ხდის.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // CORS_ORIGINS env-ით (მძიმით გამოყოფილი სია) production დომენების დასამატებლად,
   // ხოლო თუ არაა მითითებული — ლოკალური dev origin-ები ისევ მუშაობს, როგორც ადრე.

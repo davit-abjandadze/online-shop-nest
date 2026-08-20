@@ -1,0 +1,51 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { Category } from '../../category/entities/category.entity';
+
+@Entity()
+export class Product {
+  @PrimaryGeneratedColumn()
+  id!: number;
+
+  @Column()
+  name!: string;
+
+  @Column({ nullable: true })
+  description?: string;
+
+  // ფული — arway float, ყოველთვის decimal ფიქსირებული precision-ით.
+  @Column('decimal', { precision: 10, scale: 2 })
+  price!: string;
+
+  @Column('int', { default: 0 })
+  stock!: number;
+
+  // მარტივი სურათების სია v1-ისთვის — csv-ის მსგავსად ინახება, ცალკე ცხრილი
+  // ჯერჯერობით ზედმეტია.
+  @Column('simple-array', { nullable: true })
+  images?: string[];
+
+  @Column({ default: true })
+  isActive!: boolean;
+
+  // კატეგორიის წაშლისას პროდუქტი არ იშლება, უბრალოდ category null ხდება.
+  @ManyToOne(() => Category, (category) => category.products, {
+    onDelete: 'SET NULL',
+    nullable: true,
+  })
+  @JoinColumn()
+  category?: Category;
+
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+}

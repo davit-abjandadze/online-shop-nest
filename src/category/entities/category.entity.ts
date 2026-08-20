@@ -1,7 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Product } from '../../products/entities/product.entity';
 
-// TODO: შემდეგ ეტაპზე დაემატება ManyToMany/OneToMany კავშირი Product-თან,
-// როცა პროდუქტის მოდული შეიქმნება.
 @Entity()
 export class Category {
   @PrimaryGeneratedColumn()
@@ -12,4 +11,9 @@ export class Category {
 
   @Column({ nullable: true })
   description?: string;
+
+  // Product მხარეს onDelete: 'SET NULL' დგას — კატეგორიის წაშლა პროდუქტებს
+  // არ შლის, უბრალოდ category-ს null-ად აქცევს.
+  @OneToMany(() => Product, (product) => product.category)
+  products?: Product[];
 }
