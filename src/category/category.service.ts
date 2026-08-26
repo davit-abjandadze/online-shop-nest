@@ -5,11 +5,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, TreeRepository } from 'typeorm';
+import { In, Repository, TreeRepository } from 'typeorm';
 import { Category } from './entities/category.entity';
+import { CategoryAttribute } from './entities/category-attribute.entity';
+import { Attribute } from '../attribute/entities/attribute.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
+import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -34,6 +37,10 @@ export class CategoryService {
   constructor(
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(CategoryAttribute)
+    private categoryAttributeRepository: Repository<CategoryAttribute>,
+    @InjectRepository(Attribute)
+    private attributeRepository: Repository<Attribute>,
   ) {
     this.treeRepository =
       this.categoryRepository.manager.getTreeRepository(Category);
@@ -155,6 +162,87 @@ export class CategoryService {
     }
 
     return this.categoryRepository.remove(category);
+  }
+
+  // ამ კატეგორიის attribute set — საკუთარი category_attribute row-ები +
+  // ყველა წინაპრისგან (root-მდე) მემკვიდრეობით მიღებული, დუბლირების
+  // გარეშე. თუ იგივე attributeId-ზე საკუთარი და წინაპრის row ერთდროულად
+  // არსებობს, საკუთარი (ამ კატეგორიის) ყოველთვის იმარჯვებს.
+  async findAttributesForCategory(
+    categoryId: string,
+  ): Promise<CategoryAttribute[]> {
+    const category = await this.findOne(categoryId); // შეამოწმებს, არსებობს თუ არა
+
+    // TypeORM-ის findAncestors თავად category-საც აბრუნებს წინაპრებთან ერთად.
+    const ancestors = await this.treeRepository.findAncestors(category);
+    const ancestorIds = ancestors.map((c) => c.id);
+
+    const rows = await this.categoryAttributeRepository.find({
+      where: { categoryId: In(ancestorIds) },
+      relations: { attribute: { options: true } },
+    });
+
+    const byAttributeId = new Map<string, CategoryAttribute>();
+    for (const row of rows) {
+      const existing = byAttributeId.get(row.attributeId);
+      // საკუთარი კატეგორიის row ყოველთვის გადაწერს წინაპრისგან
+      // მემკვიდრეობით მიღებულს, დამუშავების რიგის მიუხედავად.
+      if (!existing || row.categoryId === categoryId) {
+        byAttributeId.set(row.attributeId, row);
+      }
+    }
+
+    return Array.from(byAttributeId.values()).sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+  }
+
+  async addAttributeToCategory(
+    categoryId: string,
+    addCategoryAttributeDto: AddCategoryAttributeDto,
+  ): Promise<CategoryAttribute> {
+    await this.findOne(categoryId); // შეამოწმებს, არსებობს თუ არა
+
+    const attribute = await this.attributeRepository.findOne({
+      where: { id: addCategoryAttributeDto.attributeId },
+    });
+    if (!attribute) {
+      throw new NotFoundException(
+        `მახასიათებელი ID-ით ${addCategoryAttributeDto.attributeId} ვერ მოიძებნა`,
+      );
+    }
+
+    const existing = await this.categoryAttributeRepository.findOne({
+      where: { categoryId, attributeId: addCategoryAttributeDto.attributeId },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'ეს მახასიათებელი უკვე მიბმულია ამ კატეგორიაზე',
+      );
+    }
+
+    const categoryAttribute = this.categoryAttributeRepository.create({
+      categoryId,
+      attributeId: addCategoryAttributeDto.attributeId,
+      sortOrder: addCategoryAttributeDto.sortOrder ?? 0,
+      isRequiredOverride: addCategoryAttributeDto.isRequiredOverride ?? null,
+    });
+    return this.categoryAttributeRepository.save(categoryAttribute);
+  }
+
+  async removeAttributeFromCategory(
+    categoryId: string,
+    attributeId: string,
+  ): Promise<CategoryAttribute> {
+    const categoryAttribute = await this.categoryAttributeRepository.findOne({
+      where: { categoryId, attributeId },
+    });
+    if (!categoryAttribute) {
+      throw new NotFoundException(
+        'ეს მახასიათებელი მიბმული არ არის ამ კატეგორიაზე (პირდაპირ — მემკვიდრეობით მიღებული ვერ მოიხსნება ცალკე)',
+      );
+    }
+    return this.categoryAttributeRepository.remove(categoryAttribute);
   }
 
   private async ensureSlugIsFree(slug: string): Promise<void> {

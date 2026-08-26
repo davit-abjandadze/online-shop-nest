@@ -22,6 +22,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
+import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -112,5 +113,60 @@ export class CategoryController {
   })
   remove(@Param('id') id: string) {
     return this.categoryService.remove(id);
+  }
+
+  // --- Attribute set (ფაზა 3: Category ↔ Attribute) ---------------------
+
+  @Get(':id/attributes')
+  @ApiOperation({
+    summary:
+      'კატეგორიაზე მიბმული attribute set (წინაპრებისგან მემკვიდრეობით მიღებულის ჩათვლით)',
+  })
+  @ApiResponse({ status: 200, description: 'attribute set' })
+  @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
+  findAttributes(@Param('id') id: string) {
+    return this.categoryService.findAttributesForCategory(id);
+  }
+
+  @Post(':id/attributes')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'მახასიათებლის მიბმა კატეგორიაზე (ADMIN)' })
+  @ApiResponse({ status: 201, description: 'მახასიათებელი მიებმა კატეგორიას' })
+  @ApiResponse({
+    status: 404,
+    description: 'კატეგორია ან მახასიათებელი ვერ მოიძებნა',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'ეს მახასიათებელი უკვე მიბმულია ამ კატეგორიაზე',
+  })
+  addAttribute(
+    @Param('id') id: string,
+    @Body() addCategoryAttributeDto: AddCategoryAttributeDto,
+  ) {
+    return this.categoryService.addAttributeToCategory(
+      id,
+      addCategoryAttributeDto,
+    );
+  }
+
+  @Delete(':id/attributes/:attributeId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'მახასიათებლის მოხსნა კატეგორიიდან (ADMIN)' })
+  @ApiResponse({ status: 200, description: 'მახასიათებელი მოიხსნა' })
+  @ApiResponse({
+    status: 404,
+    description: 'ეს მახასიათებელი პირდაპირ მიბმული არ არის ამ კატეგორიაზე',
+  })
+  removeAttribute(
+    @Param('id') id: string,
+    @Param('attributeId') attributeId: string,
+  ) {
+    return this.categoryService.removeAttributeFromCategory(id, attributeId);
   }
 }

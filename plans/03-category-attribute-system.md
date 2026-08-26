@@ -1,7 +1,8 @@
 # გეგმა: იერარქიული კატეგორიები + დინამიური Attribute სისტემა
 
 > სტატუსი: ფაზა 1 (Category hierarchy) დასრულებულია (2026-08-26). ფაზა 2
-> (Attribute core) დასრულებულია (2026-08-26). ფაზა 3-დან გასაგრძელებელია.
+> (Attribute core) დასრულებულია (2026-08-26). ფაზა 3 (Category ↔ Attribute)
+> დასრულებულია (2026-08-26). ფაზა 4-დან გასაგრძელებელია.
 
 ## ფაზა 1 — შესრულებულია (2026-08-26) ✅
 
@@ -30,7 +31,7 @@
   და გამოასწორა წინა `AddPayments` migration-ის ჩანაწერის ნაკლულობა `migrations`
   ცხრილში (schema უკვე `synchronize`-ით არსებობდა, ჩანაწერი აკლდა) — ხელით ჩაწერილია.
 
-## ფაზა 2 — შესრულებულია (2026-08-26)
+## ფაზა 2 — შესრულებულია (2026-08-26) ✅
 
 - ახალი `src/attribute/` მოდული, `category` მოდულის იმავე პატერნით
   (entities/dto/service/controller/module).
@@ -65,27 +66,68 @@
   არ იყო ამ სესიაში) — ლოგიკა `category`-ს იმავე, უკვე გატესტილი პატერნით
   არის დაწერილი.
 
+## ფაზა 3 — შესრულებულია (2026-08-26) ✅
+
+- ახალი `CategoryAttribute` join entity (`src/category/entities/category-attribute.entity.ts`):
+  `id` (uuid), `category`/`categoryId` FK (`onDelete: CASCADE`),
+  `attribute`/`attributeId` FK (`onDelete: CASCADE`), `sortOrder`,
+  `isRequiredOverride` (`boolean | null` — `null` = attribute-ის საკუთარი
+  `isRequired` უცვლელად გამოიყენება), `unique(category, attribute)`,
+  `createdAt`/`updatedAt`.
+- `CategoryService`-ს დაემატა: `findAttributesForCategory` (`TreeRepository.
+  findAncestors`-ით იღებს მთელ წინაპარ ჯაჭვს + საკუთარ თავს, უერთებს ყველა
+  დონის `category_attribute` მწკრივებს და `attributeId`-ზე დუბლირებისას
+  საკუთარი კატეგორიის მწკრივს ანიჭებს უპირატესობას — ესე ხდება
+  მემკვიდრეობა), `addAttributeToCategory` (ამოწმებს category/attribute
+  არსებობას, დუბლის დაცვას), `removeAttributeFromCategory` (მხოლოდ
+  პირდაპირ, ამ კატეგორიაზე დამატებული მწკრივის მოხსნა — მემკვიდრეობით
+  მიღებული parent-ის მწკრივი ცალკე ვერ იშლება, საჭიროებისას parent-იდანვე
+  უნდა მოიხსნას).
+- `CategoryController`-ს დაემატა: `GET /categories/:id/attributes`
+  (საჯარო), `POST /categories/:id/attributes` და
+  `DELETE /categories/:id/attributes/:attributeId` (ორივე `JwtAuthGuard` +
+  `RolesGuard` + `@Roles(ADMIN)`).
+- `CategoryModule`-ს დაემატა `CategoryAttribute` + `Attribute` entity
+  (`TypeOrmModule.forFeature`) — `AttributeService`/`AttributeModule`-ის
+  სრული იმპორტის გარეშე, პირდაპირ `Repository<Attribute>`-ით (არსებობის
+  შემოწმებისთვის), circular-dependency-ის თავიდან ასაცილებლად.
+- Migration `1787762900000-AddCategoryAttribute` — `category_attribute`
+  ცხრილი + FK-ები (`category`/`attribute`-ზე, `onDelete: CASCADE`) +
+  `unique(categoryId, attributeId)`.
+- გატესტილია dev DB-ზე: schema უკვე `synchronize`-ით შეიქმნა (dev server
+  watch-რეჟიმში მუშაობდა), migration ხელით დაიწერა ცოცხალ schema-ზე
+  დაყრდნობით (`\d category_attribute`) და migrations ცხრილში ხელით
+  ჩაიწერა ჩანაწერი (იგივე პატერნი, რაც Phase 1-ის `AddPayments`
+  ჩანაწერის ნაკლულობის გამოსასწორებლად იყო გამოყენებული) —
+  `migration:generate` შემდეგ "No changes" აბრუნებს (drift-check სუფთაა).
+  `yarn build` სუფთაა. რეალურ სერვერზე დამოწმებულია: `GET /categories/:id/
+  attributes` ცარიელ მასივს აბრუნებს ახლადშექმნილ კატეგორიაზე (200),
+  არარსებულ კატეგორიაზე 404, `POST`/`DELETE` ავტორიზაციის გარეშე 401.
+  ADMIN write-ის (attribute-ის რეალური მიბმის + inheritance-ის) ცოცხალი
+  curl-ტესტი არ ჩატარებულა (admin credential ხელმისაწვდომი არ იყო ამ
+  სესიაში, ისევე როგორც Phase 2-ში) — ლოგიკა `category`/`attribute`-ის
+  იმავე, უკვე გატესტილი პატერნით არის დაწერილი.
+
 ## მიმდინარე მდგომარეობა (2026-08-26-ის მდგომარეობით)
 
-- `src/category/` — **ბრტყელია**: `id`, `name`, `description` მხოლოდ. არანაირი
-  parent/slug/attribute კავშირი. Controller-ს (`category.controller.ts`) საერთოდ
-  არ აქვს auth/role guard — ეს თავისთავად ხარვეზია, გასწორდება ამ სამუშაოს
-  ფარგლებში (`JwtAuthGuard` + `RolesGuard` + `@Roles(UserRole.ADMIN)`, products
-  მოდულის პატერნის მიხედვით).
+- `src/category/` — იერარქიული (closure-table), auth guard-ებით, ახლა +
+  attribute set-ითაც (`CategoryAttribute` join, მემკვიდრეობით
+  წინაპრებისგან). იხ. ფაზა 1/ფაზა 3.
 - `src/products/` — მზადაა, სრული CRUD + pagination + role guards +
   querybuilder-ზე დაფუძნებული ფილტრები (`products.service.ts`). `Product` →
   `Category` ამჟამად `ManyToOne` (`onDelete: SET NULL`), მომავალში გადადის
   many-to-many-ზე.
-- Attribute სისტემა: `Attribute`/`AttributeOption` (ფაზა 2) **მზადაა**
-  (`src/attribute/`). `CategoryAttribute`/`ProductAttributeValue` (ფაზა 3/4)
-  — ჯერ არ არსებობს.
+- Attribute სისტემა: `Attribute`/`AttributeOption` (ფაზა 2) და
+  `CategoryAttribute` (ფაზა 3) **მზადაა**. `ProductAttributeValue`
+  (ფაზა 4) — ჯერ არ არსებობს.
 - `src/common/` — `PaginationDto`/`PaginatedResponseDto`, `RolesGuard`,
   `@Roles`/`@CurrentUser` decorator-ები უკვე მზადაა, გამოსაყენებელია ახალ
   მოდულებშიც.
-- `src/migrations/` — 7 არსებული migration (`AddProductAndCategoryLink`,
+- `src/migrations/` — 8 არსებული migration (`AddProductAndCategoryLink`,
   `AddCart`, `AddOrders`, `AddPayments`, `AddCategoryHierarchy`,
-  `AddProductVideoUrl`, `AddAttributeSystem`). `synchronize` production-ში
-  გამორთულია → ყოველი schema ცვლილება ახალ migration ფაილს საჭიროებს.
+  `AddProductVideoUrl`, `AddAttributeSystem`, `AddCategoryAttribute`).
+  `synchronize` production-ში გამორთულია → ყოველი schema ცვლილება ახალ
+  migration ფაილს საჭიროებს.
 - `UserRole` enum-ში მხოლოდ `ADMIN`/`USER` არსებობს.
 
 ## 1. Database schema

@@ -766,6 +766,116 @@
         ]
       }
     },
+    "/categories/{id}/attributes": {
+      "get": {
+        "operationId": "CategoryController_findAttributes",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "attribute set"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიაზე მიბმული attribute set (წინაპრებისგან მემკვიდრეობით მიღებულის ჩათვლით)",
+        "tags": [
+          "categories"
+        ]
+      },
+      "post": {
+        "operationId": "CategoryController_addAttribute",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCategoryAttributeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "მახასიათებელი მიებმა კატეგორიას"
+          },
+          "404": {
+            "description": "კატეგორია ან მახასიათებელი ვერ მოიძებნა"
+          },
+          "409": {
+            "description": "ეს მახასიათებელი უკვე მიბმულია ამ კატეგორიაზე"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მახასიათებლის მიბმა კატეგორიაზე (ADMIN)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/{id}/attributes/{attributeId}": {
+      "delete": {
+        "operationId": "CategoryController_removeAttribute",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attributeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მახასიათებელი მოიხსნა"
+          },
+          "404": {
+            "description": "ეს მახასიათებელი პირდაპირ მიბმული არ არის ამ კატეგორიაზე"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მახასიათებლის მოხსნა კატეგორიიდან (ADMIN)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
     "/attributes": {
       "get": {
         "operationId": "AttributeController_findAll",
@@ -2449,6 +2559,30 @@
             "description": "SEO საკვანძო სიტყვები"
           }
         }
+      },
+      "AddCategoryAttributeDto": {
+        "type": "object",
+        "properties": {
+          "attributeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მისაბმელი Attribute-ის ID",
+            "example": "5b1a2c3e-...-uuid"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი ამ კატეგორიის attribute set-ში",
+            "example": 0,
+            "default": 0
+          },
+          "isRequiredOverride": {
+            "type": "boolean",
+            "description": "override — სავალდებულოა თუ არა ეს attribute ამ კონკრეტულ კატეგორიაზე (გამოტოვებისას attribute-ის საკუთარი isRequired გამოიყენება უცვლელად)"
+          }
+        },
+        "required": [
+          "attributeId"
+        ]
       },
       "CreateAttributeDto": {
         "type": "object",
