@@ -876,6 +876,60 @@
         ]
       }
     },
+    "/categories/{slug}/filters": {
+      "get": {
+        "operationId": "CategoryController_getFilters",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "filter-ების სია"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის (+ ქვეკატეგორიების) filter-adjustable attribute-ები, options + faceted counts, მიმდინარე query-ის გათვალისწინებით",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/{slug}/products": {
+      "get": {
+        "operationId": "CategoryController_getProducts",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "პროდუქტების გვერდიანი სია"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის (+ ქვეკატეგორიების) filtered+paginated პროდუქტების სია",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
     "/attributes": {
       "get": {
         "operationId": "AttributeController_findAll",
@@ -1489,6 +1543,76 @@
           }
         ],
         "summary": "პროდუქტის წაშლა (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/products/{id}/attribute-values": {
+      "get": {
+        "operationId": "ProductsController_getAttributeValues",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "attribute value-ები"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "პროდუქტის attribute value-ების სია",
+        "tags": [
+          "products"
+        ]
+      },
+      "put": {
+        "operationId": "ProductsController_setAttributeValues",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProductAttributeValuesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "attribute value-ები განახლდა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის attribute value-ების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს",
         "tags": [
           "products"
         ]
@@ -2908,6 +3032,59 @@
             "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
           }
         }
+      },
+      "ProductAttributeValueItemDto": {
+        "type": "object",
+        "properties": {
+          "attributeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Attribute-ის ID, რომლისთვისაც მნიშვნელობა ინახება",
+            "example": "5b1a2c3e-...-uuid"
+          },
+          "attributeOptionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "არჩეული option (select ტიპისთვის)"
+          },
+          "attributeOptionIds": {
+            "description": "არჩეული option-ები (multi_select ტიპისთვის)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "valueText": {
+            "type": "string",
+            "description": "ტექსტური მნიშვნელობა (text ტიპისთვის)"
+          },
+          "valueNumber": {
+            "type": "number",
+            "description": "რიცხვითი მნიშვნელობა (number/range ტიპისთვის)"
+          },
+          "valueBoolean": {
+            "type": "boolean",
+            "description": "ლოგიკური მნიშვნელობა (boolean ტიპისთვის)"
+          }
+        },
+        "required": [
+          "attributeId"
+        ]
+      },
+      "SetProductAttributeValuesDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductAttributeValueItemDto"
+            }
+          }
+        },
+        "required": [
+          "values"
+        ]
       },
       "AddCartItemDto": {
         "type": "object",

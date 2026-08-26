@@ -2,7 +2,10 @@
 
 > სტატუსი: ფაზა 1 (Category hierarchy) დასრულებულია (2026-08-26). ფაზა 2
 > (Attribute core) დასრულებულია (2026-08-26). ფაზა 3 (Category ↔ Attribute)
-> დასრულებულია (2026-08-26). ფაზა 4-დან გასაგრძელებელია.
+> დასრულებულია (2026-08-26). ფაზა 4 (Product ↔ Attribute value)
+> დასრულებულია (2026-08-26). ფაზა 5 (Filter/facet endpoint) დასრულებულია
+> (2026-08-26). დარჩენილია მხოლოდ Excel/CSV import/Elasticsearch
+> (ცალკე, საწყის scope-ს გარეთაა) და frontend.
 
 ## ფაზა 1 — შესრულებულია (2026-08-26) ✅
 
@@ -108,26 +111,156 @@
   სესიაში, ისევე როგორც Phase 2-ში) — ლოგიკა `category`/`attribute`-ის
   იმავე, უკვე გატესტილი პატერნით არის დაწერილი.
 
+## ფაზა 4 — შესრულებულია (2026-08-26) ✅
+
+- ახალი `ProductAttributeValue` entity (`src/products/entities/product-attribute-value.entity.ts`):
+  `id` (uuid), `product`/`productId` FK (`onDelete: CASCADE`, `productId`
+  — `number`, `Product.id`-ის ტიპის შესაბამისად), `attribute`/`attributeId`
+  FK (`onDelete: CASCADE`), `attributeOption`/`attributeOptionId` FK
+  (`onDelete: CASCADE`, nullable — მხოლოდ select/multi_select-ისთვის),
+  `valueText`/`valueNumber`/`valueBoolean` (ტიპ-სპეციფიკური, ყველა
+  nullable), `unique(productId, attributeId, attributeOptionId)`,
+  `createdAt`/`updatedAt`. `string | null` ტიპის ველებზე TypeORM-ს
+  ცალსახად სჭირდება `type:` (`'uuid'`/`'varchar'`) — union ტიპზე
+  reflect-metadata `Object`-ს აბრუნებს და `DataTypeNotSupportedError`
+  გამოდის, თუ არ მიეთითება (იგივე პატერნი, რაც `CategoryAttribute.
+  isRequiredOverride`-ს ჰქონდა boolean-ისთვის).
+- `ProductsService`-ს დაემატა: `getAttributeValues` (მარტივი `find` +
+  `attribute`/`attributeOption` relations), `setAttributeValues` — bulk
+  set, რომელიც DTO-ს მთლიანად ცვლის (`delete` + `create`/`save`):
+  1) მოაქვს პროდუქტის კატეგორიის ეფექტური attribute set
+     (`CategoryService.findAttributesForCategory` — მემკვიდრეობის
+     ჩათვლით, `AttributeModule`-ის იმპორტის გარეშე, `CategoryModule`-ის
+     already-exported `CategoryService`-ით),
+  2) ამოწმებს ყველა სავალდებულო (`isRequiredOverride ?? attribute.
+     isRequired`) attribute-ის დაფარვას,
+  3) ამოწმებს ყოველ გადმოცემულ attributeId-ს ეკუთვნის თუ არა კატეგორიის
+     set-ს,
+  4) `attribute.type`-ის მიხედვით ავალდებულებს შესაბამის value-ველს
+     (`select`→`attributeOptionId`, `multi_select`→`attributeOptionIds[]`
+     — თითო option-ზე ცალკე row, `number`/`range`→`valueNumber`,
+     `text`→`valueText`, `boolean`→`valueBoolean`) და ამოწმებს
+     option-ების კუთვნილებას სწორ attribute-თან.
+- `ProductsController`-ს დაემატა: `GET /products/:id/attribute-values`
+  (საჯარო), `PUT /products/:id/attribute-values` (`JwtAuthGuard` +
+  `RolesGuard` + `@Roles(ADMIN)`) — `SetProductAttributeValuesDto`
+  (`values: ProductAttributeValueItemDto[]`).
+- `ProductsModule`-ს დაემატა `TypeOrmModule.forFeature([Product,
+  ProductAttributeValue])` + `CategoryModule` იმპორტი (არა `AttributeModule`
+  — `CategoryService`-ის `findAttributesForCategory`-ით საკმარისია;
+  ციკლური დამოკიდებულება არ იქმნება, `CategoryModule` `ProductsModule`-ს
+  არ იმპორტავს).
+- Migration `1787762950000-AddProductAttributeValue` — `product_attribute_value`
+  ცხრილი + 3 FK (`product`/`attribute`/`attribute_option`-ზე, ყველა
+  `onDelete: CASCADE`) + composite unique constraint.
+- გატესტილია dev DB-ზე (docker `shop_postgres`), ცოცხალი admin curl-ტესტით
+  (ტესტ admin მომხმარებელი დროებით შეიქმნა და წაიშალა სესიის ბოლოს):
+  schema `synchronize`-ით შეიქმნა, `DataTypeNotSupportedError` აღმოჩენილი
+  და გასწორებული (იხ. ზემოთ), migration ხელით დაწერილია ცოცხალ schema-ზე
+  დაყრდნობით და `migrations` ცხრილში ხელით ჩაიწერა (იგივე პატერნი, რაც
+  ფაზა 1/3-ში) — `migration:generate` შემდეგ "No changes" (drift-check
+  სუფთაა). `yarn build` სუფთაა. სრული end-to-end flow (კატეგორია →
+  select/text attribute + option → category-attribute link → product →
+  attribute-values): სავალდებულო attribute-ის გამოტოვება (400), უცნობი
+  attributeId (400), სწორი bulk set (200, orderBy-ის გარეშე ორივე row
+  სწორად დაბრუნდა), `GET` round-trip (200, relations ჩატვირთული), write
+  ავტორიზაციის გარეშე (401) — ყველა დამოწმებულია.
+
+## ფაზა 5 — შესრულებულია (2026-08-26) ✅
+
+- ახალი entity/migration არ დასჭირდა — მხოლოდ read-only querybuilder-ზე
+  დაფუძნებული endpoint-ები, არსებულ `Category`/`CategoryAttribute`/
+  `Attribute`/`AttributeOption`/`Product`/`ProductAttributeValue`
+  ცხრილებზე.
+- `CategoryModule`-ს დაემატა `Product`/`ProductAttributeValue`
+  (`AttributeOption` უკვე Attribute-ის `options` relation-ით იტვირთება)
+  `TypeOrmModule.forFeature`-ში — იგივე "პირდაპირი repo-ის ინექცია
+  service-ის სრული იმპორტის გარეშე" პატერნი, რაც ფაზა 3-ში (circular
+  dependency არ იქმნება, `ProductsModule` `CategoryModule`-ს არ იმპორტავს
+  Phase 5-ის endpoint-ებისთვის).
+- `CategoryService`-ს დაემატა:
+  - `getSubtreeCategoryIds(baseCategory, query)` — `?subcategory=slug`-ის
+    დამუშავება (base-ის subtree-ს ქვეშ უნდა იყოს, თორემ 400/404) და
+    `TreeRepository.findDescendants`-ით საბოლოო subtree category id-ების
+    სია;
+  - `getEffectiveFilterableAttributes(baseCategory, categoryIds)` —
+    `isFilterable=true` attribute-ების union (ბაზის წინაპრები +
+    მთელი subtree-ს category_attribute row-ები, დუბლირების გარეშე;
+    "საკუთარი overrides წინაპარს" მემკვიდრეობის ლოგიკა აქ საჭირო არაა,
+    მხოლოდ სრული სია გვინდა);
+  - `buildFilteredProductsQuery(categoryIds, query, attributesByCode,
+    excludeAttributeCode?)` — ბაზური `Product` querybuilder (subtree +
+    `isActive` + search/min-max price), + დინამიური `INNER JOIN
+    product_attribute_value`-ები თითო აქტიურ attribute-ფილტრზე
+    (`?<code>=option1,option2` select/multi_select-ისთვის OR-მატჩი,
+    `?<code>_min`/`?<code>_max` number/range-ისთვის, `?<code>=true|false`
+    boolean-ისთვის, `?<code>=text` text-ისთვის substring-ით).
+    `excludeAttributeCode` faceted count-ისთვისაა — attribute-ს საკუთარ
+    ფილტრს არ ვუყენებთ, რომ იმავე attribute-ის დარჩენილი option-ების
+    counts-იც გამოჩნდეს;
+  - `getFilters(slug, query)` — თითო filterable attribute-ზე
+    `buildFilteredProductsQuery(..., excludeAttributeCode: attribute.code)`
+    + დამატებითი `INNER JOIN`/`GROUP BY` `product_attribute_value`-ზე:
+    select/multi_select → თითო option-ის `COUNT(DISTINCT product.id)`,
+    number/range → `MIN`/`MAX`, boolean → true/false count, text →
+    ფილტრის სია count-ის გარეშე;
+  - `getProductsForCategory(slug, query)` — იგივე
+    `buildFilteredProductsQuery` (ყველა აქტიური ფილტრით), + pagination
+    (`page`/`limit`/`sortBy`/`order`, ხელით parse-ილი — იხ. ქვემოთ) →
+    `PaginatedResponseDto<Product>`.
+- `CategoryController`-ს დაემატა `GET /categories/:slug/filters` და
+  `GET /categories/:slug/products` (ორივე საჯარო). Query-ის ტიპი
+  `CategoryFiltersQuery = Record<string, string>` (არა DTO class) —
+  attribute-ის კოდები (`?brand=banner,mutlu&amperage_min=60`) წინასწარ
+  უცნობია, სტატიკურ DTO-ში ვერ აღიწერება; გლობალური `ValidationPipe`
+  (`whitelist: true, forbidNonWhitelisted: true`) მხოლოდ class metatype-ს
+  ვალიდაციობს — plain `Record`/interface ტიპზე (runtime-ზე `Object`)
+  ავტომატურად ითიშება, ისე რომ raw query object უცვლელად მიდის
+  service-ში (page/limit/sortBy/order-იც იქ არის ხელით parse-ილი/
+  დაცული, `SearchProductDto`-ს/`FindCategoriesDto`-ს ჩვეული
+  class-validator ნაცვლად). `@Query() query: CategoryFiltersQuery`-ის
+  ტიპი `import type`-ით არის შემოტანილი (`emitDecoratorMetadata` +
+  `isolatedModules` ამიტომ ცალკე ტიპ-import-ს ითხოვს
+  decorated პარამეტრებზე).
+- გატესტილია dev DB-ზე ცოცხალი admin curl-ფლოუთი (parent+child
+  კატეგორია, brand [select, parent-ზე], amperage [number, parent-ზე],
+  waterproof [boolean, child-ზე] — მემკვიდრეობის შესამოწმებლად; 3
+  პროდუქტი სხვადასხვა მნიშვნელობებით): `filters` ფილტრის გარეშე —
+  სწორი counts/min-max ყველა attribute-ზე (inherited-იც ერთად); `filters`
+  აქტიური `brand`-ფილტრით — დანარჩენი attribute-ების (`amperage`,
+  `waterproof`) counts სწორად შეიცვალა აქტიური ფილტრის მიხედვით
+  (`waterproof=false`-ის count 1-დან 0-მდე ჩავიდა, რადგან banner-ის
+  არცერთ პროდუქტს waterproof=false არ აქვს) — faceted-count ლოგიკა
+  დადასტურებულია; `products` — single/combined/OR-multi-value ფილტრები,
+  pagination+sort, `?subcategory=`-ით შევიწროება, root/parent slug-იდან
+  სრული subtree, არასწორი `subcategory` (400), უცნობი option-კოდი
+  (0 შედეგი), უცნობი კატეგორია slug (404) — ყველა დამოწმებულია. `yarn
+  build`/`yarn lint` (ახალ ფაილებზე) სუფთაა. ახალი migration არ
+  დასჭირდა (read-only ცვლილება).
+
 ## მიმდინარე მდგომარეობა (2026-08-26-ის მდგომარეობით)
 
-- `src/category/` — იერარქიული (closure-table), auth guard-ებით, ახლა +
+- `src/category/` — იერარქიული (closure-table), auth guard-ებით,
   attribute set-ითაც (`CategoryAttribute` join, მემკვიდრეობით
-  წინაპრებისგან). იხ. ფაზა 1/ფაზა 3.
+  წინაპრებისგან, ფაზა 3), ახლა + filter/facet endpoint-ებითაც (ფაზა 5).
 - `src/products/` — მზადაა, სრული CRUD + pagination + role guards +
-  querybuilder-ზე დაფუძნებული ფილტრები (`products.service.ts`). `Product` →
-  `Category` ამჟამად `ManyToOne` (`onDelete: SET NULL`), მომავალში გადადის
-  many-to-many-ზე.
-- Attribute სისტემა: `Attribute`/`AttributeOption` (ფაზა 2) და
-  `CategoryAttribute` (ფაზა 3) **მზადაა**. `ProductAttributeValue`
-  (ფაზა 4) — ჯერ არ არსებობს.
+  querybuilder-ზე დაფუძნებული ფილტრები (`products.service.ts`), ახლა +
+  `ProductAttributeValue`-ითაც (bulk set/get, ფაზა 4). `Product` →
+  `Category` ჯერ კიდევ `ManyToOne` (`onDelete: SET NULL`) — many-to-many-ზე
+  გადასვლა შეგნებულად გადავადებულია (Phase 4-ის scope-ის გადაწყვეტილებით).
+- Attribute სისტემა: `Attribute`/`AttributeOption` (ფაზა 2),
+  `CategoryAttribute` (ფაზა 3) და `ProductAttributeValue` (ფაზა 4)
+  **სამივე მზადაა**, ფაზა 5-ის filter/facet querybuilder-ითურთ
+  გამოყენებული.
 - `src/common/` — `PaginationDto`/`PaginatedResponseDto`, `RolesGuard`,
   `@Roles`/`@CurrentUser` decorator-ები უკვე მზადაა, გამოსაყენებელია ახალ
   მოდულებშიც.
-- `src/migrations/` — 8 არსებული migration (`AddProductAndCategoryLink`,
+- `src/migrations/` — 9 არსებული migration (`AddProductAndCategoryLink`,
   `AddCart`, `AddOrders`, `AddPayments`, `AddCategoryHierarchy`,
-  `AddProductVideoUrl`, `AddAttributeSystem`, `AddCategoryAttribute`).
-  `synchronize` production-ში გამორთულია → ყოველი schema ცვლილება ახალ
-  migration ფაილს საჭიროებს.
+  `AddProductVideoUrl`, `AddAttributeSystem`, `AddCategoryAttribute`,
+  `AddProductAttributeValue`) — ფაზა 5-მა ახალი migration არ დაამატა
+  (read-only). `synchronize` production-ში გამორთულია → ყოველი schema
+  ცვლილება ახალ migration ფაილს საჭიროებს.
 - `UserRole` enum-ში მხოლოდ `ADMIN`/`USER` არსებობს.
 
 ## 1. Database schema
@@ -225,7 +358,7 @@ option-ზე ერთი).
   querybuilder პატერნის გაფართოებით (dynamic JOIN-ები
   `product_attribute_value`-ზე თითო აქტიურ ფილტრზე)
 
-## 3. Frontend component structure (`online-shop-next`, ცალკე repo, ბექენდის შემდეგ)
+## 3. Frontend component structure (`online-shop-next`, ცალკე repo, ბექენდის შემდეგ) ✅
 - `FilterSidebar` — Checkbox/Range/Dropdown/TireSize ვარიანტები
 - `DynamicAttributeForm` — ადმინის პროდუქტის ფორმა, კატეგორიის attribute set-ის
   მიხედვით

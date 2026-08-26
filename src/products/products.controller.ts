@@ -22,6 +22,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
+import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -89,5 +90,36 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   remove(@Param('id') id: string) {
     return this.productsService.remove(+id);
+  }
+
+  // --- Attribute values (ფაზა 4: Product ↔ Attribute value) -------------
+
+  @Get(':id/attribute-values')
+  @ApiOperation({ summary: 'პროდუქტის attribute value-ების სია' })
+  @ApiResponse({ status: 200, description: 'attribute value-ები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  getAttributeValues(@Param('id') id: string) {
+    return this.productsService.getAttributeValues(+id);
+  }
+
+  @Put(':id/attribute-values')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'პროდუქტის attribute value-ების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
+  })
+  @ApiResponse({ status: 200, description: 'attribute value-ები განახლდა' })
+  @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  setAttributeValues(
+    @Param('id') id: string,
+    @Body() setProductAttributeValuesDto: SetProductAttributeValuesDto,
+  ) {
+    return this.productsService.setAttributeValues(
+      +id,
+      setProductAttributeValuesDto,
+    );
   }
 }

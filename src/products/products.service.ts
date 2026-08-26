@@ -1,11 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
+import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { Category } from '../category/entities/category.entity';
+import {
+  Attribute,
+  AttributeType,
+} from '../attribute/entities/attribute.entity';
+import { CategoryService } from '../category/category.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
+import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -25,6 +36,9 @@ export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    @InjectRepository(ProductAttributeValue)
+    private productAttributeValueRepository: Repository<ProductAttributeValue>,
+    private readonly categoryService: CategoryService,
   ) {}
 
   async findAllPaginated(
@@ -116,5 +130,163 @@ export class ProductsService {
   async remove(id: number) {
     const product = await this.findOne(id);
     return this.productRepository.remove(product);
+  }
+
+  // --- Attribute values (ფაზა 4: Product ↔ Attribute value) -------------
+
+  async getAttributeValues(
+    productId: number,
+  ): Promise<ProductAttributeValue[]> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    return this.productAttributeValueRepository.find({
+      where: { productId },
+      relations: { attribute: true, attributeOption: true },
+    });
+  }
+
+  // bulk set — მოცემული DTO მასივი მთლიანად ანაცვლებს ამ პროდუქტის
+  // არსებულ attribute value-ებს (delete + recreate). წინასწარ ვამოწმებთ
+  // DTO-ს პროდუქტის კატეგორიის ეფექტურ attribute set-თან (CategoryService.
+  // findAttributesForCategory — მემკვიდრეობის ჩათვლით): უცნობი attributeId
+  // უარყოფილია, სავალდებულო attribute-ების გამოტოვება — ასევე, attribute.type-ის
+  // შესაბამისი value-ველის (attributeOptionId/valueText/valueNumber/
+  // valueBoolean) გამოტოვება ან option-ის სხვა attribute-ს კუთვნილება.
+  async setAttributeValues(
+    productId: number,
+    setProductAttributeValuesDto: SetProductAttributeValuesDto,
+  ): Promise<ProductAttributeValue[]> {
+    const product = await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    if (!product.category) {
+      throw new BadRequestException(
+        'პროდუქტს არ აქვს კატეგორია მიბმული — ჯერ დაამატეთ კატეგორია',
+      );
+    }
+
+    const categoryAttributes =
+      await this.categoryService.findAttributesForCategory(product.category.id);
+    const byAttributeId = new Map(
+      categoryAttributes.map((ca) => [ca.attributeId, ca]),
+    );
+
+    const providedAttributeIds = new Set(
+      setProductAttributeValuesDto.values.map((v) => v.attributeId),
+    );
+    for (const ca of categoryAttributes) {
+      const isRequired = ca.isRequiredOverride ?? ca.attribute.isRequired;
+      if (isRequired && !providedAttributeIds.has(ca.attributeId)) {
+        throw new BadRequestException(
+          `მახასიათებელი "${ca.attribute.nameKa}" სავალდებულოა ამ კატეგორიისთვის`,
+        );
+      }
+    }
+
+    const rows: Partial<ProductAttributeValue>[] = [];
+    for (const item of setProductAttributeValuesDto.values) {
+      const categoryAttribute = byAttributeId.get(item.attributeId);
+      if (!categoryAttribute) {
+        throw new BadRequestException(
+          `მახასიათებელი ID-ით ${item.attributeId} არ შედის ამ პროდუქტის კატეგორიის attribute set-ში`,
+        );
+      }
+      const attribute = categoryAttribute.attribute;
+
+      switch (attribute.type) {
+        case AttributeType.SELECT: {
+          if (!item.attributeOptionId) {
+            throw new BadRequestException(
+              `მახასიათებელი "${attribute.nameKa}" საჭიროებს attributeOptionId-ს`,
+            );
+          }
+          this.assertOptionBelongsToAttribute(
+            attribute,
+            item.attributeOptionId,
+          );
+          rows.push({
+            productId,
+            attributeId: attribute.id,
+            attributeOptionId: item.attributeOptionId,
+          });
+          break;
+        }
+        case AttributeType.MULTI_SELECT: {
+          if (!item.attributeOptionIds?.length) {
+            throw new BadRequestException(
+              `მახასიათებელი "${attribute.nameKa}" საჭიროებს attributeOptionIds-ს`,
+            );
+          }
+          for (const optionId of item.attributeOptionIds) {
+            this.assertOptionBelongsToAttribute(attribute, optionId);
+            rows.push({
+              productId,
+              attributeId: attribute.id,
+              attributeOptionId: optionId,
+            });
+          }
+          break;
+        }
+        case AttributeType.NUMBER:
+        case AttributeType.RANGE: {
+          if (item.valueNumber === undefined) {
+            throw new BadRequestException(
+              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueNumber-ს`,
+            );
+          }
+          rows.push({
+            productId,
+            attributeId: attribute.id,
+            valueNumber: item.valueNumber.toString(),
+          });
+          break;
+        }
+        case AttributeType.BOOLEAN: {
+          if (item.valueBoolean === undefined) {
+            throw new BadRequestException(
+              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueBoolean-ს`,
+            );
+          }
+          rows.push({
+            productId,
+            attributeId: attribute.id,
+            valueBoolean: item.valueBoolean,
+          });
+          break;
+        }
+        case AttributeType.TEXT:
+        default: {
+          if (!item.valueText) {
+            throw new BadRequestException(
+              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueText-ს`,
+            );
+          }
+          rows.push({
+            productId,
+            attributeId: attribute.id,
+            valueText: item.valueText,
+          });
+          break;
+        }
+      }
+    }
+
+    await this.productAttributeValueRepository.delete({ productId });
+    if (rows.length === 0) {
+      return [];
+    }
+    const entities = rows.map((row) =>
+      this.productAttributeValueRepository.create(row),
+    );
+    return this.productAttributeValueRepository.save(entities);
+  }
+
+  private assertOptionBelongsToAttribute(
+    attribute: Attribute,
+    optionId: string,
+  ): void {
+    const belongs = attribute.options?.some((option) => option.id === optionId);
+    if (!belongs) {
+      throw new BadRequestException(
+        `option ID-ით ${optionId} არ ეკუთვნის მახასიათებელს "${attribute.nameKa}"`,
+      );
+    }
   }
 }

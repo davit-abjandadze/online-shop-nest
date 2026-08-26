@@ -5,10 +5,15 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, TreeRepository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder, TreeRepository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { CategoryAttribute } from './entities/category-attribute.entity';
-import { Attribute } from '../attribute/entities/attribute.entity';
+import {
+  Attribute,
+  AttributeType,
+} from '../attribute/entities/attribute.entity';
+import { Product } from '../products/entities/product.entity';
+import { ProductAttributeValue } from '../products/entities/product-attribute-value.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
@@ -27,6 +32,21 @@ const SORTABLE_COLUMNS = new Set([
   'createdAt',
 ]);
 
+// `GET /categories/:slug/products`-ზე დაშვებული დალაგების სვეტები — მხოლოდ
+// product-ის საკუთარი სვეტები, attribute value-ით დალაგება scope-ს გარეთაა.
+const PRODUCT_SORTABLE_COLUMNS = new Set([
+  'id',
+  'name',
+  'price',
+  'stock',
+  'createdAt',
+]);
+
+// ფაზა 5-ის filter/facet endpoint-ებში query params raw სახით მოდის
+// (`ValidationPipe`-ის whitelist-ს ავუვლით — attribute-ის კოდები წინასწარ
+// უცნობია, DTO-თი ვერ აღიწერება), ამიტომ ტიპი მარტივი string-map-ია.
+export type CategoryFiltersQuery = Record<string, string>;
+
 @Injectable()
 export class CategoryService {
   // closure-table ხის query-ებისთვის (findTrees/findDescendants) ჩვეულებრივი
@@ -41,6 +61,10 @@ export class CategoryService {
     private categoryAttributeRepository: Repository<CategoryAttribute>,
     @InjectRepository(Attribute)
     private attributeRepository: Repository<Attribute>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
+    @InjectRepository(ProductAttributeValue)
+    private productAttributeValueRepository: Repository<ProductAttributeValue>,
   ) {
     this.treeRepository =
       this.categoryRepository.manager.getTreeRepository(Category);
@@ -268,5 +292,379 @@ export class CategoryService {
         'მშობლად ვერ აირჩევა კატეგორიის საკუთარი შთამომავალი — ხე წრეზე შეიკვრება',
       );
     }
+  }
+
+  // --- Filter / facet (ფაზა 5) --------------------------------------------
+
+  // `?subcategory=slug` — თუ მოცემულია, ბაზურ კატეგორიას (slug URL-იდან)
+  // ცვლის მისი შვილი კატეგორიით (მისივე subtree-ით); slug-ს უნდა ეკუთვნოდეს
+  // ბაზური კატეგორიის subtree-ს, თორემ 400/404.
+  private async getSubtreeCategoryIds(
+    baseCategory: Category,
+    query: CategoryFiltersQuery,
+  ): Promise<string[]> {
+    let root = baseCategory;
+
+    if (query.subcategory) {
+      const sub = await this.categoryRepository.findOne({
+        where: { slug: query.subcategory },
+      });
+      if (!sub) {
+        throw new NotFoundException(
+          `ქვეკატეგორია slug-ით "${query.subcategory}" ვერ მოიძებნა`,
+        );
+      }
+      const baseDescendants =
+        await this.treeRepository.findDescendants(baseCategory);
+      if (!baseDescendants.some((d) => d.id === sub.id)) {
+        throw new BadRequestException(
+          `კატეგორია "${query.subcategory}" არ არის "${baseCategory.slug}"-ის ქვეკატეგორია`,
+        );
+      }
+      root = sub;
+    }
+
+    const descendants = await this.treeRepository.findDescendants(root);
+    return descendants.map((d) => d.id);
+  }
+
+  // `categoryIds` subtree-ს (+ ბაზური კატეგორიის წინაპრების) ფარგლებში
+  // ერთხელ მიბმული ყველა `isFilterable` attribute, დუბლირების გარეშე —
+  // findAttributesForCategory-სგან განსხვავებით, აქ "საკუთარი overrides
+  // წინაპარს"-ის მემკვიდრეობის ლოგიკა საჭირო არაა (მხოლოდ union გვინდა
+  // ფილტრების სიისთვის), ამიტომ ცალკე, მარტივი მეთოდია.
+  private async getEffectiveFilterableAttributes(
+    baseCategory: Category,
+    categoryIds: string[],
+  ): Promise<Attribute[]> {
+    const ancestors = await this.treeRepository.findAncestors(baseCategory);
+    const scopeIds = Array.from(
+      new Set([...ancestors.map((a) => a.id), ...categoryIds]),
+    );
+
+    const rows = await this.categoryAttributeRepository.find({
+      where: { categoryId: In(scopeIds) },
+      relations: { attribute: { options: true } },
+    });
+
+    const byAttributeId = new Map<string, Attribute>();
+    for (const row of rows) {
+      if (row.attribute.isFilterable) {
+        byAttributeId.set(row.attributeId, row.attribute);
+      }
+    }
+    return Array.from(byAttributeId.values()).sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+  }
+
+  // ბაზური querybuilder — `categoryIds` subtree + search/price + attribute
+  // ფილტრები (`attributesByCode`-ში არსებული attribute-ის კოდზე დამთხვეული
+  // query key-ებით). `excludeAttributeCode` faceted count-ისთვისაა —
+  // საკუთარ attribute-ზე ფილტრს არ ვიყენებთ, რომ იმავე attribute-ის სხვა
+  // option-ების count-ებიც გამოჩნდეს (და არა მხოლოდ უკვე არჩეულის).
+  private buildFilteredProductsQuery(
+    categoryIds: string[],
+    query: CategoryFiltersQuery,
+    attributesByCode: Map<string, Attribute>,
+    excludeAttributeCode?: string,
+  ): SelectQueryBuilder<Product> {
+    const qb = this.productRepository
+      .createQueryBuilder('product')
+      .innerJoinAndSelect('product.category', 'category')
+      .where('category.id IN (:...categoryIds)', { categoryIds })
+      .andWhere('product.isActive = true')
+      .distinct(true);
+
+    if (query.search) {
+      qb.andWhere(
+        '(product.name ILIKE :search OR product.description ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+    if (query.minPrice !== undefined) {
+      qb.andWhere('product.price >= :minPrice', {
+        minPrice: Number(query.minPrice),
+      });
+    }
+    if (query.maxPrice !== undefined) {
+      qb.andWhere('product.price <= :maxPrice', {
+        maxPrice: Number(query.maxPrice),
+      });
+    }
+
+    let joinIndex = 0;
+    for (const [code, attribute] of attributesByCode) {
+      if (code === excludeAttributeCode) {
+        continue;
+      }
+      const alias = `pav_${joinIndex++}`;
+
+      switch (attribute.type) {
+        case AttributeType.SELECT:
+        case AttributeType.MULTI_SELECT: {
+          const raw = query[code];
+          if (!raw) {
+            continue;
+          }
+          const optionCodes = raw
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
+          const optionIds = (attribute.options ?? [])
+            .filter((o) => optionCodes.includes(o.code))
+            .map((o) => o.id);
+          if (!optionIds.length) {
+            // მოთხოვნილი option-კოდები ამ attribute-ს არცერთი არ ეკუთვნის —
+            // შედეგი ცალსახად ცარიელია.
+            qb.andWhere('1 = 0');
+            continue;
+          }
+          qb.innerJoin(
+            ProductAttributeValue,
+            alias,
+            `${alias}.productId = product.id AND ${alias}.attributeId = :${alias}AttrId AND ${alias}.attributeOptionId IN (:...${alias}OptIds)`,
+            { [`${alias}AttrId`]: attribute.id, [`${alias}OptIds`]: optionIds },
+          );
+          break;
+        }
+        case AttributeType.NUMBER:
+        case AttributeType.RANGE: {
+          const min = query[`${code}_min`];
+          const max = query[`${code}_max`];
+          if (min === undefined && max === undefined) {
+            continue;
+          }
+          qb.innerJoin(
+            ProductAttributeValue,
+            alias,
+            `${alias}.productId = product.id AND ${alias}.attributeId = :${alias}AttrId`,
+            { [`${alias}AttrId`]: attribute.id },
+          );
+          if (min !== undefined) {
+            qb.andWhere(`${alias}.valueNumber >= :${alias}Min`, {
+              [`${alias}Min`]: Number(min),
+            });
+          }
+          if (max !== undefined) {
+            qb.andWhere(`${alias}.valueNumber <= :${alias}Max`, {
+              [`${alias}Max`]: Number(max),
+            });
+          }
+          break;
+        }
+        case AttributeType.BOOLEAN: {
+          const raw = query[code];
+          if (raw === undefined) {
+            continue;
+          }
+          qb.innerJoin(
+            ProductAttributeValue,
+            alias,
+            `${alias}.productId = product.id AND ${alias}.attributeId = :${alias}AttrId`,
+            { [`${alias}AttrId`]: attribute.id },
+          ).andWhere(`${alias}.valueBoolean = :${alias}Val`, {
+            [`${alias}Val`]: raw === 'true',
+          });
+          break;
+        }
+        case AttributeType.TEXT:
+        default: {
+          const raw = query[code];
+          if (raw === undefined) {
+            continue;
+          }
+          qb.innerJoin(
+            ProductAttributeValue,
+            alias,
+            `${alias}.productId = product.id AND ${alias}.attributeId = :${alias}AttrId`,
+            { [`${alias}AttrId`]: attribute.id },
+          ).andWhere(`${alias}.valueText ILIKE :${alias}Val`, {
+            [`${alias}Val`]: `%${raw}%`,
+          });
+          break;
+        }
+      }
+    }
+
+    return qb;
+  }
+
+  private static parsePositiveInt(
+    value: string | undefined,
+    fallback: number,
+  ): number {
+    const parsed = value !== undefined ? parseInt(value, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  // `GET /categories/:slug/filters` — ამ (+ ქვეკატეგორიების) subtree-ში
+  // მიბმული ყველა `isFilterable` attribute, options-ითურთ, faceted
+  // count-ებით (`ProductAttributeValue`-ზე group-ით), მიმდინარე query-ის
+  // სხვა (ამ attribute-ის გარდა) აქტიური ფილტრების გათვალისწინებით.
+  async getFilters(slug: string, query: CategoryFiltersQuery) {
+    const category = await this.findBySlug(slug);
+    const categoryIds = await this.getSubtreeCategoryIds(category, query);
+    const attributes = await this.getEffectiveFilterableAttributes(
+      category,
+      categoryIds,
+    );
+    const attributesByCode = new Map(attributes.map((a) => [a.code, a]));
+
+    const results: Array<{
+      attribute: Pick<
+        Attribute,
+        'id' | 'nameKa' | 'nameEn' | 'code' | 'type' | 'unit'
+      >;
+      options?: Array<{
+        id: string;
+        valueKa: string;
+        valueEn: string;
+        code: string;
+        count: number;
+      }>;
+      min?: number | null;
+      max?: number | null;
+      counts?: { true: number; false: number };
+    }> = [];
+
+    for (const attribute of attributes) {
+      const attributeSummary = {
+        id: attribute.id,
+        nameKa: attribute.nameKa,
+        nameEn: attribute.nameEn,
+        code: attribute.code,
+        type: attribute.type,
+        unit: attribute.unit,
+      };
+      const baseQb = this.buildFilteredProductsQuery(
+        categoryIds,
+        query,
+        attributesByCode,
+        attribute.code,
+      );
+
+      if (
+        attribute.type === AttributeType.SELECT ||
+        attribute.type === AttributeType.MULTI_SELECT
+      ) {
+        const raw = await baseQb
+          .clone()
+          .innerJoin(
+            ProductAttributeValue,
+            'facet',
+            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+            { facetAttrId: attribute.id },
+          )
+          .select('facet.attributeOptionId', 'optionId')
+          .addSelect('COUNT(DISTINCT product.id)', 'count')
+          .groupBy('facet.attributeOptionId')
+          .getRawMany<{ optionId: string; count: string }>();
+        const countByOption = new Map(
+          raw.map((r) => [r.optionId, Number(r.count)]),
+        );
+        results.push({
+          attribute: attributeSummary,
+          options: (attribute.options ?? [])
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((o) => ({
+              id: o.id,
+              valueKa: o.valueKa,
+              valueEn: o.valueEn,
+              code: o.code,
+              count: countByOption.get(o.id) ?? 0,
+            })),
+        });
+      } else if (
+        attribute.type === AttributeType.NUMBER ||
+        attribute.type === AttributeType.RANGE
+      ) {
+        const stats = await baseQb
+          .clone()
+          .innerJoin(
+            ProductAttributeValue,
+            'facet',
+            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+            { facetAttrId: attribute.id },
+          )
+          .select('MIN(facet.valueNumber)', 'min')
+          .addSelect('MAX(facet.valueNumber)', 'max')
+          .getRawOne<{ min: string | null; max: string | null }>();
+        results.push({
+          attribute: attributeSummary,
+          min:
+            stats?.min !== null && stats?.min !== undefined
+              ? Number(stats.min)
+              : null,
+          max:
+            stats?.max !== null && stats?.max !== undefined
+              ? Number(stats.max)
+              : null,
+        });
+      } else if (attribute.type === AttributeType.BOOLEAN) {
+        const raw = await baseQb
+          .clone()
+          .innerJoin(
+            ProductAttributeValue,
+            'facet',
+            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+            { facetAttrId: attribute.id },
+          )
+          .select('facet.valueBoolean', 'value')
+          .addSelect('COUNT(DISTINCT product.id)', 'count')
+          .groupBy('facet.valueBoolean')
+          .getRawMany<{ value: boolean; count: string }>();
+        const trueCount = raw.find((r) => r.value === true)?.count;
+        const falseCount = raw.find((r) => r.value === false)?.count;
+        results.push({
+          attribute: attributeSummary,
+          counts: {
+            true: trueCount !== undefined ? Number(trueCount) : 0,
+            false: falseCount !== undefined ? Number(falseCount) : 0,
+          },
+        });
+      } else {
+        // text — ფილტრის სიაში ჩანს, faceted count-ის გარეშე.
+        results.push({ attribute: attributeSummary });
+      }
+    }
+
+    return results;
+  }
+
+  // `GET /categories/:slug/products` — filtered + paginated products,
+  // buildFilteredProductsQuery-ის იმავე attribute/search/price ლოგიკით.
+  async getProductsForCategory(
+    slug: string,
+    query: CategoryFiltersQuery,
+  ): Promise<PaginatedResponseDto<Product>> {
+    const category = await this.findBySlug(slug);
+    const categoryIds = await this.getSubtreeCategoryIds(category, query);
+    const attributes = await this.getEffectiveFilterableAttributes(
+      category,
+      categoryIds,
+    );
+    const attributesByCode = new Map(attributes.map((a) => [a.code, a]));
+
+    const page = CategoryService.parsePositiveInt(query.page, 1);
+    const limit = Math.min(
+      CategoryService.parsePositiveInt(query.limit, 10),
+      100,
+    );
+    const sortColumn = PRODUCT_SORTABLE_COLUMNS.has(query.sortBy)
+      ? query.sortBy
+      : 'createdAt';
+    const order = query.order === 'ASC' ? 'ASC' : 'DESC';
+
+    const qb = this.buildFilteredProductsQuery(
+      categoryIds,
+      query,
+      attributesByCode,
+    );
+    qb.orderBy(`product.${sortColumn}`, order);
+    qb.skip((page - 1) * limit).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+    return new PaginatedResponseDto(data, total, page, limit);
   }
 }

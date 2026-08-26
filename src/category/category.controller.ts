@@ -18,6 +18,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
+import type { CategoryFiltersQuery } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
@@ -168,5 +169,41 @@ export class CategoryController {
     @Param('attributeId') attributeId: string,
   ) {
     return this.categoryService.removeAttributeFromCategory(id, attributeId);
+  }
+
+  // --- Filter / facet (ფაზა 5: dynamic querybuilder + faceted counts) ---
+  //
+  // Query-ის ტიპი აქ ცალსახად `Record<string, string>`-ია (არა DTO) —
+  // attribute-ის კოდები (`?brand=banner,mutlu&amperage_min=60`) წინასწარ
+  // უცნობია, ამიტომ ვერ აღიწერება სტატიკური DTO-თი; გლობალური
+  // `ValidationPipe`-ის whitelist ასეთ პარამეტრს (class-ის მეტატიპის
+  // გარეშე) უცვლელად ატარებს — ვალიდაცია/parsing სერვისშია.
+
+  @Get(':slug/filters')
+  @ApiOperation({
+    summary:
+      'კატეგორიის (+ ქვეკატეგორიების) filter-adjustable attribute-ები, options + faceted counts, მიმდინარე query-ის გათვალისწინებით',
+  })
+  @ApiResponse({ status: 200, description: 'filter-ების სია' })
+  @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
+  getFilters(
+    @Param('slug') slug: string,
+    @Query() query: CategoryFiltersQuery,
+  ) {
+    return this.categoryService.getFilters(slug, query);
+  }
+
+  @Get(':slug/products')
+  @ApiOperation({
+    summary:
+      'კატეგორიის (+ ქვეკატეგორიების) filtered+paginated პროდუქტების სია',
+  })
+  @ApiResponse({ status: 200, description: 'პროდუქტების გვერდიანი სია' })
+  @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
+  getProducts(
+    @Param('slug') slug: string,
+    @Query() query: CategoryFiltersQuery,
+  ) {
+    return this.categoryService.getProductsForCategory(slug, query);
   }
 }
