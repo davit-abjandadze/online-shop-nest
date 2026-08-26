@@ -1,9 +1,9 @@
 import {
   IsOptional,
-  IsInt,
   IsNumber,
   IsBoolean,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -23,12 +23,11 @@ export class SearchProductDto extends PaginationDto {
 
   @ApiPropertyOptional({
     description: 'გაფილტვრა კატეგორიის მიხედვით',
-    example: 1,
+    example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
   })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  categoryId?: number;
+  @IsUUID()
+  categoryId?: string;
 
   @ApiPropertyOptional({ description: 'მინიმალური ფასი', example: 10 })
   @IsOptional()

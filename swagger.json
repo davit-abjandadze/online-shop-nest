@@ -501,13 +501,76 @@
     "/categories": {
       "get": {
         "operationId": "CategoryController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "parentId",
+            "required": false,
+            "in": "query",
+            "description": "მხოლოდ ამ მშობელი კატეგორიის შვილების დაბრუნება",
+            "schema": {
+              "format": "uuid",
+              "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "კატეგორიების სია"
+            "description": "კატეგორიების გვერდიანი სია"
           }
         },
-        "summary": "ყველა კატეგორიის მიღება",
+        "summary": "კატეგორიების ბრტყელი, გვერდიანი სია",
         "tags": [
           "categories"
         ]
@@ -538,9 +601,59 @@
           },
           "400": {
             "description": "ვალიდაციის შეცდომა"
+          },
+          "409": {
+            "description": "slug უკვე დაკავებულია"
           }
         },
-        "summary": "ახალი კატეგორიის შექმნა",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი კატეგორიის შექმნა (ADMIN)",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/tree": {
+      "get": {
+        "operationId": "CategoryController_findTree",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კატეგორიების ხე"
+          }
+        },
+        "summary": "კატეგორიების სრული nested ხე",
+        "tags": [
+          "categories"
+        ]
+      }
+    },
+    "/categories/by-slug/{slug}": {
+      "get": {
+        "operationId": "CategoryController_findBySlug",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კატეგორია"
+          },
+          "404": {
+            "description": "კატეგორია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კატეგორიის მიღება slug-ით",
         "tags": [
           "categories"
         ]
@@ -609,7 +722,12 @@
             "description": "კატეგორია ვერ მოიძებნა"
           }
         },
-        "summary": "კატეგორიის განახლება",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კატეგორიის განახლება (ADMIN)",
         "tags": [
           "categories"
         ]
@@ -632,11 +750,376 @@
           },
           "404": {
             "description": "კატეგორია ვერ მოიძებნა"
+          },
+          "409": {
+            "description": "აქვს შვილები ან მიბმული პროდუქტები"
           }
         },
-        "summary": "კატეგორიის წაშლა",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კატეგორიის წაშლა (ADMIN)",
         "tags": [
           "categories"
+        ]
+      }
+    },
+    "/attributes": {
+      "get": {
+        "operationId": "AttributeController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "მხოლოდ ამ ტიპის attribute-ები",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "select",
+                "multi_select",
+                "number",
+                "text",
+                "boolean",
+                "range"
+              ]
+            }
+          },
+          {
+            "name": "isFilterable",
+            "required": false,
+            "in": "query",
+            "description": "მხოლოდ filterable (ან non-filterable) attribute-ები",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მახასიათებლების გვერდიანი სია"
+          }
+        },
+        "summary": "მახასიათებლების გვერდიანი სია",
+        "tags": [
+          "attributes"
+        ]
+      },
+      "post": {
+        "operationId": "AttributeController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttributeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "მახასიათებელი შეიქმნა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "409": {
+            "description": "code უკვე დაკავებულია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი მახასიათებლის შექმნა (ADMIN)",
+        "tags": [
+          "attributes"
+        ]
+      }
+    },
+    "/attributes/{id}": {
+      "get": {
+        "operationId": "AttributeController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მახასიათებელი"
+          },
+          "404": {
+            "description": "მახასიათებელი ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული მახასიათებლის მიღება (options-ითურთ)",
+        "tags": [
+          "attributes"
+        ]
+      },
+      "put": {
+        "operationId": "AttributeController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAttributeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "მახასიათებელი განახლდა"
+          },
+          "404": {
+            "description": "მახასიათებელი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მახასიათებლის განახლება (ADMIN)",
+        "tags": [
+          "attributes"
+        ]
+      },
+      "delete": {
+        "operationId": "AttributeController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მახასიათებელი წაიშალა"
+          },
+          "404": {
+            "description": "მახასიათებელი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მახასიათებლის წაშლა (ADMIN)",
+        "tags": [
+          "attributes"
+        ]
+      }
+    },
+    "/attributes/{id}/options": {
+      "post": {
+        "operationId": "AttributeController_addOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttributeOptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ოფცია დაემატა"
+          },
+          "400": {
+            "description": "ოფცია დასაშვებია მხოლოდ select/multi_select ტიპებზე"
+          },
+          "409": {
+            "description": "code უკვე დაკავებულია ამ მახასიათებელზე"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მახასიათებელზე ახალი ოფციის დამატება (ADMIN)",
+        "tags": [
+          "attributes"
+        ]
+      }
+    },
+    "/attributes/{id}/options/{optionId}": {
+      "put": {
+        "operationId": "AttributeController_updateOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "optionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAttributeOptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ოფცია განახლდა"
+          },
+          "404": {
+            "description": "ოფცია ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ოფციის განახლება (ADMIN)",
+        "tags": [
+          "attributes"
+        ]
+      },
+      "delete": {
+        "operationId": "AttributeController_removeOption",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "optionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ოფცია წაიშალა"
+          },
+          "404": {
+            "description": "ოფცია ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ოფციის წაშლა (ADMIN)",
+        "tags": [
+          "attributes"
         ]
       }
     },
@@ -711,8 +1194,9 @@
             "in": "query",
             "description": "გაფილტვრა კატეგორიის მიხედვით",
             "schema": {
-              "example": 1,
-              "type": "number"
+              "format": "uuid",
+              "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6",
+              "type": "string"
             }
           },
           {
@@ -1700,20 +2184,62 @@
       "CreateCategoryDto": {
         "type": "object",
         "properties": {
-          "name": {
+          "nameKa": {
             "type": "string",
             "minLength": 2,
-            "description": "კატეგორიის სახელი",
-            "example": "პოლიტიკა"
+            "description": "კატეგორიის სახელი ქართულად",
+            "example": "აკუმულატორები"
           },
-          "description": {
+          "nameEn": {
             "type": "string",
-            "description": "კატეგორიის მოკლე აღწერა",
-            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
+            "minLength": 2,
+            "description": "კატეგორიის სახელი ინგლისურად",
+            "example": "Batteries"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური slug URL-ისთვის (მხოლოდ ლათინური ასოები, ციფრები, ტირე)",
+            "example": "batteries"
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მშობელი კატეგორიის ID (ცარიელი — root კატეგორია)",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კატეგორია",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          },
+          "image": {
+            "type": "string",
+            "description": "კატეგორიის სურათის URL"
+          },
+          "seoTitle": {
+            "type": "string",
+            "description": "SEO სათაური"
+          },
+          "seoDescription": {
+            "type": "string",
+            "description": "SEO აღწერა"
+          },
+          "seoKeywords": {
+            "type": "string",
+            "description": "SEO საკვანძო სიტყვები"
           }
         },
         "required": [
-          "name"
+          "nameKa",
+          "nameEn",
+          "slug"
         ]
       },
       "Product": {
@@ -1739,6 +2265,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "videoUrl": {
+            "type": "string"
           },
           "isActive": {
             "type": "boolean"
@@ -1769,24 +2298,74 @@
         "type": "object",
         "properties": {
           "id": {
+            "type": "string"
+          },
+          "nameKa": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
             "type": "number"
           },
-          "name": {
+          "image": {
             "type": "string"
           },
-          "description": {
+          "seoTitle": {
             "type": "string"
+          },
+          "seoDescription": {
+            "type": "string"
+          },
+          "seoKeywords": {
+            "type": "string"
+          },
+          "parent": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
           },
           "products": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Product"
             }
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
           "id",
-          "name"
+          "nameKa",
+          "nameEn",
+          "slug",
+          "isActive",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "CategoryResponseDto": {
@@ -1818,16 +2397,239 @@
       "UpdateCategoryDto": {
         "type": "object",
         "properties": {
-          "name": {
+          "nameKa": {
             "type": "string",
             "minLength": 2,
-            "description": "კატეგორიის სახელი",
-            "example": "პოლიტიკა"
+            "description": "კატეგორიის სახელი ქართულად",
+            "example": "აკუმულატორები"
           },
-          "description": {
+          "nameEn": {
             "type": "string",
-            "description": "კატეგორიის მოკლე აღწერა",
-            "example": "პოლიტიკური სიახლეები და გამოკითხვები"
+            "minLength": 2,
+            "description": "კატეგორიის სახელი ინგლისურად",
+            "example": "Batteries"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური slug URL-ისთვის (მხოლოდ ლათინური ასოები, ციფრები, ტირე)",
+            "example": "batteries"
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მშობელი კატეგორიის ID (ცარიელი — root კატეგორია)",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კატეგორია",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          },
+          "image": {
+            "type": "string",
+            "description": "კატეგორიის სურათის URL"
+          },
+          "seoTitle": {
+            "type": "string",
+            "description": "SEO სათაური"
+          },
+          "seoDescription": {
+            "type": "string",
+            "description": "SEO აღწერა"
+          },
+          "seoKeywords": {
+            "type": "string",
+            "description": "SEO საკვანძო სიტყვები"
+          }
+        }
+      },
+      "CreateAttributeDto": {
+        "type": "object",
+        "properties": {
+          "nameKa": {
+            "type": "string",
+            "minLength": 2,
+            "description": "მახასიათებლის სახელი ქართულად",
+            "example": "ტევადობა"
+          },
+          "nameEn": {
+            "type": "string",
+            "minLength": 2,
+            "description": "მახასიათებლის სახელი ინგლისურად",
+            "example": "Capacity"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური კოდი (frontend filter query-ებისთვის), მხოლოდ ლათინური ასოები/ციფრები/ტირე",
+            "example": "amperage"
+          },
+          "type": {
+            "enum": [
+              "select",
+              "multi_select",
+              "number",
+              "text",
+              "boolean",
+              "range"
+            ],
+            "type": "string",
+            "description": "მახასიათებლის ტიპი — განსაზღვრავს, product_attribute_value-ში რომელი value ველი გამოიყენება",
+            "example": "select"
+          },
+          "unit": {
+            "type": "string",
+            "description": "ერთეული (Ah, V, mm...) — number/range ტიპებისთვის",
+            "example": "Ah"
+          },
+          "isFilterable": {
+            "type": "boolean",
+            "description": "გამოჩნდება თუ არა filter-ებში",
+            "default": true
+          },
+          "isRequired": {
+            "type": "boolean",
+            "description": "სავალდებულოა თუ არა admin ფორმაში",
+            "default": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "nameKa",
+          "nameEn",
+          "code",
+          "type"
+        ]
+      },
+      "UpdateAttributeDto": {
+        "type": "object",
+        "properties": {
+          "nameKa": {
+            "type": "string",
+            "minLength": 2,
+            "description": "მახასიათებლის სახელი ქართულად",
+            "example": "ტევადობა"
+          },
+          "nameEn": {
+            "type": "string",
+            "minLength": 2,
+            "description": "მახასიათებლის სახელი ინგლისურად",
+            "example": "Capacity"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური კოდი (frontend filter query-ებისთვის), მხოლოდ ლათინური ასოები/ციფრები/ტირე",
+            "example": "amperage"
+          },
+          "type": {
+            "enum": [
+              "select",
+              "multi_select",
+              "number",
+              "text",
+              "boolean",
+              "range"
+            ],
+            "type": "string",
+            "description": "მახასიათებლის ტიპი — განსაზღვრავს, product_attribute_value-ში რომელი value ველი გამოიყენება",
+            "example": "select"
+          },
+          "unit": {
+            "type": "string",
+            "description": "ერთეული (Ah, V, mm...) — number/range ტიპებისთვის",
+            "example": "Ah"
+          },
+          "isFilterable": {
+            "type": "boolean",
+            "description": "გამოჩნდება თუ არა filter-ებში",
+            "default": true
+          },
+          "isRequired": {
+            "type": "boolean",
+            "description": "სავალდებულოა თუ არა admin ფორმაში",
+            "default": false
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          }
+        }
+      },
+      "CreateAttributeOptionDto": {
+        "type": "object",
+        "properties": {
+          "valueKa": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ოფციის მნიშვნელობა ქართულად",
+            "example": "ბანერი"
+          },
+          "valueEn": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ოფციის მნიშვნელობა ინგლისურად",
+            "example": "Banner"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური კოდი (attribute-ის ფარგლებში), მხოლოდ ლათინური ასოები/ციფრები/ტირე",
+            "example": "banner"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "valueKa",
+          "valueEn",
+          "code"
+        ]
+      },
+      "UpdateAttributeOptionDto": {
+        "type": "object",
+        "properties": {
+          "valueKa": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ოფციის მნიშვნელობა ქართულად",
+            "example": "ბანერი"
+          },
+          "valueEn": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ოფციის მნიშვნელობა ინგლისურად",
+            "example": "Banner"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "უნიკალური კოდი (attribute-ის ფარგლებში), მხოლოდ ლათინური ასოები/ციფრები/ტირე",
+            "example": "banner"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
           }
         }
       },
@@ -1868,15 +2670,22 @@
               "type": "string"
             }
           },
+          "videoUrl": {
+            "type": "string",
+            "pattern": "^https?:\\/\\/(www\\.)?(youtube\\.com\\/(watch\\?v=|shorts\\/|embed\\/)|youtu\\.be\\/)[\\w-]+",
+            "description": "YouTube ვიდეოს ლინკი (მიმოხილვა/ინსტრუქცია პროდუქტის გვერდზე)",
+            "example": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          },
           "isActive": {
             "type": "boolean",
             "description": "აქტიურია თუ არა პროდუქტი",
             "default": true
           },
           "categoryId": {
-            "type": "number",
+            "type": "string",
+            "format": "uuid",
             "description": "კატეგორიის ID",
-            "example": 1
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
           }
         },
         "required": [
@@ -1947,15 +2756,22 @@
               "type": "string"
             }
           },
+          "videoUrl": {
+            "type": "string",
+            "pattern": "^https?:\\/\\/(www\\.)?(youtube\\.com\\/(watch\\?v=|shorts\\/|embed\\/)|youtu\\.be\\/)[\\w-]+",
+            "description": "YouTube ვიდეოს ლინკი (მიმოხილვა/ინსტრუქცია პროდუქტის გვერდზე)",
+            "example": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          },
           "isActive": {
             "type": "boolean",
             "description": "აქტიურია თუ არა პროდუქტი",
             "default": true
           },
           "categoryId": {
-            "type": "number",
+            "type": "string",
+            "format": "uuid",
             "description": "კატეგორიის ID",
-            "example": 1
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
           }
         }
       },

@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
+import { AttributeModule } from './attribute/attribute.module';
 import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
@@ -52,6 +53,7 @@ import { EmailService } from './common/email/email.service';
     UsersModule,
     AuthModule,
     CategoryModule,
+    AttributeModule,
     ProductsModule,
     CartModule,
     OrdersModule,

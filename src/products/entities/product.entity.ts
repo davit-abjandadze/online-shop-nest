@@ -32,6 +32,11 @@ export class Product {
   @Column('simple-array', { nullable: true })
   images?: string[];
 
+  // პროდუქტის გვერდზე ჩასართველი YouTube ვიდეო (მიმოხილვა/ინსტრუქცია) — მხოლოდ
+  // ერთი ლინკია საკმარისი v1-ისთვის, embed URL-ად frontend-ი გარდაქმნის.
+  @Column({ nullable: true })
+  videoUrl?: string;
+
   @Column({ default: true })
   isActive!: boolean;
 

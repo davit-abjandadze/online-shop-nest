@@ -8,6 +8,8 @@ import {
   IsInt,
   IsArray,
   IsBoolean,
+  IsUUID,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -58,6 +60,18 @@ export class CreateProductDto {
   images?: string[];
 
   @ApiPropertyOptional({
+    description:
+      'YouTube ვიდეოს ლინკი (მიმოხილვა/ინსტრუქცია პროდუქტის გვერდზე)',
+    example: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  })
+  @IsOptional()
+  @Matches(
+    /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/,
+    { message: 'videoUrl უნდა იყოს valid YouTube ლინკი' },
+  )
+  videoUrl?: string;
+
+  @ApiPropertyOptional({
     description: 'აქტიურია თუ არა პროდუქტი',
     default: true,
   })
@@ -65,9 +79,11 @@ export class CreateProductDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ description: 'კატეგორიის ID', example: 1 })
+  @ApiPropertyOptional({
+    description: 'კატეგორიის ID',
+    example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
+  })
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  categoryId?: number;
+  @IsUUID()
+  categoryId?: string;
 }
