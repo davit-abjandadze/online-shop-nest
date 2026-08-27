@@ -2494,6 +2494,9 @@
           "stock": {
             "type": "number"
           },
+          "discountPercent": {
+            "type": "number"
+          },
           "images": {
             "type": "array",
             "items": {
@@ -2918,6 +2921,13 @@
             "example": 50,
             "default": 0
           },
+          "discountPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "ფასდაკლება პროცენტებში (0-100)",
+            "example": 15
+          },
           "images": {
             "description": "სურათების URL-ების სია",
             "example": [
@@ -3003,6 +3013,13 @@
             "description": "მარაგში რაოდენობა",
             "example": 50,
             "default": 0
+          },
+          "discountPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "ფასდაკლება პროცენტებში (0-100)",
+            "example": 15
           },
           "images": {
             "description": "სურათების URL-ების სია",

@@ -5,6 +5,7 @@ import {
   MinLength,
   IsNumber,
   Min,
+  Max,
   IsInt,
   IsArray,
   IsBoolean,
@@ -48,6 +49,17 @@ export class CreateProductDto {
   @IsInt({ message: 'მარაგი უნდა იყოს მთელი რიცხვი' })
   @Min(0, { message: 'მარაგი არ შეიძლება იყოს უარყოფითი' })
   stock?: number;
+
+  @ApiPropertyOptional({
+    description: 'ფასდაკლება პროცენტებში (0-100)',
+    example: 15,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'ფასდაკლება უნდა იყოს მთელი რიცხვი' })
+  @Min(0, { message: 'ფასდაკლება არ შეიძლება იყოს უარყოფითი' })
+  @Max(100, { message: 'ფასდაკლება არ შეიძლება აღემატებოდეს 100%-ს' })
+  discountPercent?: number;
 
   @ApiPropertyOptional({
     description: 'სურათების URL-ების სია',

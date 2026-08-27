@@ -27,6 +27,11 @@ export class Product {
   @Column('int', { default: 0 })
   stock!: number;
 
+  // ფასდაკლება პროცენტებში (0-100) — თუ დაყენებულია, ფრონტი პასუხისმგებელია
+  // საბოლოო ფასდაკლებული ფასის გამოთვლაზე (price - price * discountPercent / 100).
+  @Column('int', { nullable: true })
+  discountPercent?: number;
+
   // მარტივი სურათების სია v1-ისთვის — csv-ის მსგავსად ინახება, ცალკე ცხრილი
   // ჯერჯერობით ზედმეტია.
   @Column('simple-array', { nullable: true })
