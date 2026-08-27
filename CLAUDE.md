@@ -105,7 +105,7 @@ Entities and DTOs use **camelCase** properties throughout (`firstName`, `created
 responses are plain camelCase JSON, not snake_case or PascalCase, and TypeORM columns are not renamed by a
 naming strategy. List endpoints that support pagination take `page`/`limit`/`sortBy`/`order` query params
 (`PaginationDto`) and return the `PaginatedResponseDto` envelope described above. The app listens on port
-`4000`.
+`5000`.
 
 ## graphify
 

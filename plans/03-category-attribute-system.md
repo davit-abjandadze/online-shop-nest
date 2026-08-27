@@ -4,8 +4,9 @@
 > (Attribute core) დასრულებულია (2026-08-26). ფაზა 3 (Category ↔ Attribute)
 > დასრულებულია (2026-08-26). ფაზა 4 (Product ↔ Attribute value)
 > დასრულებულია (2026-08-26). ფაზა 5 (Filter/facet endpoint) დასრულებულია
-> (2026-08-26). დარჩენილია მხოლოდ Excel/CSV import/Elasticsearch
-> (ცალკე, საწყის scope-ს გარეთაა) და frontend.
+> (2026-08-26). **Frontend (`online-shop-next`) დასრულებულია (2026-08-26)** —
+> იხ. ქვემოთ "ფაზა 7 — Frontend". დარჩენილია მხოლოდ Excel/CSV
+> import/Elasticsearch (ცალკე, საწყის scope-ს გარეთაა).
 
 ## ფაზა 1 — შესრულებულია (2026-08-26) ✅
 
@@ -237,6 +238,54 @@
   (0 შედეგი), უცნობი კატეგორია slug (404) — ყველა დამოწმებულია. `yarn
   build`/`yarn lint` (ახალ ფაილებზე) სუფთაა. ახალი migration არ
   დასჭირდა (read-only ცვლილება).
+
+## ფაზა 7 — Frontend (`online-shop-next`) — შესრულებულია (2026-08-26) ✅
+
+- **ეტაპი 0 (API client wiring)**: `API_Client/index.ts`-ში დაემატა
+  `AttributesAPI` factory (`AttributesApi`-ის იმავე პატერნით, რაც
+  `CategoriesAPI`/`ProductsAPI`-ს აქვს). `API_Client/types.ts`-ს დაემატა
+  ხელნაწერი ტიპები (`Attribute`, `AttributeOption`, `CategoryAttribute`,
+  `ProductAttributeValue`, `CategoryFilterEntry`/`CategoryFiltersResponse`)
+  — generated client-ში ეს ყველა GET response `AxiosPromise<void>`-ია
+  (query/response schema OpenAPI-ში არ არსებობს), ტიპები ცოცხალ dev
+  ბექენდზე curl-ით გადამოწმებული ფორმის მიხედვით დაფიქსირდა. Filter/
+  facet query პარამეტრები (`?brand=x&amperage_min=60` და pagination)
+  გენერირებულ მეთოდებზე `options: { params: {...} }`-ის მეშვეობით
+  გადადის (`createRequestFunction`-ი `axiosArgs.options`-ს პირდაპირ
+  `axios.request`-ში აწვდის — გადამოწმებულია `API_Client/client/common.ts`-ში).
+- **ეტაპი 1 (Admin: Attributes CRUD)**: ახალი
+  `pages/dashboard/attributes.tsx` + `components/pages/dashboard/
+  AttributesPage.tsx` (list/create/edit/delete + select/multi_select
+  ტიპებზე inline options-მართვა), ახალი nav tab `DashboardLayout.tsx`-ში,
+  `attributeFormSchema`/`attributeOptionFormSchema` `schemas.ts`-ში.
+- **ეტაპი 2 (Admin: Category ↔ Attribute)**: `CategoriesPage.tsx`-ს
+  დაემატა "მახასიათებლები" მოდალი თითო კატეგორიაზე — მიბმული
+  attribute-ების სია (`categoryId`-ის შედარებით საკუთარი/მემკვიდრეობითის
+  გარჩევით), დამატება/მოხსნა dropdown-ით.
+- **ეტაპი 3 (Admin: Product attribute-values)**: ახალი
+  `DynamicAttributeForm.tsx` კომპონენტი, ჩაშენებული `ProductsPage.tsx`-ის
+  **edit** მოდალში (create-ში არა — მოითხოვს არსებულ `productId`-ს);
+  `categoryId`-ის ცვლილებაზე ეფექტური attribute set ხელახლა იტვირთება.
+- **ეტაპი 4 (Public: Category filter/facet გვერდი)**: ახალი route
+  `pages/categories/[slug].tsx` → `components/pages/categoryProducts/
+  index.tsx`, ახალი `hooks/useCategoryFilters.ts` (URL query ↔ filter
+  state sync, debounce-ითურთ), ახალი `components/shared/FilterSidebar/`
+  (select/multi_select checkbox+count, number/range min/max, boolean
+  3-პოზიციური toggle, text ძებნა). არსებული `/products` კატალოგი
+  უცვლელია.
+- **ეტაპი 5 (Public: Product detail spec-ცხრილი)**: `productDetail/
+  index.tsx`-ს დაემატა attribute-values ცხრილი (multi_select-ის
+  group-ირებით attributeId-ის მიხედვით).
+- **ვერიფიკაცია**: `yarn tsc --noEmit`/`yarn lint`/`yarn build:prod`
+  სუფთაა ყველა ეტაპის შემდეგ. სრული e2e curl-ფლოუ ცოცხალ dev
+  ბექენდზე (temp admin, დროებით შექმნილი და წაშლილი სესიის ბოლოს):
+  attribute+option შექმნა → კატეგორიაზე მიბმა → პროდუქტზე
+  attribute-value-ის დაწესება → `GET /categories/:slug/filters` (facet
+  narrowing აქტიური ფილტრით) → `GET /categories/:slug/products`
+  (`brand`+`amperage_min/max` კომბინირებული ფილტრი, სწორი 1/0 შედეგი) →
+  `GET /products/:id/attribute-values` (spec-ცხრილისთვის) — ყველა
+  frontend-ის ახალ კოდში ზუსტად გამოყენებული query/response ფორმით
+  დამოწმებულია.
 
 ## მიმდინარე მდგომარეობა (2026-08-26-ის მდგომარეობით)
 

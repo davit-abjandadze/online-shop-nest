@@ -66,7 +66,7 @@ async function bootstrap() {
     console.warn('swagger.json ვერ ჩაიწერა:', err.message);
   }
 
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
   await app.listen(port, '0.0.0.0');
 }
 bootstrap();
