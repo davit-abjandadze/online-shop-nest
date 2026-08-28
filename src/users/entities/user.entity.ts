@@ -48,6 +48,16 @@ export class User {
   @Column({ nullable: true })
   age?: number;
 
+  // პირადი ნომერი — 11-ნიშნა კოდი. DTO-დონეზე სავალდებულო არაა, თუმცა
+  // მითითების შემთხვევაში ზუსტად 11 ციფრი უნდა იყოს (იხ. CreateUserDto/RegisterDto).
+  @Column({ nullable: true, length: 11 })
+  personalNumber?: string;
+
+  // ტელეფონის ნომერი — სავალდებულო ველია (DTO-დონეზე @IsNotEmpty).
+  // სვეტი nullable-ია, რომ synchronize-მა არსებულ ჩანაწერებზე ALTER-ისას არ დაეცეს.
+  @Column({ nullable: true })
+  phoneNumber?: string;
+
   // @ApiHideProperty() // Swagger-ში არ გამოჩნდება
   @Column()
   password: string;

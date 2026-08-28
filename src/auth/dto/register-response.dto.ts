@@ -15,6 +15,12 @@ class UserDataDto {
 
   @ApiProperty({ example: 25, required: false })
   age?: number;
+
+  @ApiProperty({ example: '01234567890', required: false })
+  personalNumber?: string;
+
+  @ApiProperty({ example: '+995555123456' })
+  phoneNumber: string;
 }
 
 class TokenDataDto {

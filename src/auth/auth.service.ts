@@ -223,6 +223,8 @@ export class AuthService {
         role: user.role, // ← დავამატეთ პასუხშიც
         gender: user.gender,
         age: user.age,
+        personalNumber: user.personalNumber,
+        phoneNumber: user.phoneNumber,
       },
     };
   }

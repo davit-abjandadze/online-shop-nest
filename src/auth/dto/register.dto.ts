@@ -7,6 +7,7 @@ import {
   IsEnum,
   IsInt,
   Min,
+  Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '../../users/entities/user.entity';
@@ -37,4 +38,18 @@ export class RegisterDto {
   @IsInt()
   @Min(0)
   age?: number;
+
+  @ApiPropertyOptional({
+    description: 'პირადი ნომერი — ზუსტად 11 ციფრი',
+    example: '01234567890',
+  })
+  @IsOptional()
+  @Matches(/^\d{11}$/, {
+    message: 'პირადი ნომერი უნდა შეიცავდეს ზუსტად 11 ციფრს',
+  })
+  personalNumber?: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'ტელეფონის ნომერი სავალდებულოა' })
+  phoneNumber!: string;
 }

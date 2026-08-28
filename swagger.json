@@ -2404,6 +2404,16 @@
             "minimum": 0,
             "description": "მომხმარებლის ასაკი"
           },
+          "personalNumber": {
+            "type": "string",
+            "pattern": "^\\d{11}$",
+            "description": "პირადი ნომერი — ზუსტად 11 ციფრი",
+            "example": "01234567890"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "მომხმარებლის ტელეფონის ნომერი"
+          },
           "firstName": {
             "type": "string"
           },
@@ -2449,6 +2459,16 @@
             "minimum": 0,
             "description": "მომხმარებლის ასაკი"
           },
+          "personalNumber": {
+            "type": "string",
+            "pattern": "^\\d{11}$",
+            "description": "პირადი ნომერი — ზუსტად 11 ციფრი",
+            "example": "01234567890"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "description": "მომხმარებლის ტელეფონის ნომერი"
+          },
           "firstName": {
             "type": "string"
           },
@@ -2480,6 +2500,12 @@
             "minimum": 0,
             "description": "მომხმარებლის ასაკი"
           },
+          "personalNumber": {
+            "type": "string",
+            "pattern": "^\\d{11}$",
+            "description": "პირადი ნომერი — ზუსტად 11 ციფრი",
+            "example": "01234567890"
+          },
           "firstName": {
             "type": "string"
           },
@@ -2493,13 +2519,17 @@
           "password": {
             "type": "string",
             "minLength": 6
+          },
+          "phoneNumber": {
+            "type": "string"
           }
         },
         "required": [
           "firstName",
           "lastName",
           "email",
-          "password"
+          "password",
+          "phoneNumber"
         ]
       },
       "UserDataDto": {
@@ -2524,13 +2554,22 @@
           "age": {
             "type": "number",
             "example": 25
+          },
+          "personalNumber": {
+            "type": "string",
+            "example": "01234567890"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "+995555123456"
           }
         },
         "required": [
           "id",
           "email",
           "firstName",
-          "lastName"
+          "lastName",
+          "phoneNumber"
         ]
       },
       "TokenDataDto": {
