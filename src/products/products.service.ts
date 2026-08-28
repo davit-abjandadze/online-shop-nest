@@ -54,6 +54,7 @@ export class ProductsService {
       minPrice,
       maxPrice,
       isActive,
+      hasDiscount,
     } = searchProductDto;
 
     const qb = this.productRepository
@@ -81,6 +82,14 @@ export class ProductsService {
 
     if (isActive !== undefined) {
       qb.andWhere('product.isActive = :isActive', { isActive });
+    }
+
+    if (hasDiscount === true) {
+      qb.andWhere('product.discountPercent IS NOT NULL AND product.discountPercent > 0');
+    } else if (hasDiscount === false) {
+      qb.andWhere(
+        '(product.discountPercent IS NULL OR product.discountPercent = 0)',
+      );
     }
 
     const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';

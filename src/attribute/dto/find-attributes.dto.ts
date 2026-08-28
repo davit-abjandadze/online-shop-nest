@@ -1,8 +1,9 @@
 import { IsOptional, IsEnum, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AttributeType } from '../entities/attribute.entity';
+import { toQueryBoolean } from '../../common/transforms/query-boolean.transform';
 
 // GET /attributes-ის query პარამეტრები — pagination + სურვილისამებრ
 // ტიპის/isFilterable-ის მიხედვით გაფილტვრა.
@@ -19,7 +20,7 @@ export class FindAttributesDto extends PaginationDto {
     description: 'მხოლოდ filterable (ან non-filterable) attribute-ები',
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toQueryBoolean)
   @IsBoolean()
   isFilterable?: boolean;
 }

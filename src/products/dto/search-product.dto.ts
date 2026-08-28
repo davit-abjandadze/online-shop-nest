@@ -6,9 +6,10 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { toQueryBoolean } from '../../common/transforms/query-boolean.transform';
 
 // გაფართოებული ძიების DTO — PaginationDto-ს ვაფართოვებთ საძიებო ფილტრებით,
 // მსგავსად src/users/dto/search-user.dto.ts-ის.
@@ -45,7 +46,15 @@ export class SearchProductDto extends PaginationDto {
 
   @ApiPropertyOptional({ description: 'გაფილტვრა აქტიურობის მიხედვით' })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toQueryBoolean)
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'გაფილტვრა ფასდაკლების მიხედვით — true: მხოლოდ ფასდაკლებიანი, false: მხოლოდ ფასდაკლების გარეშე',
+  })
+  @IsOptional()
+  @Transform(toQueryBoolean)
+  @IsBoolean()
+  hasDiscount?: boolean;
 }

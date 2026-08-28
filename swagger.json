@@ -1393,6 +1393,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "hasDiscount",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა ფასდაკლების მიხედვით — true: მხოლოდ ფასდაკლებიანი, false: მხოლოდ ფასდაკლების გარეშე",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
