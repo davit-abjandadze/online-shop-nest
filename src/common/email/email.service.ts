@@ -51,4 +51,34 @@ export class EmailService {
       throw new Error('მეილის გაგზავნა ვერ მოხერხდა');
     }
   }
+
+  // ელფოსტის დადასტურების OTP კოდის გაგზავნა (მაგ. პროფილში ელფოსტის შეცვლის წინ).
+  async sendOtpEmail(to: string, code: string) {
+    const mailOptions = {
+      from: `"Online Shop" <${this.configService.get('EMAIL_USER')}>`,
+      to: to,
+      subject: 'ელფოსტის დადასტურების კოდი',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
+          <h2 style="color: #333;">ელფოსტის დადასტურება</h2>
+          <p>თქვენი დადასტურების კოდია:</p>
+          <div style="font-size: 28px; font-weight: bold; letter-spacing: 4px; padding: 12px 0;">${code}</div>
+          <p style="color: #666; font-size: 14px; margin-top: 20px;">
+            კოდი მოქმედია 10 წუთის განმავლობაში. თუ თქვენ არ მოგითხოვიათ ეს კოდი, უბრალოდ დააიგნორეთ ეს მეილი.
+          </p>
+        </div>
+      `,
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`OTP email sent successfully to ${to}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send OTP email to ${to}`,
+        (error as Error).stack,
+      );
+      throw new Error('მეილის გაგზავნა ვერ მოხერხდა');
+    }
+  }
 }

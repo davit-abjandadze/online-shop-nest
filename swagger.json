@@ -252,6 +252,126 @@
         ]
       }
     },
+    "/otp/send": {
+      "post": {
+        "operationId": "OtpController_sendOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "კოდი გაიგზავნა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendOtpResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "გაგზავნა ვერ მოხერხდა"
+          }
+        },
+        "summary": "OTP კოდის გაგზავნა მითითებულ მობილურზე",
+        "tags": [
+          "otp"
+        ]
+      }
+    },
+    "/otp/verify": {
+      "post": {
+        "operationId": "OtpController_verifyOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "შედეგი: verified true/false"
+          }
+        },
+        "summary": "OTP კოდის დადასტურება",
+        "tags": [
+          "otp"
+        ]
+      }
+    },
+    "/otp/send-email": {
+      "post": {
+        "operationId": "OtpController_sendEmailOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEmailOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "კოდი გაიგზავნა",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendOtpResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "გაგზავნა ვერ მოხერხდა"
+          }
+        },
+        "summary": "OTP კოდის გაგზავნა მითითებულ ელფოსტაზე",
+        "tags": [
+          "otp"
+        ]
+      }
+    },
+    "/otp/verify-email": {
+      "post": {
+        "operationId": "OtpController_verifyEmailOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "შედეგი: verified true/false"
+          }
+        },
+        "summary": "ელფოსტაზე გაგზავნილი OTP კოდის დადასტურება",
+        "tags": [
+          "otp"
+        ]
+      }
+    },
     "/auth/register": {
       "post": {
         "operationId": "AuthController_register",
@@ -2481,8 +2601,95 @@
           "email": {
             "type": "string",
             "format": "email"
+          },
+          "otpRequestId": {
+            "type": "string",
+            "description": "ახალი ელფოსტის დადასტურების requestId (საჭირო email ველის შეცვლისას)"
+          },
+          "otpCode": {
+            "type": "string",
+            "description": "ახალ ელფოსტაზე მიღებული დადასტურების კოდი (საჭირო email ველის შეცვლისას)"
+          },
+          "phoneOtpRequestId": {
+            "type": "string",
+            "description": "ახალი მობილურის ნომრის დადასტურების requestId (საჭირო phoneNumber ველის შეცვლისას)"
+          },
+          "phoneOtpCode": {
+            "type": "string",
+            "description": "ახალ მობილურზე SMS-ით მიღებული დადასტურების კოდი (საჭირო phoneNumber ველის შეცვლისას)"
           }
         }
+      },
+      "SendOtpDto": {
+        "type": "object",
+        "properties": {
+          "phoneNumber": {
+            "type": "string",
+            "description": "მობილურის ნომერი, სადაც გაიგზავნება კოდი"
+          }
+        },
+        "required": [
+          "phoneNumber"
+        ]
+      },
+      "SendOtpResponseDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "verify.ge-ს მიერ დაბრუნებული მოთხოვნის ID"
+          }
+        },
+        "required": [
+          "requestId"
+        ]
+      },
+      "VerifyOtpDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "send-otp-ის პასუხიდან მიღებული requestId"
+          },
+          "code": {
+            "type": "string",
+            "description": "მომხმარებლის მობილურზე მიღებული კოდი"
+          }
+        },
+        "required": [
+          "requestId",
+          "code"
+        ]
+      },
+      "SendEmailOtpDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "ელფოსტა, სადაც გაიგზავნება დადასტურების კოდი"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "VerifyEmailOtpDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "send-email-ის პასუხიდან მიღებული requestId"
+          },
+          "code": {
+            "type": "string",
+            "description": "მომხმარებლის ელფოსტაზე მიღებული კოდი"
+          }
+        },
+        "required": [
+          "requestId",
+          "code"
+        ]
       },
       "RegisterDto": {
         "type": "object",
@@ -2505,6 +2712,14 @@
             "pattern": "^\\d{11}$",
             "description": "პირადი ნომერი — ზუსტად 11 ციფრი",
             "example": "01234567890"
+          },
+          "otpRequestId": {
+            "type": "string",
+            "description": "POST /otp/send-ის პასუხიდან მიღებული requestId — თუ SMS ვერიფიკაცია ჩართულია, სავალდებულოა otpCode-თან ერთად"
+          },
+          "otpCode": {
+            "type": "string",
+            "description": "მომხმარებლის მობილურზე მიღებული OTP კოდი"
           },
           "firstName": {
             "type": "string"

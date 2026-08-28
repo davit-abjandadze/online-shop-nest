@@ -52,4 +52,20 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty({ message: 'ტელეფონის ნომერი სავალდებულოა' })
   phoneNumber!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'POST /otp/send-ის პასუხიდან მიღებული requestId — თუ SMS ვერიფიკაცია ჩართულია, ' +
+      'სავალდებულოა otpCode-თან ერთად',
+  })
+  @IsOptional()
+  @IsString()
+  otpRequestId?: string;
+
+  @ApiPropertyOptional({
+    description: 'მომხმარებლის მობილურზე მიღებული OTP კოდი',
+  })
+  @IsOptional()
+  @IsString()
+  otpCode?: string;
 }

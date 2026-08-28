@@ -58,6 +58,18 @@ export class User {
   @Column({ nullable: true })
   phoneNumber?: string;
 
+  // ორივე ველი მხოლოდ სერვერზე იმართება (UsersService.create/update) OTP-ის
+  // წარმატებული დამოწმების შემდეგ — არასდროს არ იკითხება პირდაპირ კლიენტის
+  // მოთხოვნიდან (CreateUserDto/UpdateUserDto-ს არ ეკუთვნის, ValidationPipe-ის
+  // whitelist:true+forbidNonWhitelisted:true-ის გამო ასეთი ველი @Body()-დან
+  // საერთოდ ვერ მოვა). ამიტომაც შესაძლებელია რომ /ka/user/profile-ზე
+  // "დამოწმებულია" სტატუსს ავენდოთ.
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Column({ default: false })
+  isPhoneVerified: boolean;
+
   // @ApiHideProperty() // Swagger-ში არ გამოჩნდება
   @Column()
   password: string;

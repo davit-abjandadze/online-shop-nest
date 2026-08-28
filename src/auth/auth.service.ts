@@ -15,23 +15,59 @@ import { UserRole } from '../users/entities/user.entity';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { EmailService } from '../common/email/email.service';
+import { ConfigService } from '@nestjs/config';
+import { OtpService } from '../otp/otp.service';
 @Injectable()
 export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private otpService: OtpService,
+    private configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
+    // თუ SMS-ვერიფიკაცია ჩართულია (PHONE_VERIFICATION_ENABLED), რეგისტრაციამდე
+    // ვამოწმებთ, რომ registerDto.phoneNumber-ზე რეალურად მიწოდებული OTP კოდია სწორი.
+    // (verify.ge-ს Free tier-ზე მუშაობს მხოლოდ ტესტ-ნომრებთან — production-ისთვის
+    // საჭიროა Starter ტარიფზე გადასვლა, იხ. src/otp/otp.service.ts)
+    const phoneVerificationEnabled =
+      this.configService.get<string>('PHONE_VERIFICATION_ENABLED') !== 'false';
+
+    if (phoneVerificationEnabled) {
+      if (!registerDto.otpRequestId || !registerDto.otpCode) {
+        throw new BadRequestException(
+          'მობილურის ნომრის დასადასტურებლად საჭიროა OTP კოდი — ჯერ გამოიძახეთ POST /otp/send',
+        );
+      }
+
+      const verified = await this.otpService.verifyOtp(
+        registerDto.otpRequestId,
+        registerDto.otpCode,
+      );
+      if (!verified) {
+        throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
+      }
+    }
+
     // დავაჰეშოთ პაროლი
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // შევქმნათ მომხმარებელი
-    const user = await this.usersService.create({
-      ...registerDto,
-      password: hashedPassword,
-    });
+    // შევქმნათ მომხმარებელი (otpRequestId/otpCode CreateUserDto-ს არ ეკუთვნის — ვაცილებთ)
+    const userData = { ...registerDto };
+    delete userData.otpRequestId;
+    delete userData.otpCode;
+    // phoneVerificationEnabled && ვართ აქამდე მისული (ანუ verifyOtp არ დაითროუდა) —
+    // ნიშნავს, რომ registerDto.phoneNumber რეალურად OTP-ით დამოწმებულია.
+    // ელფოსტა რეგისტრაციაზე არ დამოწმდება (OTP მხოლოდ ტელეფონზეა სავალდებულო).
+    const user = await this.usersService.create(
+      {
+        ...userData,
+        password: hashedPassword,
+      },
+      { isPhoneVerified: phoneVerificationEnabled },
+    );
 
     // დავაბრუნოთ ტოკენი
     return this.generateToken(user);
@@ -111,13 +147,17 @@ export class AuthService {
       const randomPassword = Math.random().toString(36).slice(-8); // შემთხვევითი პაროლი
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      user = await this.usersService.create({
-        email: profile.email,
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        password: hashedPassword,
-        role: UserRole.USER, // ან UserRole.USER, თუ enum-ს იყენებ
-      });
+      user = await this.usersService.create(
+        {
+          email: profile.email,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          password: hashedPassword,
+          role: UserRole.USER, // ან UserRole.USER, თუ enum-ს იყენებ
+        },
+        // Google-ით შემოსული ელფოსტა უკვე დამოწმებულია Google-ის მიერ
+        { isEmailVerified: true },
+      );
     }
 
     // 3. ვაგენერირებთ ჩვენს JWT ტოკენს (ზუსტად ისე, როგორც ჩვეულებრივ ლოგინში)
@@ -225,6 +265,8 @@ export class AuthService {
         age: user.age,
         personalNumber: user.personalNumber,
         phoneNumber: user.phoneNumber,
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
       },
     };
   }
