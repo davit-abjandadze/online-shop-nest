@@ -11,6 +11,7 @@ import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { AddressesModule } from './addresses/addresses.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -60,6 +61,7 @@ import { EmailService } from './common/email/email.service';
     OrdersModule,
     PaymentsModule,
     FavoritesModule,
+    AddressesModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
   exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს

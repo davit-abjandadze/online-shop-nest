@@ -2481,6 +2481,126 @@
           "favorites"
         ]
       }
+    },
+    "/addresses": {
+      "get": {
+        "operationId": "AddressesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "მისამართების სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემი შენახული მისამართების სია",
+        "tags": [
+          "addresses"
+        ]
+      },
+      "post": {
+        "operationId": "AddressesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "მისამართი დაემატა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი მისამართის დამატება",
+        "tags": [
+          "addresses"
+        ]
+      }
+    },
+    "/addresses/{id}": {
+      "patch": {
+        "operationId": "AddressesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAddressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "მისამართი განახლდა"
+          },
+          "404": {
+            "description": "მისამართი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მისამართის რედაქტირება",
+        "tags": [
+          "addresses"
+        ]
+      },
+      "delete": {
+        "operationId": "AddressesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მისამართი წაიშალა"
+          },
+          "404": {
+            "description": "მისამართი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "მისამართის წაშლა",
+        "tags": [
+          "addresses"
+        ]
+      }
     }
   },
   "info": {
@@ -3731,6 +3851,64 @@
         "required": [
           "status"
         ]
+      },
+      "CreateAddressDto": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "description": "დამატებითი კომენტარი კურიერისთვის"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "ნაგულისხმევ მისამართად დაყენება",
+            "default": false
+          },
+          "title": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "phoneNumber",
+          "city",
+          "address"
+        ]
+      },
+      "UpdateAddressDto": {
+        "type": "object",
+        "properties": {
+          "comment": {
+            "type": "string",
+            "description": "დამატებითი კომენტარი კურიერისთვის"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "ნაგულისხმევ მისამართად დაყენება",
+            "default": false
+          },
+          "title": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
       }
     }
   }
