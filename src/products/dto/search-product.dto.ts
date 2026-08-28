@@ -57,4 +57,14 @@ export class SearchProductDto extends PaginationDto {
   @Transform(toQueryBoolean)
   @IsBoolean()
   hasDiscount?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'ზუსტი ფასდაკლების პროცენტის მიხედვით გაფილტვრა',
+    example: 15,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  discountPercent?: number;
 }

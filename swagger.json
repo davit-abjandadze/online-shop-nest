@@ -1402,6 +1402,17 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "discountPercent",
+            "required": false,
+            "in": "query",
+            "description": "ზუსტი ფასდაკლების პროცენტის მიხედვით გაფილტვრა",
+            "schema": {
+              "minimum": 0,
+              "example": 15,
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -1622,6 +1633,164 @@
           }
         ],
         "summary": "პროდუქტის attribute value-ების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/products/{id}/additional-info": {
+      "get": {
+        "operationId": "ProductsController_getAdditionalInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "დამატებითი ინფორმაციის ბლოკები"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "პროდუქტის დამატებითი ინფორმაციის ბლოკების სია",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductsController_addAdditionalInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductAdditionalInfoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ბლოკი შეიქმნა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტს დამატებითი ინფორმაციის ახალი ბლოკის დამატება (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/products/{id}/additional-info/{infoId}": {
+      "put": {
+        "operationId": "ProductsController_updateAdditionalInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "infoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductAdditionalInfoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ბლოკი განახლდა"
+          },
+          "404": {
+            "description": "ბლოკი ან პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის დამატებითი ინფორმაციის ბლოკის განახლება (ADMIN)",
+        "tags": [
+          "products"
+        ]
+      },
+      "delete": {
+        "operationId": "ProductsController_removeAdditionalInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "infoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ბლოკი წაიშალა"
+          },
+          "404": {
+            "description": "ბლოკი ან პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის დამატებითი ინფორმაციის ბლოკის წაშლა (ADMIN)",
         "tags": [
           "products"
         ]
@@ -2105,6 +2274,91 @@
         "summary": "BOG-ის გადახდის callback (არაავტორიზებული, ხელმოწერით დაცული)",
         "tags": [
           "payments"
+        ]
+      }
+    },
+    "/favorites": {
+      "get": {
+        "operationId": "FavoritesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ფავორიტ პროდუქტების სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ჩემი ფავორიტების სია",
+        "tags": [
+          "favorites"
+        ]
+      }
+    },
+    "/favorites/{productId}": {
+      "post": {
+        "operationId": "FavoritesController_addFavorite",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "დაემატა ფავორიტებში"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          },
+          "409": {
+            "description": "პროდუქტი უკვე ფავორიტებშია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის დამატება ფავორიტებში",
+        "tags": [
+          "favorites"
+        ]
+      },
+      "delete": {
+        "operationId": "FavoritesController_removeFavorite",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ამოშალა ფავორიტებიდან"
+          },
+          "404": {
+            "description": "ფავორიტებში ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის ამოშლა ფავორიტებიდან",
+        "tags": [
+          "favorites"
         ]
       }
     }
@@ -3111,6 +3365,50 @@
         "required": [
           "values"
         ]
+      },
+      "CreateProductAdditionalInfoDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "ბლოკის სათაური",
+            "example": "მიწოდების პირობები"
+          },
+          "description": {
+            "type": "string",
+            "description": "ბლოკის აღწერილობა",
+            "example": "მიწოდება ხდება 1-3 სამუშაო დღეში მთელ საქართველოში."
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "ბლოკების თანმიმდევრობა პროდუქტის გვერდზე",
+            "example": 0
+          }
+        },
+        "required": [
+          "title",
+          "description"
+        ]
+      },
+      "UpdateProductAdditionalInfoDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "ბლოკის სათაური",
+            "example": "მიწოდების პირობები"
+          },
+          "description": {
+            "type": "string",
+            "description": "ბლოკის აღწერილობა",
+            "example": "მიწოდება ხდება 1-3 სამუშაო დღეში მთელ საქართველოში."
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "ბლოკების თანმიმდევრობა პროდუქტის გვერდზე",
+            "example": 0
+          }
+        }
       },
       "AddCartItemDto": {
         "type": "object",

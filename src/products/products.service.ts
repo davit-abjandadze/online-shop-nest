@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
+import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
 import { Category } from '../category/entities/category.entity';
 import {
   Attribute,
@@ -17,6 +18,8 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
+import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
+import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -38,6 +41,8 @@ export class ProductsService {
     private productRepository: Repository<Product>,
     @InjectRepository(ProductAttributeValue)
     private productAttributeValueRepository: Repository<ProductAttributeValue>,
+    @InjectRepository(ProductAdditionalInfo)
+    private productAdditionalInfoRepository: Repository<ProductAdditionalInfo>,
     private readonly categoryService: CategoryService,
   ) {}
 
@@ -55,6 +60,7 @@ export class ProductsService {
       maxPrice,
       isActive,
       hasDiscount,
+      discountPercent,
     } = searchProductDto;
 
     const qb = this.productRepository
@@ -90,6 +96,12 @@ export class ProductsService {
       qb.andWhere(
         '(product.discountPercent IS NULL OR product.discountPercent = 0)',
       );
+    }
+
+    if (discountPercent !== undefined) {
+      qb.andWhere('product.discountPercent = :discountPercent', {
+        discountPercent,
+      });
     }
 
     const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';
@@ -285,6 +297,63 @@ export class ProductsService {
       this.productAttributeValueRepository.create(row),
     );
     return this.productAttributeValueRepository.save(entities);
+  }
+
+  // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
+
+  async getAdditionalInfo(
+    productId: number,
+  ): Promise<ProductAdditionalInfo[]> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    return this.productAdditionalInfoRepository.find({
+      where: { productId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  async addAdditionalInfo(
+    productId: number,
+    createDto: CreateProductAdditionalInfoDto,
+  ): Promise<ProductAdditionalInfo> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    const info = this.productAdditionalInfoRepository.create({
+      ...createDto,
+      productId,
+    });
+    return this.productAdditionalInfoRepository.save(info);
+  }
+
+  async updateAdditionalInfo(
+    productId: number,
+    infoId: string,
+    updateDto: UpdateProductAdditionalInfoDto,
+  ): Promise<ProductAdditionalInfo> {
+    const info = await this.findAdditionalInfoOrFail(productId, infoId);
+    Object.assign(info, updateDto);
+    return this.productAdditionalInfoRepository.save(info);
+  }
+
+  async removeAdditionalInfo(
+    productId: number,
+    infoId: string,
+  ): Promise<ProductAdditionalInfo> {
+    const info = await this.findAdditionalInfoOrFail(productId, infoId);
+    return this.productAdditionalInfoRepository.remove(info);
+  }
+
+  private async findAdditionalInfoOrFail(
+    productId: number,
+    infoId: string,
+  ): Promise<ProductAdditionalInfo> {
+    const info = await this.productAdditionalInfoRepository.findOne({
+      where: { id: infoId, productId },
+    });
+    if (!info) {
+      throw new NotFoundException(
+        `დამატებითი ინფორმაციის ბლოკი ID-ით ${infoId} ვერ მოიძებნა ამ პროდუქტისთვის`,
+      );
+    }
+    return info;
   }
 
   private assertOptionBelongsToAttribute(

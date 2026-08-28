@@ -23,6 +23,8 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
+import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
+import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -121,5 +123,66 @@ export class ProductsController {
       +id,
       setProductAttributeValuesDto,
     );
+  }
+
+  // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
+
+  @Get(':id/additional-info')
+  @ApiOperation({ summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკების სია' })
+  @ApiResponse({ status: 200, description: 'დამატებითი ინფორმაციის ბლოკები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  getAdditionalInfo(@Param('id') id: string) {
+    return this.productsService.getAdditionalInfo(+id);
+  }
+
+  @Post(':id/additional-info')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'პროდუქტს დამატებითი ინფორმაციის ახალი ბლოკის დამატება (ADMIN)',
+  })
+  @ApiResponse({ status: 201, description: 'ბლოკი შეიქმნა' })
+  @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  addAdditionalInfo(
+    @Param('id') id: string,
+    @Body() createDto: CreateProductAdditionalInfoDto,
+  ) {
+    return this.productsService.addAdditionalInfo(+id, createDto);
+  }
+
+  @Put(':id/additional-info/:infoId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკის განახლება (ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'ბლოკი განახლდა' })
+  @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
+  updateAdditionalInfo(
+    @Param('id') id: string,
+    @Param('infoId') infoId: string,
+    @Body() updateDto: UpdateProductAdditionalInfoDto,
+  ) {
+    return this.productsService.updateAdditionalInfo(+id, infoId, updateDto);
+  }
+
+  @Delete(':id/additional-info/:infoId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკის წაშლა (ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'ბლოკი წაიშალა' })
+  @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
+  removeAdditionalInfo(
+    @Param('id') id: string,
+    @Param('infoId') infoId: string,
+  ) {
+    return this.productsService.removeAdditionalInfo(+id, infoId);
   }
 }

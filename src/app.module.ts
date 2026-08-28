@@ -10,6 +10,7 @@ import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { FavoritesModule } from './favorites/favorites.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -58,6 +59,7 @@ import { EmailService } from './common/email/email.service';
     CartModule,
     OrdersModule,
     PaymentsModule,
+    FavoritesModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
   exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
