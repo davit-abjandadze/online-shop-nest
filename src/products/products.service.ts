@@ -133,10 +133,14 @@ export class ProductsService {
   }
 
   async create(createProductDto: CreateProductDto) {
-    const { categoryId, price, ...rest } = createProductDto;
+    const { categoryId, price, weight, length, width, ...rest } =
+      createProductDto;
     const product = this.productRepository.create({
       ...rest,
       price: price.toString(),
+      ...(weight !== undefined ? { weight: weight.toString() } : {}),
+      ...(length !== undefined ? { length: length.toString() } : {}),
+      ...(width !== undefined ? { width: width.toString() } : {}),
       ...(categoryId !== undefined ? { category: { id: categoryId } } : {}),
     });
     return this.productRepository.save(product);
@@ -144,10 +148,20 @@ export class ProductsService {
 
   async update(id: number, updateProductDto: UpdateProductDto) {
     const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
-    const { categoryId, price, ...rest } = updateProductDto;
+    const { categoryId, price, weight, length, width, ...rest } =
+      updateProductDto;
     Object.assign(product, rest);
     if (price !== undefined) {
       product.price = price.toString();
+    }
+    if (weight !== undefined) {
+      product.weight = weight.toString();
+    }
+    if (length !== undefined) {
+      product.length = length.toString();
+    }
+    if (width !== undefined) {
+      product.width = width.toString();
     }
     if (categoryId !== undefined) {
       product.category = { id: categoryId } as Category;

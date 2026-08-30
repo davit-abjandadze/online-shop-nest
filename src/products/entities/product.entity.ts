@@ -42,6 +42,17 @@ export class Product {
   @Column({ nullable: true })
   videoUrl?: string;
 
+  // გაბარიტები (კგ/სმ) — არასავალდებულო, ძირითადად მიწოდების ღირებულების
+  // გამოსათვლელად ან პროდუქტის დეტალურ ინფორმაციაში საჩვენებლად.
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  weight?: string;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  length?: string;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  width?: string;
+
   @Column({ default: true })
   isActive!: boolean;
 

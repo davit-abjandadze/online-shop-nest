@@ -83,6 +83,27 @@ export class CreateProductDto {
   )
   videoUrl?: string;
 
+  @ApiPropertyOptional({ description: 'წონა (კგ)', example: 1.5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'წონა უნდა იყოს რიცხვი' })
+  @Min(0, { message: 'წონა არ შეიძლება იყოს უარყოფითი' })
+  weight?: number;
+
+  @ApiPropertyOptional({ description: 'სიგრძე (სმ)', example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'სიგრძე უნდა იყოს რიცხვი' })
+  @Min(0, { message: 'სიგრძე არ შეიძლება იყოს უარყოფითი' })
+  length?: number;
+
+  @ApiPropertyOptional({ description: 'სიგანე (სმ)', example: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'სიგანე უნდა იყოს რიცხვი' })
+  @Min(0, { message: 'სიგანე არ შეიძლება იყოს უარყოფითი' })
+  width?: number;
+
   @ApiPropertyOptional({
     description: 'აქტიურია თუ არა პროდუქტი',
     default: true,

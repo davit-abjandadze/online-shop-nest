@@ -3491,6 +3491,15 @@
           "videoUrl": {
             "type": "string"
           },
+          "weight": {
+            "type": "string"
+          },
+          "length": {
+            "type": "string"
+          },
+          "width": {
+            "type": "string"
+          },
           "isActive": {
             "type": "boolean"
           },
@@ -3975,6 +3984,24 @@
             "description": "YouTube ვიდეოს ლინკი (მიმოხილვა/ინსტრუქცია პროდუქტის გვერდზე)",
             "example": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
           },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "description": "წონა (კგ)",
+            "example": 1.5
+          },
+          "length": {
+            "type": "number",
+            "minimum": 0,
+            "description": "სიგრძე (სმ)",
+            "example": 20
+          },
+          "width": {
+            "type": "number",
+            "minimum": 0,
+            "description": "სიგანე (სმ)",
+            "example": 10
+          },
           "isActive": {
             "type": "boolean",
             "description": "აქტიურია თუ არა პროდუქტი",
@@ -4067,6 +4094,24 @@
             "pattern": "^https?:\\/\\/(www\\.)?(youtube\\.com\\/(watch\\?v=|shorts\\/|embed\\/)|youtu\\.be\\/)[\\w-]+",
             "description": "YouTube ვიდეოს ლინკი (მიმოხილვა/ინსტრუქცია პროდუქტის გვერდზე)",
             "example": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "description": "წონა (კგ)",
+            "example": 1.5
+          },
+          "length": {
+            "type": "number",
+            "minimum": 0,
+            "description": "სიგრძე (სმ)",
+            "example": 20
+          },
+          "width": {
+            "type": "number",
+            "minimum": 0,
+            "description": "სიგანე (სმ)",
+            "example": 10
           },
           "isActive": {
             "type": "boolean",
