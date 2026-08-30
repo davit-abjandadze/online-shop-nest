@@ -6,12 +6,14 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { AttributeModule } from './attribute/attribute.module';
+import { ColorsModule } from './colors/colors.module';
 import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { AddressesModule } from './addresses/addresses.module';
+import { BranchesModule } from './branches/branches.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -56,12 +58,14 @@ import { EmailService } from './common/email/email.service';
     AuthModule,
     CategoryModule,
     AttributeModule,
+    ColorsModule,
     ProductsModule,
     CartModule,
     OrdersModule,
     PaymentsModule,
     FavoritesModule,
     AddressesModule,
+    BranchesModule,
   ],
   providers: [EmailService], // ← დარეგისტრირება
   exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს

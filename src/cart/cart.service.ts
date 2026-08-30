@@ -40,18 +40,28 @@ export class CartService {
     userId: number,
     productId: number,
     quantity: number,
+    colorId?: string,
   ): Promise<Cart> {
     const product = await this.productsService.findOne(productId);
+    const availableStock = await this.resolveAvailableStock(
+      product.id,
+      product.stock,
+      colorId,
+    );
     const cart = await this.getOrCreateForUser(userId);
 
+    // იგივე პროდუქტი + იგივე ფერი (ორივე ცარიელია, თუ ფერი არ გამოიყენება)
+    // უკვე კალათაშია? — რაოდენობას ვამატებთ ცალკე row-ის შექმნის ნაცვლად.
     const existingItem = cart.items?.find(
-      (item) => item.product.id === productId,
+      (item) =>
+        item.product.id === productId &&
+        (item.colorId ?? null) === (colorId ?? null),
     );
 
     const desiredQuantity = (existingItem?.quantity ?? 0) + quantity;
-    if (product.stock < desiredQuantity) {
+    if (availableStock < desiredQuantity) {
       throw new BadRequestException(
-        `მარაგში საკმარისი რაოდენობა არ არის (ხელმისაწვდომია: ${product.stock})`,
+        `მარაგში საკმარისი რაოდენობა არ არის (ხელმისაწვდომია: ${availableStock})`,
       );
     }
 
@@ -62,6 +72,7 @@ export class CartService {
       const newItem = this.cartItemRepository.create({
         cart,
         product,
+        colorId: colorId ?? null,
         quantity,
       });
       await this.cartItemRepository.save(newItem);
@@ -76,10 +87,15 @@ export class CartService {
     quantity: number,
   ): Promise<Cart> {
     const item = await this.findOwnItem(userId, itemId);
+    const availableStock = await this.resolveAvailableStock(
+      item.product.id,
+      item.product.stock,
+      item.colorId ?? undefined,
+    );
 
-    if (item.product.stock < quantity) {
+    if (availableStock < quantity) {
       throw new BadRequestException(
-        `მარაგში საკმარისი რაოდენობა არ არის (ხელმისაწვდომია: ${item.product.stock})`,
+        `მარაგში საკმარისი რაოდენობა არ არის (ხელმისაწვდომია: ${availableStock})`,
       );
     }
 
@@ -87,6 +103,40 @@ export class CartService {
     await this.cartItemRepository.save(item);
 
     return this.getOrCreateForUser(userId);
+  }
+
+  // თუ პროდუქტს ფერები მითითებული აქვს (ProductColor-ის ჩანაწერები
+  // არსებობს), colorId სავალდებულოა და მარაგიც კონკრეტული ფერის
+  // stock-იდან იკითხება — ფერების გარეშე პროდუქტზე ჩვეულებრივად
+  // product.stock გამოიყენება.
+  private async resolveAvailableStock(
+    productId: number,
+    productStock: number,
+    colorId?: string,
+  ): Promise<number> {
+    const colors = await this.productsService.getColors(productId);
+
+    if (colors.length === 0) {
+      if (colorId) {
+        throw new BadRequestException('ამ პროდუქტს ფერი არ გააჩნია');
+      }
+      return productStock;
+    }
+
+    if (!colorId) {
+      throw new BadRequestException(
+        'ეს პროდუქტი მოითხოვს ფერის მითითებას (colorId)',
+      );
+    }
+
+    const productColor = colors.find((c) => c.colorId === colorId);
+    if (!productColor) {
+      throw new BadRequestException(
+        'ეს ფერი არ არის ხელმისაწვდომი ამ პროდუქტისთვის',
+      );
+    }
+
+    return productColor.stock;
   }
 
   async removeItem(userId: number, itemId: number): Promise<Cart> {

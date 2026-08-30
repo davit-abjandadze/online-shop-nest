@@ -4,15 +4,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
+import { ProductColor } from './entities/product-color.entity';
 import { Category } from '../category/entities/category.entity';
 import {
   Attribute,
   AttributeType,
 } from '../attribute/entities/attribute.entity';
+import { Color } from '../colors/entities/color.entity';
 import { CategoryService } from '../category/category.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -20,6 +22,7 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
 import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
+import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -43,6 +46,10 @@ export class ProductsService {
     private productAttributeValueRepository: Repository<ProductAttributeValue>,
     @InjectRepository(ProductAdditionalInfo)
     private productAdditionalInfoRepository: Repository<ProductAdditionalInfo>,
+    @InjectRepository(ProductColor)
+    private productColorRepository: Repository<ProductColor>,
+    @InjectRepository(Color)
+    private colorRepository: Repository<Color>,
     private readonly categoryService: CategoryService,
   ) {}
 
@@ -339,6 +346,74 @@ export class ProductsService {
   ): Promise<ProductAdditionalInfo> {
     const info = await this.findAdditionalInfoOrFail(productId, infoId);
     return this.productAdditionalInfoRepository.remove(info);
+  }
+
+  // --- ფერები (Product ↔ Color, თითოეულზე ცალკე stock) ------------------
+
+  async getColors(productId: number): Promise<ProductColor[]> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    return this.productColorRepository.find({
+      where: { productId },
+      relations: { color: true },
+    });
+  }
+
+  // bulk set — მოცემული DTO მასივი მთლიანად ანაცვლებს ამ პროდუქტის
+  // არსებულ ფერებს (delete + recreate, setAttributeValues-ის იგივე
+  // პატერნით). წინასწარ ვამოწმებთ, რომ ყველა colorId რეალურად არსებობს
+  // /colors ბიბლიოთეკაში.
+  //
+  // product.stock-საც ვასინქრონებთ ფერების stock-ების ჯამზე — CartService/
+  // OrdersService checkout-ის დროს ფერიან პროდუქტზე მხოლოდ კონკრეტული
+  // ProductColor.stock-ს აკლებენ, მაგრამ product.stock (რომელსაც search/
+  // sort/low-stock ლოგიკა კითხულობს) ამ ჯამის საწყისი მნიშვნელობა უნდა
+  // იყოს, რომ ორივე თანმიმდევრული დარჩეს. ცარიელი მასივის შემთხვევაში
+  // (ფერების მოხსნა) product.stock ხელუხლებელი რჩება — ადმინი ისევ
+  // ჩვეულებრივად მართავს მას.
+  async setColors(
+    productId: number,
+    setProductColorsDto: SetProductColorsDto,
+  ): Promise<ProductColor[]> {
+    const product = await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+
+    const colorIds = setProductColorsDto.colors.map((c) => c.colorId);
+    const uniqueColorIds = new Set(colorIds);
+    if (uniqueColorIds.size !== colorIds.length) {
+      throw new BadRequestException(
+        'ერთი და იგივე ფერი ვერ განმეორდება ერთ პროდუქტზე',
+      );
+    }
+
+    if (colorIds.length > 0) {
+      const existingColors = await this.colorRepository.findBy({
+        id: In(colorIds),
+      });
+      if (existingColors.length !== uniqueColorIds.size) {
+        const foundIds = new Set(existingColors.map((c) => c.id));
+        const missing = colorIds.filter((id) => !foundIds.has(id));
+        throw new BadRequestException(
+          `ფერი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+        );
+      }
+    }
+
+    await this.productColorRepository.delete({ productId });
+    if (setProductColorsDto.colors.length === 0) {
+      return [];
+    }
+    const entities = setProductColorsDto.colors.map((item) =>
+      this.productColorRepository.create({
+        productId,
+        colorId: item.colorId,
+        stock: item.stock,
+      }),
+    );
+    const saved = await this.productColorRepository.save(entities);
+
+    product.stock = saved.reduce((sum, pc) => sum + pc.stock, 0);
+    await this.productRepository.save(product);
+
+    return saved;
   }
 
   private async findAdditionalInfoOrFail(

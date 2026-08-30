@@ -1407,6 +1407,149 @@
         ]
       }
     },
+    "/colors": {
+      "get": {
+        "operationId": "ColorsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ფერების სია"
+          }
+        },
+        "summary": "ფერების სია",
+        "tags": [
+          "colors"
+        ]
+      },
+      "post": {
+        "operationId": "ColorsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateColorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ფერი შეიქმნა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი ფერის შექმნა (ADMIN)",
+        "tags": [
+          "colors"
+        ]
+      }
+    },
+    "/colors/{id}": {
+      "get": {
+        "operationId": "ColorsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ფერი"
+          },
+          "404": {
+            "description": "ფერი ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული ფერის მიღება",
+        "tags": [
+          "colors"
+        ]
+      },
+      "put": {
+        "operationId": "ColorsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateColorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ფერი განახლდა"
+          },
+          "404": {
+            "description": "ფერი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ფერის განახლება (ADMIN)",
+        "tags": [
+          "colors"
+        ]
+      },
+      "delete": {
+        "operationId": "ColorsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ფერი წაიშალა"
+          },
+          "404": {
+            "description": "ფერი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ფერის წაშლა (ADMIN)",
+        "tags": [
+          "colors"
+        ]
+      }
+    },
     "/products": {
       "get": {
         "operationId": "ProductsController_findAll",
@@ -1916,6 +2059,76 @@
         ]
       }
     },
+    "/products/{id}/colors": {
+      "get": {
+        "operationId": "ProductsController_getColors",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ფერები"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "პროდუქტზე მიბმული ფერების სია (stock-ითურთ)",
+        "tags": [
+          "products"
+        ]
+      },
+      "put": {
+        "operationId": "ProductsController_setColors",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProductColorsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ფერები განახლდა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის ფერების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს",
+        "tags": [
+          "products"
+        ]
+      }
+    },
     "/cart": {
       "get": {
         "operationId": "CartController_getCart",
@@ -2344,6 +2557,141 @@
         "summary": "შეკვეთის სტატუსის განახლება (ADMIN)",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/branches": {
+      "get": {
+        "operationId": "BranchesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ფილიალების სია"
+          }
+        },
+        "summary": "აქტიური ფილიალების სია (checkout-ისთვის)",
+        "tags": [
+          "branches"
+        ]
+      },
+      "post": {
+        "operationId": "BranchesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ფილიალი დაემატა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი ფილიალის დამატება (ADMIN)",
+        "tags": [
+          "branches"
+        ]
+      }
+    },
+    "/branches/admin/all": {
+      "get": {
+        "operationId": "BranchesController_findAllAdmin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "ფილიალების სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ყველა ფილიალის სია, დახურულების ჩათვლით (ADMIN)",
+        "tags": [
+          "branches"
+        ]
+      }
+    },
+    "/branches/{id}": {
+      "patch": {
+        "operationId": "BranchesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ფილიალი განახლდა"
+          },
+          "404": {
+            "description": "ფილიალი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ფილიალის რედაქტირება (ADMIN)",
+        "tags": [
+          "branches"
+        ]
+      },
+      "delete": {
+        "operationId": "BranchesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ფილიალი წაიშალა"
+          },
+          "404": {
+            "description": "ფილიალი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ფილიალის წაშლა (ADMIN)",
+        "tags": [
+          "branches"
         ]
       }
     },
@@ -3531,6 +3879,52 @@
           }
         }
       },
+      "CreateColorDto": {
+        "type": "object",
+        "properties": {
+          "nameKa": {
+            "type": "string",
+            "description": "ფერის სახელი ქართულად",
+            "example": "წითელი"
+          },
+          "nameEn": {
+            "type": "string",
+            "description": "ფერის სახელი ინგლისურად",
+            "example": "Red"
+          },
+          "hexCode": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+            "description": "HEX კოდი frontend-ის სვოჩისთვის",
+            "example": "#FF0000"
+          }
+        },
+        "required": [
+          "nameKa",
+          "nameEn"
+        ]
+      },
+      "UpdateColorDto": {
+        "type": "object",
+        "properties": {
+          "nameKa": {
+            "type": "string",
+            "description": "ფერის სახელი ქართულად",
+            "example": "წითელი"
+          },
+          "nameEn": {
+            "type": "string",
+            "description": "ფერის სახელი ინგლისურად",
+            "example": "Red"
+          },
+          "hexCode": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+            "description": "HEX კოდი frontend-ის სვოჩისთვის",
+            "example": "#FF0000"
+          }
+        }
+      },
       "CreateProductDto": {
         "type": "object",
         "properties": {
@@ -3784,6 +4178,41 @@
           }
         }
       },
+      "ProductColorItemDto": {
+        "type": "object",
+        "properties": {
+          "colorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Color-ის ID (წინასწარ /colors-ზე შექმნილი)",
+            "example": "5b1a2c3e-...-uuid"
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ამ ფერის მარაგი საწყობში (ცალი)",
+            "example": 10
+          }
+        },
+        "required": [
+          "colorId",
+          "stock"
+        ]
+      },
+      "SetProductColorsDto": {
+        "type": "object",
+        "properties": {
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductColorItemDto"
+            }
+          }
+        },
+        "required": [
+          "colors"
+        ]
+      },
       "AddCartItemDto": {
         "type": "object",
         "properties": {
@@ -3791,6 +4220,12 @@
             "type": "number",
             "description": "პროდუქტის ID",
             "example": 1
+          },
+          "colorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "არჩეული ფერის ID — სავალდებულოა, თუ პროდუქტს ფერები აქვს მითითებული (იხ. GET /products/:id/colors)",
+            "example": "5b1a2c3e-...-uuid"
           },
           "quantity": {
             "type": "number",
@@ -3821,15 +4256,25 @@
       "CreateOrderDto": {
         "type": "object",
         "properties": {
+          "deliveryMethod": {
+            "enum": [
+              "courier",
+              "pickup"
+            ],
+            "type": "string",
+            "description": "მიწოდების ხერხი — საკურიერო ან ფილიალიდან გატანა",
+            "default": "courier"
+          },
           "shippingAddress": {
             "type": "string",
-            "description": "მიწოდების მისამართი",
+            "description": "მიწოდების მისამართი (deliveryMethod=courier-სთვის სავალდებულო)",
             "example": "თბილისი, რუსთაველის გამზირი 1"
+          },
+          "branchId": {
+            "type": "number",
+            "description": "არჩეული ფილიალის ID (deliveryMethod=pickup-სთვის სავალდებულო)"
           }
-        },
-        "required": [
-          "shippingAddress"
-        ]
+        }
       },
       "UpdateOrderStatusDto": {
         "type": "object",
@@ -3851,6 +4296,181 @@
         "required": [
           "status"
         ]
+      },
+      "BranchDayHoursDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "string",
+            "example": "09:30"
+          },
+          "close": {
+            "type": "string",
+            "example": "19:00"
+          }
+        }
+      },
+      "BranchWorkingHoursDto": {
+        "type": "object",
+        "properties": {
+          "mon": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "tue": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "wed": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "thu": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "fri": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "sat": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          },
+          "sun": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BranchDayHoursDto"
+              }
+            ]
+          }
+        }
+      },
+      "CreateBranchDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "ჯ. თბილისი, ვაკე"
+          },
+          "address": {
+            "type": "string",
+            "example": "0177, უნივერსიტეტის ქ. N6"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "(032) 215 40 40"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "info@amboli.ge"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "რუკის განედი (latitude)",
+            "example": 41.7225
+          },
+          "longitude": {
+            "type": "number",
+            "description": "რუკის გრძედი (longitude)",
+            "example": 44.7635
+          },
+          "workingHours": {
+            "$ref": "#/components/schemas/BranchWorkingHoursDto"
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "default": 0
+          }
+        },
+        "required": [
+          "title",
+          "address",
+          "phoneNumber",
+          "latitude",
+          "longitude",
+          "workingHours"
+        ]
+      },
+      "UpdateBranchDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "example": "ჯ. თბილისი, ვაკე"
+          },
+          "address": {
+            "type": "string",
+            "example": "0177, უნივერსიტეტის ქ. N6"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "(032) 215 40 40"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "info@amboli.ge"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "რუკის განედი (latitude)",
+            "example": 41.7225
+          },
+          "longitude": {
+            "type": "number",
+            "description": "რუკის გრძედი (longitude)",
+            "example": 44.7635
+          },
+          "workingHours": {
+            "$ref": "#/components/schemas/BranchWorkingHoursDto"
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "default": 0
+          }
+        }
       },
       "CreateAddressDto": {
         "type": "object",

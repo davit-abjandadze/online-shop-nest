@@ -44,10 +44,7 @@ export class OrdersController {
     @CurrentUser() user: { userId: number },
     @Body() createOrderDto: CreateOrderDto,
   ) {
-    return this.ordersService.createFromCart(
-      user.userId,
-      createOrderDto.shippingAddress,
-    );
+    return this.ordersService.createFromCart(user.userId, createOrderDto);
   }
 
   @Get()

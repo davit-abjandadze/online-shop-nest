@@ -1,12 +1,39 @@
-import { IsString, IsNotEmpty } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsInt,
+  ValidateIf,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { DeliveryMethod } from '../entities/order.entity';
 
 export class CreateOrderDto {
-  @ApiProperty({
-    description: 'მიწოდების მისამართი',
+  @ApiPropertyOptional({
+    description: 'მიწოდების ხერხი — საკურიერო ან ფილიალიდან გატანა',
+    enum: DeliveryMethod,
+    default: DeliveryMethod.COURIER,
+  })
+  @IsOptional()
+  @IsEnum(DeliveryMethod)
+  deliveryMethod?: DeliveryMethod;
+
+  @ApiPropertyOptional({
+    description: 'მიწოდების მისამართი (deliveryMethod=courier-სთვის სავალდებულო)',
     example: 'თბილისი, რუსთაველის გამზირი 1',
   })
+  @ValidateIf((o) => (o.deliveryMethod ?? DeliveryMethod.COURIER) === DeliveryMethod.COURIER)
   @IsString()
   @IsNotEmpty()
-  shippingAddress!: string;
+  shippingAddress?: string;
+
+  @ApiPropertyOptional({
+    description: 'არჩეული ფილიალის ID (deliveryMethod=pickup-სთვის სავალდებულო)',
+  })
+  @ValidateIf((o) => o.deliveryMethod === DeliveryMethod.PICKUP)
+  @Type(() => Number)
+  @IsInt()
+  branchId?: number;
 }

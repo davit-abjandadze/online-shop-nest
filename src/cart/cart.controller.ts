@@ -48,6 +48,7 @@ export class CartController {
       user.userId,
       addCartItemDto.productId,
       addCartItemDto.quantity,
+      addCartItemDto.colorId,
     );
   }
 

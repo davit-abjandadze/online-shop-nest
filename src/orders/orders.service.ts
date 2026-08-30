@@ -13,13 +13,16 @@ import {
   SelectQueryBuilder,
   LessThan,
 } from 'typeorm';
-import { Order, OrderStatus } from './entities/order.entity';
+import { Order, OrderStatus, DeliveryMethod } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
+import { ProductColor } from '../products/entities/product-color.entity';
 import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { BranchesService } from '../branches/branches.service';
 
 // გადაუხდელი შეკვეთის default ვადა (წუთებში) — ამის შემდეგ cron (Phase 5)
 // EXPIRED-ში გადაჰყავს და მარაგს აბრუნებს.
@@ -35,6 +38,7 @@ export class OrdersService {
     @InjectDataSource()
     private dataSource: DataSource,
     private cartService: CartService,
+    private branchesService: BranchesService,
   ) {}
 
   // კალათიდან შეკვეთის შექმნა — ტრანზაქციაში, პროდუქტების row-level ლოქით
@@ -42,8 +46,23 @@ export class OrdersService {
   // ბოლო ერთეულზე ორივემ ვერ გაიაროს stock-შემოწმება ერთდროულად.
   async createFromCart(
     userId: number,
-    shippingAddress: string,
+    createOrderDto: CreateOrderDto,
   ): Promise<Order> {
+    const deliveryMethod =
+      createOrderDto.deliveryMethod ?? DeliveryMethod.COURIER;
+
+    // pickup-ის შემთხვევაში ფილიალის არსებობას წინასწარ ვამოწმებთ
+    // ტრანზაქციის გარეთ — DTO-ს @ValidateIf branchId-ის არსებობას მხოლოდ
+    // ფორმალურად ამოწმებს, აქ კი რეალურად ვეძებთ ჩანაწერს.
+    const branch =
+      deliveryMethod === DeliveryMethod.PICKUP
+        ? await this.branchesService.findOne(createOrderDto.branchId!)
+        : undefined;
+    const shippingAddress =
+      deliveryMethod === DeliveryMethod.PICKUP
+        ? branch!.address
+        : createOrderDto.shippingAddress!;
+
     const cart = await this.cartService.getOrCreateForUser(userId);
     if (!cart.items?.length) {
       throw new BadRequestException('კალათა ცარიელია');
@@ -68,12 +87,39 @@ export class OrdersService {
             `პროდუქტი "${cartItem.product.name}" აღარ არსებობს`,
           );
         }
-        if (product.stock < cartItem.quantity) {
+
+        // თუ ეს კალათის item ფერზეა არჩეული — მარაგის შემოწმება/დაკლება
+        // ხდება კონკრეტული ProductColor.stock-ზე (არა product.stock-ზე).
+        // Product-ის row-ლოქი (ზემოთ) უკვე სერიალიზებს ამ პროდუქტის ყველა
+        // ფერის checkout-საც, ამიტომ ProductColor-ზე ცალკე ლოქი საჭირო არ არის.
+        let productColor: ProductColor | null = null;
+        if (cartItem.colorId) {
+          productColor = await manager.findOne(ProductColor, {
+            where: { productId: product.id, colorId: cartItem.colorId },
+            relations: { color: true },
+          });
+          if (!productColor) {
+            throw new BadRequestException(
+              `არჩეული ფერი პროდუქტისთვის "${product.name}" აღარ არსებობს`,
+            );
+          }
+          if (productColor.stock < cartItem.quantity) {
+            throw new BadRequestException(
+              `მარაგში საკმარისი რაოდენობა არ არის ფერისთვის "${productColor.color.nameKa}" (ხელმისაწვდომია: ${productColor.stock})`,
+            );
+          }
+          productColor.stock -= cartItem.quantity;
+          await manager.save(productColor);
+        } else if (product.stock < cartItem.quantity) {
           throw new BadRequestException(
             `მარაგში საკმარისი რაოდენობა არ არის პროდუქტისთვის "${product.name}" (ხელმისაწვდომია: ${product.stock})`,
           );
         }
 
+        // product.stock ორივე შემთხვევაში იკლებს — ფერიანი პროდუქტისთვის
+        // ეს ჯამური/ყველა-ფერიანი მარაგის ასახვაა (ProductsService.setColors
+        // ინახავს product.stock-ს = ფერების stock-ების ჯამი, ამიტომ იგივე
+        // დაკლება ორივეზე ინვარიანტს არღვევს არ ტოვებს).
         product.stock -= cartItem.quantity;
         await manager.save(product);
 
@@ -84,6 +130,8 @@ export class OrdersService {
           manager.create(OrderItem, {
             product,
             productName: product.name,
+            colorId: productColor?.colorId ?? null,
+            colorName: productColor?.color.nameKa,
             unitPrice: product.price,
             quantity: cartItem.quantity,
           }),
@@ -99,6 +147,8 @@ export class OrdersService {
         items: orderItems,
         status: OrderStatus.PENDING,
         totalAmount: totalAmount.toFixed(2),
+        deliveryMethod,
+        branch: branch ? { id: branch.id } : undefined,
         shippingAddress,
         expiresAt,
       });
@@ -198,13 +248,28 @@ export class OrdersService {
         .set({ stock: () => `stock + ${item.quantity}` })
         .where('id = :id', { id: item.product.id })
         .execute();
+
+      // ფერზე გაფორმებული item-ისთვის კონკრეტული ProductColor.stock-საც
+      // ვაბრუნებთ (თუ ეს ფერი შუალედში არ წაშლილა) — createFromCart-ის
+      // იგივე დაკლების საპირისპირო მოქმედება.
+      if (item.colorId) {
+        await manager
+          .createQueryBuilder()
+          .update(ProductColor)
+          .set({ stock: () => `stock + ${item.quantity}` })
+          .where('productId = :productId AND colorId = :colorId', {
+            productId: item.product.id,
+            colorId: item.colorId,
+          })
+          .execute();
+      }
     }
   }
 
   private async findOrderOrThrow(orderId: number): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
-      relations: { items: { product: true }, user: true },
+      relations: { items: { product: true }, user: true, branch: true },
       // password/etc. აქ არ გვჭირდება — user მხოლოდ owner-ის ID-ის
       // შესამოწმებლადაა საჭირო, არ უნდა გავჟონოთ ჰეშირებული პაროლი კლიენტამდე.
       select: { user: { id: true } },
@@ -231,6 +296,7 @@ export class OrdersService {
       .createQueryBuilder('order')
       .leftJoinAndSelect('order.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('order.branch', 'branch')
       // user-ის მხოლოდ ID/სახელი/email გვჭირდება — არასდროს password
       // (leftJoinAndSelect მთელ user entity-ს, ჰეშირებულ პაროლის ჩათვლით,
       // დააბრუნებდა response-ში).

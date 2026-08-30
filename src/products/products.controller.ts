@@ -25,6 +25,7 @@ import { ProductResponseDto } from './dto/product-response.dto';
 import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
 import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
+import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -184,5 +185,36 @@ export class ProductsController {
     @Param('infoId') infoId: string,
   ) {
     return this.productsService.removeAdditionalInfo(+id, infoId);
+  }
+
+  // --- ფერები (Product ↔ Color, თითოეულზე ცალკე stock) ------------------
+  // ფერების ბიბლიოთეკის (შექმნა/რედაქტირება) CRUD ცალკე /colors
+  // endpoint-შია (იხ. ColorsController) — აქ მხოლოდ უკვე არსებული ფერების
+  // კონკრეტულ პროდუქტზე მიბმა/მარაგის მითითება ხდება.
+
+  @Get(':id/colors')
+  @ApiOperation({ summary: 'პროდუქტზე მიბმული ფერების სია (stock-ითურთ)' })
+  @ApiResponse({ status: 200, description: 'ფერები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  getColors(@Param('id') id: string) {
+    return this.productsService.getColors(+id);
+  }
+
+  @Put(':id/colors')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'პროდუქტის ფერების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
+  })
+  @ApiResponse({ status: 200, description: 'ფერები განახლდა' })
+  @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  setColors(
+    @Param('id') id: string,
+    @Body() setProductColorsDto: SetProductColorsDto,
+  ) {
+    return this.productsService.setColors(+id, setProductColorsDto);
   }
 }
