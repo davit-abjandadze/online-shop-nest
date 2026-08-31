@@ -26,6 +26,7 @@ import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values
 import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
+import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -205,8 +206,7 @@ export class ProductsController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({
-    summary:
-      'პროდუქტის ფერების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
+    summary: 'პროდუქტის ფერების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
   })
   @ApiResponse({ status: 200, description: 'ფერები განახლდა' })
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
@@ -216,5 +216,36 @@ export class ProductsController {
     @Body() setProductColorsDto: SetProductColorsDto,
   ) {
     return this.productsService.setColors(+id, setProductColorsDto);
+  }
+
+  // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
+  // ფილიალების ბიბლიოთეკის (შექმნა/რედაქტირება) CRUD ცალკე /branches
+  // endpoint-შია (იხ. BranchesController) — აქ მხოლოდ უკვე არსებული
+  // ფილიალების კონკრეტულ პროდუქტზე მიბმა/მარაგის მითითება ხდება.
+
+  @Get(':id/branches')
+  @ApiOperation({ summary: 'პროდუქტზე მიბმული ფილიალების სია (stock-ითურთ)' })
+  @ApiResponse({ status: 200, description: 'ფილიალები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  getBranches(@Param('id') id: string) {
+    return this.productsService.getBranches(+id);
+  }
+
+  @Put(':id/branches')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'პროდუქტის ფილიალების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
+  })
+  @ApiResponse({ status: 200, description: 'ფილიალები განახლდა' })
+  @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  setBranches(
+    @Param('id') id: string,
+    @Body() setProductBranchesDto: SetProductBranchesDto,
+  ) {
+    return this.productsService.setBranches(+id, setProductBranchesDto);
   }
 }

@@ -80,7 +80,10 @@ export class OtpService {
   }
 
   private handleError(error: unknown, fallbackMessage: string): never {
-    const axiosError = error as AxiosError<{ message?: string; error?: { message?: string } }>;
+    const axiosError = error as AxiosError<{
+      message?: string;
+      error?: { message?: string };
+    }>;
     const apiMessage =
       axiosError?.response?.data?.message ||
       axiosError?.response?.data?.error?.message;

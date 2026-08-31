@@ -2,9 +2,12 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Company } from '../../companies/entities/company.entity';
 
 // კვირის ერთი დღის სამუშაო საათები — `null` მნიშვნელობა ნიშნავს, რომ
 // ფილიალი ამ დღეს დახურულია.
@@ -30,6 +33,17 @@ export interface BranchWorkingHours {
 export class Branch {
   @PrimaryGeneratedColumn()
   id!: number;
+
+  // მფლობელი კომპანია — ფილიალის წაშლა/მარაგის შემოწმება ყოველთვის
+  // კონკრეტულ კომპანიას ეკუთვნის. კომპანიის წაშლისას მისი ფილიალებიც
+  // შვილურად იშლება (CASCADE) — Order-ის branch relation-ზე SET NULL დგას
+  // ცალკე, ამიტომ ძველი შეკვეთები არ ზიანდება.
+  @ManyToOne(() => Company, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'companyId' })
+  company!: Company;
+
+  @Column()
+  companyId!: string;
 
   // ფილიალის დასახელება/ლოკაცია — მაგ. "ჯ. თბილისი, ვაკე".
   @Column()

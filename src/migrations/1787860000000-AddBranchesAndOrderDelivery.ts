@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddBranchesAndOrderDelivery1787860000000
-  implements MigrationInterface
-{
+export class AddBranchesAndOrderDelivery1787860000000 implements MigrationInterface {
   name = 'AddBranchesAndOrderDelivery1787860000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -51,12 +49,8 @@ export class AddBranchesAndOrderDelivery1787860000000
       `ALTER TABLE "order" DROP CONSTRAINT "FK_order_branch"`,
     );
     await queryRunner.query(`ALTER TABLE "order" DROP COLUMN "branchId"`);
-    await queryRunner.query(
-      `ALTER TABLE "order" DROP COLUMN "deliveryMethod"`,
-    );
-    await queryRunner.query(
-      `DROP TYPE "public"."order_deliverymethod_enum"`,
-    );
+    await queryRunner.query(`ALTER TABLE "order" DROP COLUMN "deliveryMethod"`);
+    await queryRunner.query(`DROP TYPE "public"."order_deliverymethod_enum"`);
     await queryRunner.query(`DROP TABLE "branch"`);
   }
 }

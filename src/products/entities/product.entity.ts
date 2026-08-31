@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Category } from '../../category/entities/category.entity';
+import { Company } from '../../companies/entities/company.entity';
 
 @Entity()
 export class Product {
@@ -63,6 +64,13 @@ export class Product {
   })
   @JoinColumn()
   category?: Category;
+
+  // რომელ კომპანიას ეკუთვნის ეს პროდუქტი — CreateProductDto-ში სავალდებულოა
+  // (ბიზნეს-წესი), მაგრამ FK column nullable-ია (category-ის იგივე SET NULL
+  // პატერნი), რომ კომპანიის წაშლამ პროდუქტები არ წაშალოს.
+  @ManyToOne(() => Company, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn()
+  company?: Company;
 
   @CreateDateColumn()
   createdAt!: Date;

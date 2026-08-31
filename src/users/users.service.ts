@@ -118,11 +118,19 @@ export class UsersService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
-    const { otpRequestId, otpCode, phoneOtpRequestId, phoneOtpCode, ...userFields } =
-      updateUserDto;
+    const {
+      otpRequestId,
+      otpCode,
+      phoneOtpRequestId,
+      phoneOtpCode,
+      ...userFields
+    } = updateUserDto;
     // `isEmailVerified`/`isPhoneVerified` არასდროს მოდის updateUserDto-დან (DTO-ს არ
     // ეკუთვნის) — მხოლოდ ქვემოთ, OTP-ის წარმატებული დამოწმების შემდეგ ვაწესებთ true-ზე.
-    const verifiedPatch: { isEmailVerified?: boolean; isPhoneVerified?: boolean } = {};
+    const verifiedPatch: {
+      isEmailVerified?: boolean;
+      isPhoneVerified?: boolean;
+    } = {};
 
     // ელფოსტის შეცვლას სჭირდება წინასწარ დადასტურებული OTP კოდი ახალ ელფოსტაზე
     // (POST /otp/send-email + POST /otp/verify-email) — ისევე, როგორც რეგისტრაციისას
@@ -134,9 +142,7 @@ export class UsersService {
       if (userFields.email !== currentUser.email) {
         const existingUser = await this.findByEmail(userFields.email);
         if (existingUser && existingUser.id !== id) {
-          throw new ConflictException(
-            'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
-          );
+          throw new ConflictException('ამ ელფოსტით მომხმარებელი უკვე არსებობს');
         }
 
         if (!otpRequestId || !otpCode) {

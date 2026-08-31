@@ -21,16 +21,21 @@ export class CreateOrderDto {
   deliveryMethod?: DeliveryMethod;
 
   @ApiPropertyOptional({
-    description: 'მიწოდების მისამართი (deliveryMethod=courier-სთვის სავალდებულო)',
+    description:
+      'მიწოდების მისამართი (deliveryMethod=courier-სთვის სავალდებულო)',
     example: 'თბილისი, რუსთაველის გამზირი 1',
   })
-  @ValidateIf((o) => (o.deliveryMethod ?? DeliveryMethod.COURIER) === DeliveryMethod.COURIER)
+  @ValidateIf(
+    (o) =>
+      (o.deliveryMethod ?? DeliveryMethod.COURIER) === DeliveryMethod.COURIER,
+  )
   @IsString()
   @IsNotEmpty()
   shippingAddress?: string;
 
   @ApiPropertyOptional({
-    description: 'არჩეული ფილიალის ID (deliveryMethod=pickup-სთვის სავალდებულო)',
+    description:
+      'არჩეული ფილიალის ID (deliveryMethod=pickup-სთვის სავალდებულო)',
   })
   @ValidateIf((o) => o.deliveryMethod === DeliveryMethod.PICKUP)
   @Type(() => Number)

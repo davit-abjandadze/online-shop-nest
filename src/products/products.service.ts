@@ -9,7 +9,10 @@ import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
 import { ProductColor } from './entities/product-color.entity';
+import { ProductBranch } from './entities/product-branch.entity';
 import { Category } from '../category/entities/category.entity';
+import { Company } from '../companies/entities/company.entity';
+import { Branch } from '../branches/entities/branch.entity';
 import {
   Attribute,
   AttributeType,
@@ -23,6 +26,7 @@ import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values
 import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
+import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -48,8 +52,14 @@ export class ProductsService {
     private productAdditionalInfoRepository: Repository<ProductAdditionalInfo>,
     @InjectRepository(ProductColor)
     private productColorRepository: Repository<ProductColor>,
+    @InjectRepository(ProductBranch)
+    private productBranchRepository: Repository<ProductBranch>,
     @InjectRepository(Color)
     private colorRepository: Repository<Color>,
+    @InjectRepository(Company)
+    private companyRepository: Repository<Company>,
+    @InjectRepository(Branch)
+    private branchRepository: Repository<Branch>,
     private readonly categoryService: CategoryService,
   ) {}
 
@@ -98,7 +108,9 @@ export class ProductsService {
     }
 
     if (hasDiscount === true) {
-      qb.andWhere('product.discountPercent IS NOT NULL AND product.discountPercent > 0');
+      qb.andWhere(
+        'product.discountPercent IS NOT NULL AND product.discountPercent > 0',
+      );
     } else if (hasDiscount === false) {
       qb.andWhere(
         '(product.discountPercent IS NULL OR product.discountPercent = 0)',
@@ -133,8 +145,9 @@ export class ProductsService {
   }
 
   async create(createProductDto: CreateProductDto) {
-    const { categoryId, price, weight, length, width, ...rest } =
+    const { categoryId, companyId, price, weight, length, width, ...rest } =
       createProductDto;
+    await this.assertCompanyExists(companyId);
     const product = this.productRepository.create({
       ...rest,
       price: price.toString(),
@@ -142,13 +155,14 @@ export class ProductsService {
       ...(length !== undefined ? { length: length.toString() } : {}),
       ...(width !== undefined ? { width: width.toString() } : {}),
       ...(categoryId !== undefined ? { category: { id: categoryId } } : {}),
+      company: { id: companyId } as Company,
     });
     return this.productRepository.save(product);
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
     const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
-    const { categoryId, price, weight, length, width, ...rest } =
+    const { categoryId, companyId, price, weight, length, width, ...rest } =
       updateProductDto;
     Object.assign(product, rest);
     if (price !== undefined) {
@@ -165,6 +179,10 @@ export class ProductsService {
     }
     if (categoryId !== undefined) {
       product.category = { id: categoryId } as Category;
+    }
+    if (companyId !== undefined) {
+      await this.assertCompanyExists(companyId);
+      product.company = { id: companyId } as Company;
     }
     return this.productRepository.save(product);
   }
@@ -322,9 +340,7 @@ export class ProductsService {
 
   // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
 
-  async getAdditionalInfo(
-    productId: number,
-  ): Promise<ProductAdditionalInfo[]> {
+  async getAdditionalInfo(productId: number): Promise<ProductAdditionalInfo[]> {
     await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
     return this.productAdditionalInfoRepository.find({
       where: { productId },
@@ -428,6 +444,70 @@ export class ProductsService {
     await this.productRepository.save(product);
 
     return saved;
+  }
+
+  // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
+
+  async getBranches(productId: number): Promise<ProductBranch[]> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    return this.productBranchRepository.find({
+      where: { productId },
+      relations: { branch: { company: true } },
+    });
+  }
+
+  // bulk set — setColors-ის ზუსტი ანალოგი (delete + recreate). product.stock-ს
+  // აქ არ ვასინქრონებთ ფერების stock-ის მსგავსად — ფილიალის მარაგი
+  // დამოუკიდებელი დამატებითი განზომილებაა (იხ. ProductBranch entity-ის
+  // კომენტარი), product.stock ისევ ადმინის ხელით/ფერების ჯამით იმართება.
+  async setBranches(
+    productId: number,
+    setProductBranchesDto: SetProductBranchesDto,
+  ): Promise<ProductBranch[]> {
+    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+
+    const branchIds = setProductBranchesDto.branches.map((b) => b.branchId);
+    const uniqueBranchIds = new Set(branchIds);
+    if (uniqueBranchIds.size !== branchIds.length) {
+      throw new BadRequestException(
+        'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
+      );
+    }
+
+    if (branchIds.length > 0) {
+      const existingBranches = await this.branchRepository.findBy({
+        id: In(branchIds),
+      });
+      if (existingBranches.length !== uniqueBranchIds.size) {
+        const foundIds = new Set(existingBranches.map((b) => b.id));
+        const missing = branchIds.filter((id) => !foundIds.has(id));
+        throw new BadRequestException(
+          `ფილიალი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+        );
+      }
+    }
+
+    await this.productBranchRepository.delete({ productId });
+    if (setProductBranchesDto.branches.length === 0) {
+      return [];
+    }
+    const entities = setProductBranchesDto.branches.map((item) =>
+      this.productBranchRepository.create({
+        productId,
+        branchId: item.branchId,
+        stock: item.stock,
+      }),
+    );
+    return this.productBranchRepository.save(entities);
+  }
+
+  private async assertCompanyExists(companyId: string): Promise<void> {
+    const exists = await this.companyRepository.exists({
+      where: { id: companyId },
+    });
+    if (!exists) {
+      throw new BadRequestException(`კომპანია ID-ით ${companyId} ვერ მოიძებნა`);
+    }
   }
 
   private async findAdditionalInfoOrFail(

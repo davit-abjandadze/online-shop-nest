@@ -17,6 +17,7 @@ import { Order, OrderStatus, DeliveryMethod } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
+import { ProductBranch } from '../products/entities/product-branch.entity';
 import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -123,6 +124,28 @@ export class OrdersService {
         product.stock -= cartItem.quantity;
         await manager.save(product);
 
+        // pickup-ის შემთხვევაში მარაგის შემოწმება/დაკლება ხდება არჩეული
+        // ფილიალის ProductBranch.stock-ზეც (product.stock-ისგან და
+        // ProductColor.stock-ისგან დამოუკიდებელი დამატებითი განზომილება) —
+        // Product-ის row-ლოქი ზემოთ ამასაც სერიალიზებს.
+        if (deliveryMethod === DeliveryMethod.PICKUP) {
+          const productBranch = await manager.findOne(ProductBranch, {
+            where: { productId: product.id, branchId: branch!.id },
+          });
+          if (!productBranch) {
+            throw new BadRequestException(
+              `პროდუქტი "${product.name}" ფილიალში "${branch!.title}" არ იყიდება`,
+            );
+          }
+          if (productBranch.stock < cartItem.quantity) {
+            throw new BadRequestException(
+              `მარაგში საკმარისი რაოდენობა არ არის ფილიალში "${branch!.title}" პროდუქტისთვის "${product.name}" (ხელმისაწვდომია: ${productBranch.stock})`,
+            );
+          }
+          productBranch.stock -= cartItem.quantity;
+          await manager.save(productBranch);
+        }
+
         const unitPrice = parseFloat(product.price);
         totalAmount += unitPrice * cartItem.quantity;
 
@@ -226,7 +249,7 @@ export class OrdersService {
   async expireStaleOrders(): Promise<number> {
     const staleOrders = await this.orderRepository.find({
       where: { status: OrderStatus.PENDING, expiresAt: LessThan(new Date()) },
-      relations: { items: { product: true } },
+      relations: { items: { product: true }, branch: true },
     });
 
     for (const order of staleOrders) {
@@ -260,6 +283,20 @@ export class OrdersService {
           .where('productId = :productId AND colorId = :colorId', {
             productId: item.product.id,
             colorId: item.colorId,
+          })
+          .execute();
+      }
+
+      // pickup შეკვეთისთვის — createFromCart-ის ProductBranch.stock დაკლების
+      // საპირისპირო მოქმედება (თუ ეს ფილიალი შუალედში არ წაშლილა).
+      if (order.deliveryMethod === DeliveryMethod.PICKUP && order.branch) {
+        await manager
+          .createQueryBuilder()
+          .update(ProductBranch)
+          .set({ stock: () => `stock + ${item.quantity}` })
+          .where('productId = :productId AND branchId = :branchId', {
+            productId: item.product.id,
+            branchId: order.branch.id,
           })
           .execute();
       }

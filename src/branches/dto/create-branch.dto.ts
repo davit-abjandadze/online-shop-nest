@@ -7,12 +7,20 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BranchWorkingHoursDto } from './working-hours.dto';
 
 export class CreateBranchDto {
+  @ApiProperty({
+    description: 'მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)',
+    example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
+  })
+  @IsUUID('4', { message: 'companyId უნდა იყოს ვალიდური UUID' })
+  companyId!: string;
+
   @ApiProperty({ example: 'ჯ. თბილისი, ვაკე' })
   @IsString()
   @IsNotEmpty()

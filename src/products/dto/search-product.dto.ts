@@ -51,7 +51,8 @@ export class SearchProductDto extends PaginationDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'გაფილტვრა ფასდაკლების მიხედვით — true: მხოლოდ ფასდაკლებიანი, false: მხოლოდ ფასდაკლების გარეშე',
+    description:
+      'გაფილტვრა ფასდაკლების მიხედვით — true: მხოლოდ ფასდაკლებიანი, false: მხოლოდ ფასდაკლების გარეშე',
   })
   @IsOptional()
   @Transform(toQueryBoolean)

@@ -7,14 +7,16 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   // შედეგად მიღებული requestId/code (იხ. UsersService.update). არ ინახება — UsersService
   // წაშლის, სანამ ცვლილება ბაზაში ჩაიწერება.
   @ApiPropertyOptional({
-    description: 'ახალი ელფოსტის დადასტურების requestId (საჭირო email ველის შეცვლისას)',
+    description:
+      'ახალი ელფოსტის დადასტურების requestId (საჭირო email ველის შეცვლისას)',
   })
   @IsOptional()
   @IsString()
   otpRequestId?: string;
 
   @ApiPropertyOptional({
-    description: 'ახალ ელფოსტაზე მიღებული დადასტურების კოდი (საჭირო email ველის შეცვლისას)',
+    description:
+      'ახალ ელფოსტაზე მიღებული დადასტურების კოდი (საჭირო email ველის შეცვლისას)',
   })
   @IsOptional()
   @IsString()
@@ -24,14 +26,16 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   // (verify.ge) შედეგად მიღებული requestId/code (იხ. UsersService.update). ცალკე
   // ველებია email OTP-სგან, რადგან ორივე ერთდროულადაც შეიძლება იცვლებოდეს.
   @ApiPropertyOptional({
-    description: 'ახალი მობილურის ნომრის დადასტურების requestId (საჭირო phoneNumber ველის შეცვლისას)',
+    description:
+      'ახალი მობილურის ნომრის დადასტურების requestId (საჭირო phoneNumber ველის შეცვლისას)',
   })
   @IsOptional()
   @IsString()
   phoneOtpRequestId?: string;
 
   @ApiPropertyOptional({
-    description: 'ახალ მობილურზე SMS-ით მიღებული დადასტურების კოდი (საჭირო phoneNumber ველის შეცვლისას)',
+    description:
+      'ახალ მობილურზე SMS-ით მიღებული დადასტურების კოდი (საჭირო phoneNumber ველის შეცვლისას)',
   })
   @IsOptional()
   @IsString()

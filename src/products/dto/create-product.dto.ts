@@ -119,4 +119,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @ApiProperty({
+    description: 'მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)',
+    example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
+  })
+  @IsUUID()
+  companyId!: string;
 }

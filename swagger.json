@@ -2129,6 +2129,76 @@
         ]
       }
     },
+    "/products/{id}/branches": {
+      "get": {
+        "operationId": "ProductsController_getBranches",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ფილიალები"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "პროდუქტზე მიბმული ფილიალების სია (stock-ითურთ)",
+        "tags": [
+          "products"
+        ]
+      },
+      "put": {
+        "operationId": "ProductsController_setBranches",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProductBranchesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ფილიალები განახლდა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტის ფილიალების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს",
+        "tags": [
+          "products"
+        ]
+      }
+    },
     "/cart": {
       "get": {
         "operationId": "CartController_getCart",
@@ -2563,7 +2633,16 @@
     "/branches": {
       "get": {
         "operationId": "BranchesController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "companyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "ფილიალების სია"
@@ -2603,10 +2682,43 @@
         ]
       }
     },
+    "/branches/available": {
+      "get": {
+        "operationId": "BranchesController_findAvailable",
+        "parameters": [
+          {
+            "name": "productIds",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ხელმისაწვდომი ფილიალების სია"
+          }
+        },
+        "summary": "checkout-ისთვის — აქტიური ფილიალები, სადაც მოცემული ყველა პროდუქტი ერთდროულად ხელმისაწვდომია",
+        "tags": [
+          "branches"
+        ]
+      }
+    },
     "/branches/admin/all": {
       "get": {
         "operationId": "BranchesController_findAllAdmin",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "companyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "ფილიალების სია"
@@ -2692,6 +2804,166 @@
         "summary": "ფილიალის წაშლა (ADMIN)",
         "tags": [
           "branches"
+        ]
+      }
+    },
+    "/companies": {
+      "get": {
+        "operationId": "CompaniesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კომპანიების სია"
+          }
+        },
+        "summary": "აქტიური კომპანიების სია",
+        "tags": [
+          "companies"
+        ]
+      },
+      "post": {
+        "operationId": "CompaniesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "კომპანია დაემატა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი კომპანიის დამატება (ADMIN)",
+        "tags": [
+          "companies"
+        ]
+      }
+    },
+    "/companies/admin/all": {
+      "get": {
+        "operationId": "CompaniesController_findAllAdmin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "კომპანიების სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ყველა კომპანიის სია, დახურულების ჩათვლით (ADMIN)",
+        "tags": [
+          "companies"
+        ]
+      }
+    },
+    "/companies/{id}": {
+      "get": {
+        "operationId": "CompaniesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კომპანია"
+          },
+          "404": {
+            "description": "კომპანია ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული კომპანიის მიღება",
+        "tags": [
+          "companies"
+        ]
+      },
+      "patch": {
+        "operationId": "CompaniesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "კომპანია განახლდა"
+          },
+          "404": {
+            "description": "კომპანია ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კომპანიის რედაქტირება (ADMIN)",
+        "tags": [
+          "companies"
+        ]
+      },
+      "delete": {
+        "operationId": "CompaniesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "კომპანია წაიშალა"
+          },
+          "404": {
+            "description": "კომპანია ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კომპანიის წაშლა (ADMIN)",
+        "tags": [
+          "companies"
         ]
       }
     },
@@ -3461,6 +3733,45 @@
           "slug"
         ]
       },
+      "Company": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "Product": {
         "type": "object",
         "properties": {
@@ -3505,6 +3816,9 @@
           },
           "category": {
             "$ref": "#/components/schemas/Category"
+          },
+          "company": {
+            "$ref": "#/components/schemas/Company"
           },
           "createdAt": {
             "format": "date-time",
@@ -4012,11 +4326,18 @@
             "format": "uuid",
             "description": "კატეგორიის ID",
             "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
           }
         },
         "required": [
           "name",
-          "price"
+          "price",
+          "companyId"
         ]
       },
       "ProductResponseDto": {
@@ -4122,6 +4443,12 @@
             "type": "string",
             "format": "uuid",
             "description": "კატეგორიის ID",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)",
             "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
           }
         }
@@ -4256,6 +4583,40 @@
         },
         "required": [
           "colors"
+        ]
+      },
+      "ProductBranchItemDto": {
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "number",
+            "description": "Branch-ის ID (წინასწარ /branches-ზე შექმნილი)",
+            "example": 1
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "description": "ამ ფილიალის მარაგი ამ პროდუქტისთვის (ცალი)",
+            "example": 10
+          }
+        },
+        "required": [
+          "branchId",
+          "stock"
+        ]
+      },
+      "SetProductBranchesDto": {
+        "type": "object",
+        "properties": {
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductBranchItemDto"
+            }
+          }
+        },
+        "required": [
+          "branches"
         ]
       },
       "AddCartItemDto": {
@@ -4426,6 +4787,12 @@
       "CreateBranchDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
           "title": {
             "type": "string",
             "example": "ჯ. თბილისი, ვაკე"
@@ -4466,6 +4833,7 @@
           }
         },
         "required": [
+          "companyId",
           "title",
           "address",
           "phoneNumber",
@@ -4477,6 +4845,12 @@
       "UpdateBranchDto": {
         "type": "object",
         "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)",
+            "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6"
+          },
           "title": {
             "type": "string",
             "example": "ჯ. თბილისი, ვაკე"
@@ -4513,6 +4887,69 @@
           },
           "sortOrder": {
             "type": "number",
+            "default": 0
+          }
+        }
+      },
+      "CreateCompanyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კომპანიის დასახელება",
+            "example": "ამბოლი"
+          },
+          "description": {
+            "type": "string",
+            "description": "კომპანიის აღწერა"
+          },
+          "logoUrl": {
+            "type": "string",
+            "description": "კომპანიის ლოგოს URL"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კომპანია",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateCompanyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "description": "კომპანიის დასახელება",
+            "example": "ამბოლი"
+          },
+          "description": {
+            "type": "string",
+            "description": "კომპანიის აღწერა"
+          },
+          "logoUrl": {
+            "type": "string",
+            "description": "კომპანიის ლოგოს URL"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა კომპანია",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
             "default": 0
           }
         }

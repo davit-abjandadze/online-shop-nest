@@ -61,7 +61,9 @@ export class OtpController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ელფოსტაზე გაგზავნილი OTP კოდის დადასტურება' })
   @ApiResponse({ status: 200, description: 'შედეგი: verified true/false' })
-  verifyEmailOtp(@Body() dto: VerifyEmailOtpDto): Promise<{ verified: boolean }> {
+  verifyEmailOtp(
+    @Body() dto: VerifyEmailOtpDto,
+  ): Promise<{ verified: boolean }> {
     const verified = this.emailOtpService.verifyOtp(dto.requestId, dto.code);
     return Promise.resolve({ verified });
   }

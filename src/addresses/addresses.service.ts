@@ -50,7 +50,7 @@ export class AddressesService {
     const address = this.addressRepository.create({
       ...dto,
       isDefault,
-      user: { id: userId } as any,
+      user: { id: userId },
     });
     return this.addressRepository.save(address);
   }

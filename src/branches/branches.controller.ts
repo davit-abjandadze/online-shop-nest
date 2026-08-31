@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -36,8 +37,22 @@ export class BranchesController {
   @Get()
   @ApiOperation({ summary: 'აქტიური ფილიალების სია (checkout-ისთვის)' })
   @ApiResponse({ status: 200, description: 'ფილიალების სია' })
-  findAll() {
-    return this.branchesService.findAllActive();
+  findAll(@Query('companyId') companyId?: string) {
+    return this.branchesService.findAllActive(companyId);
+  }
+
+  @Get('available')
+  @ApiOperation({
+    summary:
+      'checkout-ისთვის — აქტიური ფილიალები, სადაც მოცემული ყველა პროდუქტი ერთდროულად ხელმისაწვდომია',
+  })
+  @ApiResponse({ status: 200, description: 'ხელმისაწვდომი ფილიალების სია' })
+  findAvailable(@Query('productIds') productIds?: string) {
+    const ids = (productIds ?? '')
+      .split(',')
+      .map((id) => Number(id.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    return this.branchesService.findAvailableForProducts(ids);
   }
 
   @Get('admin/all')
@@ -46,8 +61,8 @@ export class BranchesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'ყველა ფილიალის სია, დახურულების ჩათვლით (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფილიალების სია' })
-  findAllAdmin() {
-    return this.branchesService.findAllAdmin();
+  findAllAdmin(@Query('companyId') companyId?: string) {
+    return this.branchesService.findAllAdmin(companyId);
   }
 
   @Post()
