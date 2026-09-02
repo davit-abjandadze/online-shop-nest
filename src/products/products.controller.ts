@@ -28,8 +28,10 @@ import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 
 // მოთვალთვალე/მოხმარებელი endpoint-ები (GET) საჯაროა, guard-ის გარეშე —
@@ -40,10 +42,21 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'პროდუქტების სია — ძიება, ფილტრები, პაგინაცია' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'პროდუქტების სია — ძიება, ფილტრები, პაგინაცია. ტოკენის გარეშე/non-ADMIN ' +
+      'მომხმარებელს ყოველთვის მხოლოდ isActive=true პროდუქტები უჩანს; ADMIN-ს ' +
+      '(ვალიდური ბირერ ტოკენით) — ყველა, თუ isActive query param-ით სხვა არაა მოთხოვნილი',
+  })
   @ApiResponse({ status: 200, description: 'პროდუქტების გვერდიანი სია' })
-  findAll(@Query() searchProductDto: SearchProductDto) {
-    return this.productsService.findAllPaginated(searchProductDto);
+  findAll(
+    @Query() searchProductDto: SearchProductDto,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    return this.productsService.findAllPaginated(searchProductDto, isAdmin);
   }
 
   @Get(':id')

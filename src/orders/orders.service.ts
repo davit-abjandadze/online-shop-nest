@@ -89,6 +89,15 @@ export class OrdersService {
           );
         }
 
+        // დეაქტივირებული პროდუქტი კალათაში შეიძლება უკვე იდებდეს (მანამდე
+        // აქტიური იყო) — checkout-ზე ხელახლა ვამოწმებთ, რომ დეაქტივაციის
+        // შემდეგ ყიდვა ვერ მოხდეს.
+        if (!product.isActive) {
+          throw new BadRequestException(
+            `პროდუქტი "${product.name}" აღარ არის ხელმისაწვდომი`,
+          );
+        }
+
         // თუ ეს კალათის item ფერზეა არჩეული — მარაგის შემოწმება/დაკლება
         // ხდება კონკრეტული ProductColor.stock-ზე (არა product.stock-ზე).
         // Product-ის row-ლოქი (ზემოთ) უკვე სერიალიზებს ამ პროდუქტის ყველა
@@ -146,7 +155,16 @@ export class OrdersService {
           await manager.save(productBranch);
         }
 
-        const unitPrice = parseFloat(product.price);
+        // შეკვეთაში unitPrice-ად ფასდაკლებული ფასი ინახება (თუ discountPercent
+        // დაყენებულია) — იგივე ფორმულა, რასაც ფრონტი იყენებს ჩვენებისას
+        // (price - price * discountPercent / 100), რომ checkout-ის summary-ში
+        // ნაჩვენები და შეკვეთაში დაფიქსირებული ფასი ერთმანეთს ემთხვეოდეს.
+        const basePrice = parseFloat(product.price);
+        const discountPercent = product.discountPercent ?? 0;
+        const unitPrice =
+          discountPercent > 0
+            ? basePrice * (1 - discountPercent / 100)
+            : basePrice;
         totalAmount += unitPrice * cartItem.quantity;
 
         orderItems.push(
@@ -155,7 +173,7 @@ export class OrdersService {
             productName: product.name,
             colorId: productColor?.colorId ?? null,
             colorName: productColor?.color.nameKa,
-            unitPrice: product.price,
+            unitPrice: unitPrice.toFixed(2),
             quantity: cartItem.quantity,
           }),
         );

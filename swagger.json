@@ -1683,7 +1683,12 @@
             "description": "პროდუქტების გვერდიანი სია"
           }
         },
-        "summary": "პროდუქტების სია — ძიება, ფილტრები, პაგინაცია",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "პროდუქტების სია — ძიება, ფილტრები, პაგინაცია. ტოკენის გარეშე/non-ADMIN მომხმარებელს ყოველთვის მხოლოდ isActive=true პროდუქტები უჩანს; ADMIN-ს (ვალიდური ბირერ ტოკენით) — ყველა, თუ isActive query param-ით სხვა არაა მოთხოვნილი",
         "tags": [
           "products"
         ]
@@ -3012,6 +3017,38 @@
           }
         },
         "summary": "BOG-ის გადახდის callback (არაავტორიზებული, ხელმოწერით დაცული)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/payments/mock/{externalId}/complete": {
+      "get": {
+        "operationId": "PaymentsController_completeMockPayment",
+        "parameters": [
+          {
+            "name": "externalId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "MockPaymentProvider-ის auto-complete (მხოლოდ PAYMENT_PROVIDER=mock)",
         "tags": [
           "payments"
         ]

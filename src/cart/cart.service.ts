@@ -43,6 +43,11 @@ export class CartService {
     colorId?: string,
   ): Promise<Cart> {
     const product = await this.productsService.findOne(productId);
+    if (!product.isActive) {
+      throw new BadRequestException(
+        `პროდუქტი "${product.name}" აღარ არის ხელმისაწვდომი`,
+      );
+    }
     const availableStock = await this.resolveAvailableStock(
       product.id,
       product.stock,
@@ -87,6 +92,11 @@ export class CartService {
     quantity: number,
   ): Promise<Cart> {
     const item = await this.findOwnItem(userId, itemId);
+    if (!item.product.isActive) {
+      throw new BadRequestException(
+        `პროდუქტი "${item.product.name}" აღარ არის ხელმისაწვდომი — წაშალეთ კალათიდან`,
+      );
+    }
     const availableStock = await this.resolveAvailableStock(
       item.product.id,
       item.product.stock,
@@ -139,9 +149,19 @@ export class CartService {
     return productColor.stock;
   }
 
+  // წაშლა იდემპოტენტურია — თუ ჩანაწერი უკვე აღარ არსებობს (მაგ. ორმაგი
+  // დაწკაპუნება, ან ძველი კალათის state ფრონტზე), 404-ის სროლის ნაცვლად
+  // უბრალოდ მიმდინარე კალათას ვაბრუნებთ, თითქოს წაშლა უკვე მოხდა.
   async removeItem(userId: number, itemId: number): Promise<Cart> {
-    const item = await this.findOwnItem(userId, itemId);
-    await this.cartItemRepository.remove(item);
+    const item = await this.cartItemRepository.findOne({
+      where: { id: itemId },
+      relations: { cart: { user: true } },
+    });
+
+    if (item && item.cart.user.id === userId) {
+      await this.cartItemRepository.remove(item);
+    }
+
     return this.getOrCreateForUser(userId);
   }
 

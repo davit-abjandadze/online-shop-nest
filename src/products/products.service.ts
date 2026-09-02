@@ -65,6 +65,7 @@ export class ProductsService {
 
   async findAllPaginated(
     searchProductDto: SearchProductDto,
+    isAdmin = false,
   ): Promise<PaginatedResponseDto<Product>> {
     const {
       page = 1,
@@ -103,8 +104,17 @@ export class ProductsService {
       qb.andWhere('product.price <= :maxPrice', { maxPrice });
     }
 
-    if (isActive !== undefined) {
-      qb.andWhere('product.isActive = :isActive', { isActive });
+    // non-ADMIN (ან ტოკენის გარეშე) მომხმარებლისთვის isActive ყოველთვის
+    // true-ზეა დაფიქსირებული — მოთხოვნილი isActive query param უგულებელყოფილია,
+    // რომ დეაქტივირებული პროდუქტების არსებობაც კი არ გამჟღავნდეს (category.
+    // service.ts-ის buildFilteredProductsQuery-ის იგივე პატერნი). ADMIN-ს კი
+    // საშუალება აქვს ნახოს ყველა (default, isActive არ გადმოცემია) ან
+    // კონკრეტულად გაფილტროს (isActive=true/false).
+    const effectiveIsActive = isAdmin ? isActive : true;
+    if (effectiveIsActive !== undefined) {
+      qb.andWhere('product.isActive = :isActive', {
+        isActive: effectiveIsActive,
+      });
     }
 
     if (hasDiscount === true) {

@@ -1,10 +1,14 @@
 import {
   Controller,
   Post,
+  Get,
   Param,
+  Query,
   UseGuards,
   Req,
+  Res,
   HttpCode,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -12,8 +16,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
+import { PaymentStatus } from './entities/payment.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
@@ -21,7 +27,10 @@ import { UserRole } from '../users/entities/user.entity';
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post(':orderId/initiate')
   @UseGuards(JwtAuthGuard)
@@ -60,5 +69,32 @@ export class PaymentsController {
       req.headers as Record<string, string>,
     );
     return { received: true };
+  }
+
+  // MockPaymentProvider-ის "checkout გვერდი" — რეალურ BOG checkout-ს ცვლის
+  // კომპანიის რეგისტრაციამდე. მხოლოდ PAYMENT_PROVIDER=mock-ზეა ხელმისაწვდომი,
+  // რომ production-ში (PAYMENT_PROVIDER=bog) ვინმემ უფასოდ ვერ "გადაიხადოს".
+  @Get('mock/:externalId/complete')
+  @ApiOperation({
+    summary:
+      'MockPaymentProvider-ის auto-complete (მხოლოდ PAYMENT_PROVIDER=mock)',
+  })
+  async completeMockPayment(
+    @Param('externalId') externalId: string,
+    @Query('orderId') orderId: string,
+    @Res() res: Response,
+  ) {
+    if (this.configService.get<string>('PAYMENT_PROVIDER') === 'bog') {
+      throw new NotFoundException();
+    }
+
+    const rawBody = Buffer.from(
+      JSON.stringify({ externalId, status: PaymentStatus.COMPLETED }),
+      'utf8',
+    );
+    await this.paymentsService.handleCallback(rawBody, {});
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    return res.redirect(`${frontendUrl}/orders/${orderId}?payment=success`);
   }
 }
