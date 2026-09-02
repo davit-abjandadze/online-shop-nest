@@ -47,7 +47,20 @@ export class UsersService {
     // შევამოწოთ, არსებობს თუ არა მომხმარებელი ამ email-ით
     const existingUser = await this.findByEmail(createUserDto.email);
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException('ამ ელფოსტით მომხმარებელი უკვე არსებობს');
+    }
+
+    // ...და ამ ტელეფონის ნომრით (რომ ორმა მომხმარებელმა ერთი და იგივე
+    // ნომერი ვერ დაირეგისტრიროს — phoneNumber DTO-დონეზე სავალდებულოა).
+    if (createUserDto.phoneNumber) {
+      const existingPhone = await this.findByPhoneNumber(
+        createUserDto.phoneNumber,
+      );
+      if (existingPhone) {
+        throw new ConflictException(
+          'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
+        );
+      }
     }
 
     const newUser = this.userRepository.create({
@@ -117,6 +130,10 @@ export class UsersService {
     return this.userRepository.findOne({ where: { email } });
   }
 
+  async findByPhoneNumber(phoneNumber: string) {
+    return this.userRepository.findOne({ where: { phoneNumber } });
+  }
+
   async update(id: number, updateUserDto: UpdateUserDto) {
     const {
       otpRequestId,
@@ -182,6 +199,15 @@ export class UsersService {
       const currentUser = await this.findOne(id);
 
       if (userFields.phoneNumber !== currentUser.phoneNumber) {
+        const existingPhoneUser = await this.findByPhoneNumber(
+          userFields.phoneNumber,
+        );
+        if (existingPhoneUser && existingPhoneUser.id !== id) {
+          throw new ConflictException(
+            'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
+          );
+        }
+
         if (!phoneOtpRequestId || !phoneOtpCode) {
           throw new BadRequestException(
             'მობილურის ნომრის შესაცვლელად საჭიროა ახალი ნომრის დადასტურება — ჯერ გამოიძახეთ POST /otp/send',

@@ -55,7 +55,8 @@ export class User {
 
   // ტელეფონის ნომერი — სავალდებულო ველია (DTO-დონეზე @IsNotEmpty).
   // სვეტი nullable-ია, რომ synchronize-მა არსებულ ჩანაწერებზე ALTER-ისას არ დაეცეს.
-  @Column({ nullable: true })
+  // unique: true — ერთი და იგივე ნომრით ორჯერ ვერ დარეგისტრირდები (იხ. UsersService.create).
+  @Column({ nullable: true, unique: true })
   phoneNumber?: string;
 
   // ორივე ველი მხოლოდ სერვერზე იმართება (UsersService.create/update) OTP-ის
