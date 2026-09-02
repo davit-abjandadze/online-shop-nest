@@ -227,7 +227,19 @@ export class UsersService {
 
   async remove(id: number) {
     const user = await this.findOne(id);
-    return this.userRepository.remove(user);
+    try {
+      return await this.userRepository.remove(user);
+    } catch (error: any) {
+      // FK ვიოლაცია (მაგ. მომხმარებელს აქვს შეკვეთები) — orders.user-ს
+      // onDelete არ აქვს დაყენებული განზრახ, რადგან შეკვეთების ისტორია
+      // არ უნდა წაიშალოს ავტომატურად. 500-ის ნაცვლად გასაგები 409-ს ვაბრუნებთ.
+      if (error?.code === '23503') {
+        throw new ConflictException(
+          'მომხმარებლის წაშლა შეუძლებელია — მას გააჩნია დაკავშირებული შეკვეთები',
+        );
+      }
+      throw error;
+    }
   }
   async findById(id: number): Promise<User | null> {
     return this.userRepository.findOne({ where: { id } });
