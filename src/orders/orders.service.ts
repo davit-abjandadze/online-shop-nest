@@ -366,7 +366,7 @@ export class OrdersService {
       // (leftJoinAndSelect მთელ user entity-ს, ჰეშირებულ პაროლის ჩათვლით,
       // დააბრუნებდა response-ში).
       .leftJoin('order.user', 'user')
-      .addSelect(['user.id', 'user.firstName', 'user.lastName', 'user.email']);
+      .addSelect(['user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phoneNumber']);
 
     if (extra) {
       extra(qb);

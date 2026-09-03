@@ -1,4 +1,9 @@
-import { IsOptional, IsString, IsNotEmpty, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -32,6 +37,45 @@ export class ValueTranslationDto {
   @IsString({ message: 'value უნდა იყოს ტექსტური' })
   @IsNotEmpty({ message: 'value სავალდებულოა' })
   value!: string;
+}
+
+// HeroSlide-ის translations shape — { eyebrow?, title, description?,
+// buttonText? } თითოეულ ენაზე. eyebrow — მთავარი სათაურის ზემოთ პატარა
+// ტექსტი (მაგ. "ახალი კოლექცია"), title სავალდებულოა, description/buttonText
+// სურვილისამებრ (ღილაკის ლინკი, image, isActive, sortOrder — locale-ისგან
+// დამოუკიდებელი, ცალკე plain სვეტებია entity-ში).
+export class HeroSlideTranslationDto {
+  @ApiPropertyOptional({
+    description: 'მთავარი სათაურის ზემოთ პატარა ტექსტი (eyebrow)',
+    example: 'ახალი კოლექცია',
+  })
+  @IsOptional()
+  @IsString({ message: 'eyebrow უნდა იყოს ტექსტური' })
+  eyebrow?: string;
+
+  @ApiProperty({
+    description: 'სლაიდის სათაური',
+    example: 'ზაფხულის ფასდაკლება -50%-მდე',
+  })
+  @IsString({ message: 'title უნდა იყოს ტექსტური' })
+  @IsNotEmpty({ message: 'title სავალდებულოა' })
+  title!: string;
+
+  @ApiPropertyOptional({
+    description: 'სლაიდის აღწერილობა',
+    example: 'შეარჩიე შენთვის სასურველი პროდუქტი საუკეთესო ფასად',
+  })
+  @IsOptional()
+  @IsString({ message: 'description უნდა იყოს ტექსტური' })
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'ღილაკის ტექსტი',
+    example: 'ყიდვა ახლავე',
+  })
+  @IsOptional()
+  @IsString({ message: 'buttonText უნდა იყოს ტექსტური' })
+  buttonText?: string;
 }
 
 // ka ყოველთვის სავალდებულოა (ბიზნეს-წესი — ქართული ბაზისური ენაა,
@@ -71,4 +115,9 @@ export class NameTranslationsDto extends buildTranslationsDto(
 // AttributeOption-ისთვის — { ka: {value}, en?, ru? }
 export class ValueTranslationsDto extends buildTranslationsDto(
   ValueTranslationDto,
+) {}
+
+// HeroSlide-ისთვის — { ka: {eyebrow?, title, description?, buttonText?}, en?, ru? }
+export class HeroSlideTranslationsDto extends buildTranslationsDto(
+  HeroSlideTranslationDto,
 ) {}

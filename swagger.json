@@ -3258,6 +3258,239 @@
           "addresses"
         ]
       }
+    },
+    "/hero-slides": {
+      "get": {
+        "operationId": "HeroSlidesController_findActive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "აქტიური სლაიდების სია"
+          }
+        },
+        "summary": "მთავარი გვერდის hero სლაიდერის აქტიური სლაიდები (storefront)",
+        "tags": [
+          "hero-slides"
+        ]
+      },
+      "post": {
+        "operationId": "HeroSlidesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHeroSlideDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "სლაიდი შეიქმნა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი სლაიდის შექმნა (ADMIN)",
+        "tags": [
+          "hero-slides"
+        ]
+      }
+    },
+    "/hero-slides/admin": {
+      "get": {
+        "operationId": "HeroSlidesController_findAllPaginated",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა აქტიურობის მიხედვით",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "სლაიდების გვერდიანი სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "სლაიდების გვერდიანი სია, აქტიური/არააქტიურის ჩათვლით (ADMIN)",
+        "tags": [
+          "hero-slides"
+        ]
+      }
+    },
+    "/hero-slides/{id}": {
+      "get": {
+        "operationId": "HeroSlidesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "სლაიდი"
+          },
+          "404": {
+            "description": "სლაიდი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კონკრეტული სლაიდის მიღება (ADMIN, edit ფორმისთვის)",
+        "tags": [
+          "hero-slides"
+        ]
+      },
+      "put": {
+        "operationId": "HeroSlidesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHeroSlideDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "სლაიდი განახლდა"
+          },
+          "404": {
+            "description": "სლაიდი ან პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "სლაიდის განახლება (ADMIN)",
+        "tags": [
+          "hero-slides"
+        ]
+      },
+      "delete": {
+        "operationId": "HeroSlidesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "სლაიდი წაიშალა"
+          },
+          "404": {
+            "description": "სლაიდი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "სლაიდის წაშლა (ADMIN)",
+        "tags": [
+          "hero-slides"
+        ]
+      }
     }
   },
   "info": {
@@ -5096,6 +5329,129 @@
           },
           "address": {
             "type": "string"
+          }
+        }
+      },
+      "HeroSlideTranslationDto": {
+        "type": "object",
+        "properties": {
+          "eyebrow": {
+            "type": "string",
+            "description": "მთავარი სათაურის ზემოთ პატარა ტექსტი (eyebrow)",
+            "example": "ახალი კოლექცია"
+          },
+          "title": {
+            "type": "string",
+            "description": "სლაიდის სათაური",
+            "example": "ზაფხულის ფასდაკლება -50%-მდე"
+          },
+          "description": {
+            "type": "string",
+            "description": "სლაიდის აღწერილობა",
+            "example": "შეარჩიე შენთვის სასურველი პროდუქტი საუკეთესო ფასად"
+          },
+          "buttonText": {
+            "type": "string",
+            "description": "ღილაკის ტექსტი",
+            "example": "ყიდვა ახლავე"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "HeroSlideTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "ka": {
+            "$ref": "#/components/schemas/HeroSlideTranslationDto"
+          },
+          "en": {
+            "$ref": "#/components/schemas/HeroSlideTranslationDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/HeroSlideTranslationDto"
+          }
+        },
+        "required": [
+          "ka"
+        ]
+      },
+      "CreateHeroSlideDto": {
+        "type": "object",
+        "properties": {
+          "translations": {
+            "description": "მრავალენოვანი ტექსტი — { ka: {eyebrow?, title, description?, buttonText?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HeroSlideTranslationsDto"
+              }
+            ]
+          },
+          "image": {
+            "type": "string",
+            "description": "სლაიდის სურათის URL"
+          },
+          "buttonLink": {
+            "type": "string",
+            "description": "ღილაკის ლინკი — თუ productId მითითებულია და buttonLink არა, ღილაკი ავტომატურად პროდუქტის გვერდზე გადადის"
+          },
+          "productId": {
+            "type": "number",
+            "description": "მიბმული პროდუქტის ID",
+            "example": 1
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა სლაიდი",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          }
+        },
+        "required": [
+          "translations",
+          "image"
+        ]
+      },
+      "UpdateHeroSlideDto": {
+        "type": "object",
+        "properties": {
+          "translations": {
+            "description": "მრავალენოვანი ტექსტი — { ka: {eyebrow?, title, description?, buttonText?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HeroSlideTranslationsDto"
+              }
+            ]
+          },
+          "image": {
+            "type": "string",
+            "description": "სლაიდის სურათის URL"
+          },
+          "buttonLink": {
+            "type": "string",
+            "description": "ღილაკის ლინკი — თუ productId მითითებულია და buttonLink არა, ღილაკი ავტომატურად პროდუქტის გვერდზე გადადის"
+          },
+          "productId": {
+            "type": "number",
+            "description": "მიბმული პროდუქტის ID",
+            "example": 1
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა სლაიდი",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
           }
         }
       }
