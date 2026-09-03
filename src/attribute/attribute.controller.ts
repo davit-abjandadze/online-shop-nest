@@ -27,6 +27,25 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { Locale } from '../common/decorators/locale.decorator';
+import type { Locale as LocaleType } from '../common/types/translations.type';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { Attribute } from './entities/attribute.entity';
+
+// storefront-ისთვის resolveTranslation-ით ამოღებული `name` (და, options-ის
+// შემთხვევაში, `value`) emat-დება entity-ს `translations`-ის გვერდით
+// (ორივე საჭიროა — resolved storefront-ისთვის, translations — admin-ის
+// edit ფორმისთვის).
+function enrichAttribute(attribute: Attribute, locale: LocaleType) {
+  return {
+    ...attribute,
+    name: resolveTranslation(attribute.translations, locale)?.name,
+    options: (attribute.options ?? []).map((option) => ({
+      ...option,
+      value: resolveTranslation(option.translations, locale)?.value,
+    })),
+  };
+}
 
 // მკითხველი endpoint-ები (GET) საჯაროა — frontend-ის filter-sidebar-ს/admin
 // ფორმას სჭირდება attribute-ების სია ავტორიზაციის გარეშეც (category
@@ -39,16 +58,27 @@ export class AttributeController {
   @Get()
   @ApiOperation({ summary: 'მახასიათებლების გვერდიანი სია' })
   @ApiResponse({ status: 200, description: 'მახასიათებლების გვერდიანი სია' })
-  findAll(@Query() findAttributesDto: FindAttributesDto) {
-    return this.attributeService.findAllPaginated(findAttributesDto);
+  async findAll(
+    @Query() findAttributesDto: FindAttributesDto,
+    @Locale() locale: LocaleType,
+  ) {
+    const result =
+      await this.attributeService.findAllPaginated(findAttributesDto);
+    return {
+      ...result,
+      data: result.data.map((attribute) =>
+        enrichAttribute(attribute, locale),
+      ),
+    };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'კონკრეტული მახასიათებლის მიღება (options-ითურთ)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
-    return this.attributeService.findOne(id);
+  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+    const attribute = await this.attributeService.findOne(id);
+    return enrichAttribute(attribute, locale);
   }
 
   @Post()

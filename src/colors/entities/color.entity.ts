@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { Translations } from '../../common/types/translations.type';
 
 // Color — წინასწარ განსაზღვრული ფერების ბიბლიოთეკა (ადმინი ცალკე ქმნის),
 // პროდუქტს product_color join-ით ერთვის (იხ. ProductColor,
@@ -15,11 +16,9 @@ export class Color {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column()
-  nameKa!: string;
-
-  @Column()
-  nameEn!: string;
+  // მრავალენოვანი სახელი (ka/en/ru) — JSONB, ka ყოველთვის სავალდებულოა.
+  @Column('jsonb', { default: {} })
+  translations!: Translations<{ name: string }>;
 
   // HEX კოდი (მაგ. `#FF0000`) — frontend-ზე ფერის ბუშტის/სვოჩის გამოსატანად.
   @Column({ nullable: true })

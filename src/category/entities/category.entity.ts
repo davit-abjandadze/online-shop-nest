@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
+import type { Translations } from '../../common/types/translations.type';
 
 // კატეგორია ახლა თვითრეფერენციული ხეა (closure-table პატერნი, TypeORM-ის
 // ჩაშენებული @Tree მხარდაჭერით) — შვილების/წინაპრების/breadcrumb query-სთვის
@@ -22,11 +23,11 @@ export class Category {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column()
-  nameKa!: string;
-
-  @Column()
-  nameEn!: string;
+  // მრავალენოვანი სახელი (ka/en/ru) — JSONB, ka ყოველთვის სავალდებულოა.
+  // storefront-ისთვის resolveTranslation-ით ამოღებული name controller
+  // response-ში enrich-დება (იხ. category.controller.ts).
+  @Column('jsonb', { default: {} })
+  translations!: Translations<{ name: string }>;
 
   @Column({ unique: true })
   slug!: string;

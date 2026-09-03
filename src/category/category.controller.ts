@@ -28,6 +28,30 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { Locale } from '../common/decorators/locale.decorator';
+import type { Locale as LocaleType } from '../common/types/translations.type';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { Category } from './entities/category.entity';
+
+// storefront-ისთვის resolveTranslation-ით ამოღებული `name` ემატება
+// entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved storefront-
+// ისთვის, translations — admin-ის edit ფორმისთვის). parent relation-იც
+// (თუ ჩატვირთულია) იმავე სიღრმეზე enrich-დება.
+function enrichCategory(category: Category, locale: LocaleType) {
+  return {
+    ...category,
+    name: resolveTranslation(category.translations, locale)?.name,
+    ...(category.parent
+      ? {
+          parent: {
+            ...category.parent,
+            name: resolveTranslation(category.parent.translations, locale)
+              ?.name,
+          },
+        }
+      : {}),
+  };
+}
 
 // მკითხველი endpoint-ები (GET) საჯაროა, guard-ის გარეშე — products
 // მოდულის მსგავსად. მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
@@ -39,8 +63,16 @@ export class CategoryController {
   @Get()
   @ApiOperation({ summary: 'კატეგორიების ბრტყელი, გვერდიანი სია' })
   @ApiResponse({ status: 200, description: 'კატეგორიების გვერდიანი სია' })
-  findAll(@Query() findCategoriesDto: FindCategoriesDto) {
-    return this.categoryService.findAllPaginated(findCategoriesDto);
+  async findAll(
+    @Query() findCategoriesDto: FindCategoriesDto,
+    @Locale() locale: LocaleType,
+  ) {
+    const result =
+      await this.categoryService.findAllPaginated(findCategoriesDto);
+    return {
+      ...result,
+      data: result.data.map((category) => enrichCategory(category, locale)),
+    };
   }
 
   @Get('tree')
@@ -54,16 +86,21 @@ export class CategoryController {
   @ApiOperation({ summary: 'კატეგორიის მიღება slug-ით' })
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  findBySlug(@Param('slug') slug: string) {
-    return this.categoryService.findBySlug(slug);
+  async findBySlug(
+    @Param('slug') slug: string,
+    @Locale() locale: LocaleType,
+  ) {
+    const category = await this.categoryService.findBySlug(slug);
+    return enrichCategory(category, locale);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'კონკრეტული კატეგორიის მიღება' })
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(id);
+  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+    const category = await this.categoryService.findOne(id);
+    return enrichCategory(category, locale);
   }
 
   @Post()
@@ -189,8 +226,9 @@ export class CategoryController {
   getFilters(
     @Param('slug') slug: string,
     @Query() query: CategoryFiltersQuery,
+    @Locale() locale: LocaleType,
   ) {
-    return this.categoryService.getFilters(slug, query);
+    return this.categoryService.getFilters(slug, query, locale);
   }
 
   @Get(':slug/products')

@@ -28,13 +28,16 @@ import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
-// (იხ. users.service.ts-ის იგივე პატერნი).
+// (იხ. users.service.ts-ის იგივე პატერნი). `name` აღარ არსებობს flat
+// სვეტად (JSONB translations-შია გადატანილი) — დალაგება მასზე აღარაა
+// მხარდაჭერილი, უცნობი sortBy default-ზე (createdAt) გადავა.
 const SORTABLE_COLUMNS = new Set([
   'id',
-  'name',
   'price',
   'stock',
   'isActive',
@@ -86,8 +89,17 @@ export class ProductsService {
       .leftJoinAndSelect('product.category', 'category');
 
     if (search) {
+      // name/description აღარაა flat სვეტები — ნებისმიერ locale-ში
+      // დამთხვევაზე ვეძებთ (ka/en/ru), lenient-ად, JSONB ->> ოპერატორით.
       qb.andWhere(
-        '(product.name ILIKE :search OR product.description ILIKE :search)',
+        `(
+          product.translations -> 'ka' ->> 'name' ILIKE :search
+          OR product.translations -> 'en' ->> 'name' ILIKE :search
+          OR product.translations -> 'ru' ->> 'name' ILIKE :search
+          OR product.translations -> 'ka' ->> 'description' ILIKE :search
+          OR product.translations -> 'en' ->> 'description' ILIKE :search
+          OR product.translations -> 'ru' ->> 'description' ILIKE :search
+        )`,
         { search: `%${search}%` },
       );
     }
@@ -172,9 +184,26 @@ export class ProductsService {
 
   async update(id: number, updateProductDto: UpdateProductDto) {
     const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
-    const { categoryId, companyId, price, weight, length, width, ...rest } =
-      updateProductDto;
+    const {
+      categoryId,
+      companyId,
+      price,
+      weight,
+      length,
+      width,
+      translations,
+      ...rest
+    } = updateProductDto;
     Object.assign(product, rest);
+    if (translations) {
+      // per-locale deep-merge Object.assign-მდე — თუ ადმინი მხოლოდ ერთი
+      // locale-ის translations გამოაგზავნა (მაგ. { en: {...} }), დანარჩენი
+      // locale-ები (ka/ru) არ უნდა წაიშალოს (იხ. mergeTranslations).
+      product.translations = mergeTranslations(
+        product.translations,
+        translations,
+      )!;
+    }
     if (price !== undefined) {
       product.price = price.toString();
     }
@@ -245,7 +274,7 @@ export class ProductsService {
       const isRequired = ca.isRequiredOverride ?? ca.attribute.isRequired;
       if (isRequired && !providedAttributeIds.has(ca.attributeId)) {
         throw new BadRequestException(
-          `მახასიათებელი "${ca.attribute.nameKa}" სავალდებულოა ამ კატეგორიისთვის`,
+          `მახასიათებელი "${resolveTranslation(ca.attribute.translations, 'ka')?.name}" სავალდებულოა ამ კატეგორიისთვის`,
         );
       }
     }
@@ -264,7 +293,7 @@ export class ProductsService {
         case AttributeType.SELECT: {
           if (!item.attributeOptionId) {
             throw new BadRequestException(
-              `მახასიათებელი "${attribute.nameKa}" საჭიროებს attributeOptionId-ს`,
+              `მახასიათებელი "${resolveTranslation(attribute.translations, 'ka')?.name}" საჭიროებს attributeOptionId-ს`,
             );
           }
           this.assertOptionBelongsToAttribute(
@@ -281,7 +310,7 @@ export class ProductsService {
         case AttributeType.MULTI_SELECT: {
           if (!item.attributeOptionIds?.length) {
             throw new BadRequestException(
-              `მახასიათებელი "${attribute.nameKa}" საჭიროებს attributeOptionIds-ს`,
+              `მახასიათებელი "${resolveTranslation(attribute.translations, 'ka')?.name}" საჭიროებს attributeOptionIds-ს`,
             );
           }
           for (const optionId of item.attributeOptionIds) {
@@ -298,7 +327,7 @@ export class ProductsService {
         case AttributeType.RANGE: {
           if (item.valueNumber === undefined) {
             throw new BadRequestException(
-              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueNumber-ს`,
+              `მახასიათებელი "${resolveTranslation(attribute.translations, 'ka')?.name}" საჭიროებს valueNumber-ს`,
             );
           }
           rows.push({
@@ -311,7 +340,7 @@ export class ProductsService {
         case AttributeType.BOOLEAN: {
           if (item.valueBoolean === undefined) {
             throw new BadRequestException(
-              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueBoolean-ს`,
+              `მახასიათებელი "${resolveTranslation(attribute.translations, 'ka')?.name}" საჭიროებს valueBoolean-ს`,
             );
           }
           rows.push({
@@ -325,7 +354,7 @@ export class ProductsService {
         default: {
           if (!item.valueText) {
             throw new BadRequestException(
-              `მახასიათებელი "${attribute.nameKa}" საჭიროებს valueText-ს`,
+              `მახასიათებელი "${resolveTranslation(attribute.translations, 'ka')?.name}" საჭიროებს valueText-ს`,
             );
           }
           rows.push({
@@ -542,7 +571,7 @@ export class ProductsService {
     const belongs = attribute.options?.some((option) => option.id === optionId);
     if (!belongs) {
       throw new BadRequestException(
-        `option ID-ით ${optionId} არ ეკუთვნის მახასიათებელს "${attribute.nameKa}"`,
+        `option ID-ით ${optionId} არ ეკუთვნის მახასიათებელს "${resolveTranslation(attribute.translations, 'ka')?.name}"`,
       );
     }
   }

@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { AttributeOption } from './attribute-option.entity';
+import type { Translations } from '../../common/types/translations.type';
 
 // დინამიური attribute-ის ტიპი — განსაზღვრავს, თუ როგორი value (`select`,
 // `multi_select`, `number`, `text`, `boolean`, `range`) ერგება ამ attribute-ს
@@ -30,11 +31,9 @@ export class Attribute {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column()
-  nameKa!: string;
-
-  @Column()
-  nameEn!: string;
+  // მრავალენოვანი სახელი (ka/en/ru) — JSONB, ka ყოველთვის სავალდებულოა.
+  @Column('jsonb', { default: {} })
+  translations!: Translations<{ name: string }>;
 
   // slug-ისებური უნიკალური კოდი — filter query-ებში/frontend-ზე გამოსაყენებელი
   // სტაბილური იდენტიფიკატორი (მაგ. `amperage`), სახელისგან დამოუკიდებელი.

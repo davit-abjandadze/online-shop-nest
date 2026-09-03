@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Color } from './entities/color.entity';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
+import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 @Injectable()
 export class ColorsService {
@@ -33,7 +34,14 @@ export class ColorsService {
 
   async update(id: string, updateColorDto: UpdateColorDto): Promise<Color> {
     const color = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
-    Object.assign(color, updateColorDto);
+    // per-locale deep-merge Object.assign-მდე — თუ ადმინი მხოლოდ ერთი
+    // locale-ის translations გამოაგზავნა (მაგ. { en: {...} }), დანარჩენი
+    // locale-ები (ka/ru) არ უნდა წაიშალოს (იხ. mergeTranslations).
+    const { translations, ...rest } = updateColorDto;
+    Object.assign(color, rest);
+    if (translations) {
+      color.translations = mergeTranslations(color.translations, translations)!;
+    }
     return this.colorRepository.save(color);
   }
 

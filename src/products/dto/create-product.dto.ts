@@ -1,8 +1,6 @@
 import {
   IsString,
-  IsNotEmpty,
   IsOptional,
-  MinLength,
   IsNumber,
   Min,
   Max,
@@ -11,27 +9,21 @@ import {
   IsBoolean,
   IsUUID,
   Matches,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProductTranslationsDto } from '../../common/dto/translations.dto';
 
 export class CreateProductDto {
   @ApiProperty({
-    description: 'პროდუქტის სახელი',
-    example: 'უსადენო ყურსასმენი',
+    description:
+      'მრავალენოვანი სახელი/აღწერა — { ka: {name, description?}, en?, ru? }, ka სავალდებულოა',
+    type: () => ProductTranslationsDto,
   })
-  @IsString({ message: 'სახელი უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'პროდუქტის სახელი სავალდებულოა' })
-  @MinLength(2, { message: 'სახელი უნდა შეიცავდეს მინიმუმ 2 სიმბოლოს' })
-  name!: string;
-
-  @ApiPropertyOptional({
-    description: 'პროდუქტის აღწერა',
-    example: 'ბლუთუზ ყურსასმენი, 20 საათი მუშაობის დრო',
-  })
-  @IsOptional()
-  @IsString({ message: 'აღწერა უნდა იყოს ტექსტური' })
-  description?: string;
+  @ValidateNested()
+  @Type(() => ProductTranslationsDto)
+  translations!: ProductTranslationsDto;
 
   @ApiProperty({ description: 'ფასი', example: 99.99 })
   @Type(() => Number)

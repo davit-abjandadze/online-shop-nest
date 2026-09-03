@@ -12,6 +12,7 @@ import {
   Attribute,
   AttributeType,
 } from '../attribute/entities/attribute.entity';
+import { AttributeOption } from '../attribute/entities/attribute-option.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductAttributeValue } from '../products/entities/product-attribute-value.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -19,18 +20,16 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { Locale } from '../common/types/translations.type';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
-// (იხ. products.service.ts-ის იგივე პატერნი).
-const SORTABLE_COLUMNS = new Set([
-  'id',
-  'nameKa',
-  'nameEn',
-  'slug',
-  'sortOrder',
-  'createdAt',
-]);
+// (იხ. products.service.ts-ის იგივე პატერნი). `nameKa`/`nameEn` აღარ
+// არსებობს flat სვეტად (JSONB translations-შია გადატანილი) — დალაგება
+// მასზე აღარაა მხარდაჭერილი, უცნობი sortBy default-ზე (sortOrder) გადავა.
+const SORTABLE_COLUMNS = new Set(['id', 'slug', 'sortOrder', 'createdAt']);
 
 // `GET /categories/:slug/products`-ზე დაშვებული დალაგების სვეტები — მხოლოდ
 // product-ის საკუთარი სვეტები, attribute value-ით დალაგება scope-ს გარეთაა.
@@ -145,8 +144,17 @@ export class CategoryService {
       await this.ensureSlugIsFree(updateCategoryDto.slug);
     }
 
-    const { parentId, ...rest } = updateCategoryDto;
+    // per-locale deep-merge Object.assign-მდე — თუ ადმინი მხოლოდ ერთი
+    // locale-ის translations გამოაგზავნა (მაგ. { en: {...} }), დანარჩენი
+    // locale-ები (ka/ru) არ უნდა წაიშალოს (იხ. mergeTranslations).
+    const { parentId, translations, ...rest } = updateCategoryDto;
     Object.assign(category, rest);
+    if (translations) {
+      category.translations = mergeTranslations(
+        category.translations,
+        translations,
+      )!;
+    }
 
     if (parentId !== undefined) {
       if (parentId === id) {
@@ -377,8 +385,17 @@ export class CategoryService {
       .distinct(true);
 
     if (query.search) {
+      // name/description აღარაა flat სვეტები — ნებისმიერ locale-ში
+      // დამთხვევაზე ვეძებთ (ka/en/ru), lenient-ად, JSONB ->> ოპერატორით.
       qb.andWhere(
-        '(product.name ILIKE :search OR product.description ILIKE :search)',
+        `(
+          product.translations -> 'ka' ->> 'name' ILIKE :search
+          OR product.translations -> 'en' ->> 'name' ILIKE :search
+          OR product.translations -> 'ru' ->> 'name' ILIKE :search
+          OR product.translations -> 'ka' ->> 'description' ILIKE :search
+          OR product.translations -> 'en' ->> 'description' ILIKE :search
+          OR product.translations -> 'ru' ->> 'description' ILIKE :search
+        )`,
         { search: `%${query.search}%` },
       );
     }
@@ -502,7 +519,11 @@ export class CategoryService {
   // მიბმული ყველა `isFilterable` attribute, options-ითურთ, faceted
   // count-ებით (`ProductAttributeValue`-ზე group-ით), მიმდინარე query-ის
   // სხვა (ამ attribute-ის გარდა) აქტიური ფილტრების გათვალისწინებით.
-  async getFilters(slug: string, query: CategoryFiltersQuery) {
+  async getFilters(
+    slug: string,
+    query: CategoryFiltersQuery,
+    locale: Locale = 'ka',
+  ) {
     const category = await this.findBySlug(slug);
     const categoryIds = await this.getSubtreeCategoryIds(category, query);
     const attributes = await this.getEffectiveFilterableAttributes(
@@ -512,14 +533,18 @@ export class CategoryService {
     const attributesByCode = new Map(attributes.map((a) => [a.code, a]));
 
     const results: Array<{
-      attribute: Pick<
-        Attribute,
-        'id' | 'nameKa' | 'nameEn' | 'code' | 'type' | 'unit'
-      >;
+      attribute: {
+        id: string;
+        name: string | undefined;
+        translations: Attribute['translations'];
+        code: string;
+        type: Attribute['type'];
+        unit?: string;
+      };
       options?: Array<{
         id: string;
-        valueKa: string;
-        valueEn: string;
+        value: string | undefined;
+        translations: AttributeOption['translations'];
         code: string;
         count: number;
       }>;
@@ -531,8 +556,8 @@ export class CategoryService {
     for (const attribute of attributes) {
       const attributeSummary = {
         id: attribute.id,
-        nameKa: attribute.nameKa,
-        nameEn: attribute.nameEn,
+        name: resolveTranslation(attribute.translations, locale)?.name,
+        translations: attribute.translations,
         code: attribute.code,
         type: attribute.type,
         unit: attribute.unit,
@@ -569,8 +594,8 @@ export class CategoryService {
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((o) => ({
               id: o.id,
-              valueKa: o.valueKa,
-              valueEn: o.valueEn,
+              value: resolveTranslation(o.translations, locale)?.value,
+              translations: o.translations,
               code: o.code,
               count: countByOption.get(o.id) ?? 0,
             })),

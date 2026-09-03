@@ -24,6 +24,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { BranchesService } from '../branches/branches.service';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
 
 // გადაუხდელი შეკვეთის default ვადა (წუთებში) — ამის შემდეგ cron (Phase 5)
 // EXPIRED-ში გადაჰყავს და მარაგს აბრუნებს.
@@ -85,16 +86,22 @@ export class OrdersService {
 
         if (!product) {
           throw new BadRequestException(
-            `პროდუქტი "${cartItem.product.name}" აღარ არსებობს`,
+            `პროდუქტი "${resolveTranslation(cartItem.product.translations, 'ka')?.name}" აღარ არსებობს`,
           );
         }
+
+        // ეს ka-ზე ცალსახად დაფიქსირებული internal error message-ებია
+        // (checkout-ის ვალიდაცია), არა მომხმარებლის locale-ზე დამოკიდებული
+        // storefront ტექსტი — resolveTranslation(..., 'ka') განზრახ hardcoded-ია.
+        const productName = resolveTranslation(product.translations, 'ka')
+          ?.name;
 
         // დეაქტივირებული პროდუქტი კალათაში შეიძლება უკვე იდებდეს (მანამდე
         // აქტიური იყო) — checkout-ზე ხელახლა ვამოწმებთ, რომ დეაქტივაციის
         // შემდეგ ყიდვა ვერ მოხდეს.
         if (!product.isActive) {
           throw new BadRequestException(
-            `პროდუქტი "${product.name}" აღარ არის ხელმისაწვდომი`,
+            `პროდუქტი "${productName}" აღარ არის ხელმისაწვდომი`,
           );
         }
 
@@ -110,19 +117,19 @@ export class OrdersService {
           });
           if (!productColor) {
             throw new BadRequestException(
-              `არჩეული ფერი პროდუქტისთვის "${product.name}" აღარ არსებობს`,
+              `არჩეული ფერი პროდუქტისთვის "${productName}" აღარ არსებობს`,
             );
           }
           if (productColor.stock < cartItem.quantity) {
             throw new BadRequestException(
-              `მარაგში საკმარისი რაოდენობა არ არის ფერისთვის "${productColor.color.nameKa}" (ხელმისაწვდომია: ${productColor.stock})`,
+              `მარაგში საკმარისი რაოდენობა არ არის ფერისთვის "${resolveTranslation(productColor.color.translations, 'ka')?.name}" (ხელმისაწვდომია: ${productColor.stock})`,
             );
           }
           productColor.stock -= cartItem.quantity;
           await manager.save(productColor);
         } else if (product.stock < cartItem.quantity) {
           throw new BadRequestException(
-            `მარაგში საკმარისი რაოდენობა არ არის პროდუქტისთვის "${product.name}" (ხელმისაწვდომია: ${product.stock})`,
+            `მარაგში საკმარისი რაოდენობა არ არის პროდუქტისთვის "${productName}" (ხელმისაწვდომია: ${product.stock})`,
           );
         }
 
@@ -143,12 +150,12 @@ export class OrdersService {
           });
           if (!productBranch) {
             throw new BadRequestException(
-              `პროდუქტი "${product.name}" ფილიალში "${branch!.title}" არ იყიდება`,
+              `პროდუქტი "${productName}" ფილიალში "${branch!.title}" არ იყიდება`,
             );
           }
           if (productBranch.stock < cartItem.quantity) {
             throw new BadRequestException(
-              `მარაგში საკმარისი რაოდენობა არ არის ფილიალში "${branch!.title}" პროდუქტისთვის "${product.name}" (ხელმისაწვდომია: ${productBranch.stock})`,
+              `მარაგში საკმარისი რაოდენობა არ არის ფილიალში "${branch!.title}" პროდუქტისთვის "${productName}" (ხელმისაწვდომია: ${productBranch.stock})`,
             );
           }
           productBranch.stock -= cartItem.quantity;
@@ -170,9 +177,12 @@ export class OrdersService {
         orderItems.push(
           manager.create(OrderItem, {
             product,
-            productName: product.name,
+            productName,
             colorId: productColor?.colorId ?? null,
-            colorName: productColor?.color.nameKa,
+            colorName: productColor
+              ? resolveTranslation(productColor.color.translations, 'ka')
+                  ?.name
+              : undefined,
             unitPrice: unitPrice.toFixed(2),
             quantity: cartItem.quantity,
           }),

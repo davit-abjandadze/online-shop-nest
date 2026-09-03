@@ -9,17 +9,19 @@ import {
 } from 'typeorm';
 import { Category } from '../../category/entities/category.entity';
 import { Company } from '../../companies/entities/company.entity';
+import type { Translations } from '../../common/types/translations.type';
 
 @Entity()
 export class Product {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
-  name!: string;
-
-  @Column({ nullable: true })
-  description?: string;
+  // მრავალენოვანი სახელი/აღწერა (ka/en/ru) — JSONB, ka ყოველთვის
+  // სავალდებულოა (description ka-ზეც სურვილისამებრ). storefront-ისთვის
+  // resolveTranslation-ით ამოღებული name/description controller
+  // response-ში enrich-დება (იხ. products.controller.ts).
+  @Column('jsonb', { default: {} })
+  translations!: Translations<{ name: string; description?: string }>;
 
   // ფული — arway float, ყოველთვის decimal ფიქსირებული precision-ით.
   @Column('decimal', { precision: 10, scale: 2 })

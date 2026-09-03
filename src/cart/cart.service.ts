@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Cart } from './entities/cart.entity';
 import { CartItem } from './entities/cart-item.entity';
 import { ProductsService } from '../products/products.service';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
 
 @Injectable()
 export class CartService {
@@ -44,8 +45,11 @@ export class CartService {
   ): Promise<Cart> {
     const product = await this.productsService.findOne(productId);
     if (!product.isActive) {
+      // ka-ზე ცალსახად დაფიქსირებული internal error message (orders.
+      // service.ts-ის იგივე პატერნი) — არა locale-ზე დამოკიდებული storefront
+      // ტექსტი.
       throw new BadRequestException(
-        `პროდუქტი "${product.name}" აღარ არის ხელმისაწვდომი`,
+        `პროდუქტი "${resolveTranslation(product.translations, 'ka')?.name}" აღარ არის ხელმისაწვდომი`,
       );
     }
     const availableStock = await this.resolveAvailableStock(
@@ -94,7 +98,7 @@ export class CartService {
     const item = await this.findOwnItem(userId, itemId);
     if (!item.product.isActive) {
       throw new BadRequestException(
-        `პროდუქტი "${item.product.name}" აღარ არის ხელმისაწვდომი — წაშალეთ კალათიდან`,
+        `პროდუქტი "${resolveTranslation(item.product.translations, 'ka')?.name}" აღარ არის ხელმისაწვდომი — წაშალეთ კალათიდან`,
       );
     }
     const availableStock = await this.resolveAvailableStock(

@@ -5,31 +5,23 @@ import {
   IsBoolean,
   IsInt,
   IsEnum,
-  MinLength,
   Matches,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AttributeType } from '../entities/attribute.entity';
+import { NameTranslationsDto } from '../../common/dto/translations.dto';
 
 export class CreateAttributeDto {
   @ApiProperty({
-    description: 'მახასიათებლის სახელი ქართულად',
-    example: 'ტევადობა',
+    description:
+      'მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა',
+    type: () => NameTranslationsDto,
   })
-  @IsString({ message: 'nameKa უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'nameKa სავალდებულოა' })
-  @MinLength(2, { message: 'nameKa უნდა შეიცავდეს მინიმუმ 2 სიმბოლოს' })
-  nameKa!: string;
-
-  @ApiProperty({
-    description: 'მახასიათებლის სახელი ინგლისურად',
-    example: 'Capacity',
-  })
-  @IsString({ message: 'nameEn უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'nameEn სავალდებულოა' })
-  @MinLength(2, { message: 'nameEn უნდა შეიცავდეს მინიმუმ 2 სიმბოლოს' })
-  nameEn!: string;
+  @ValidateNested()
+  @Type(() => NameTranslationsDto)
+  translations!: NameTranslationsDto;
 
   @ApiProperty({
     description:

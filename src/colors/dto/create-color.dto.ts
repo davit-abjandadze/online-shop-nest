@@ -1,16 +1,17 @@
-import { IsString, IsNotEmpty, IsOptional, Matches } from 'class-validator';
+import { IsOptional, Matches, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { NameTranslationsDto } from '../../common/dto/translations.dto';
 
 export class CreateColorDto {
-  @ApiProperty({ description: 'ფერის სახელი ქართულად', example: 'წითელი' })
-  @IsString({ message: 'nameKa უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'nameKa სავალდებულოა' })
-  nameKa!: string;
-
-  @ApiProperty({ description: 'ფერის სახელი ინგლისურად', example: 'Red' })
-  @IsString({ message: 'nameEn უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'nameEn სავალდებულოა' })
-  nameEn!: string;
+  @ApiProperty({
+    description:
+      'მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა',
+    type: () => NameTranslationsDto,
+  })
+  @ValidateNested()
+  @Type(() => NameTranslationsDto)
+  translations!: NameTranslationsDto;
 
   @ApiPropertyOptional({
     description: 'HEX კოდი frontend-ის სვოჩისთვის',

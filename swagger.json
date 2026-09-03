@@ -3709,20 +3709,46 @@
           "newPassword"
         ]
       },
+      "NameTranslationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "სახელი",
+            "example": "აკუმულატორები"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "NameTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "ka": {
+            "$ref": "#/components/schemas/NameTranslationDto"
+          },
+          "en": {
+            "$ref": "#/components/schemas/NameTranslationDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/NameTranslationDto"
+          }
+        },
+        "required": [
+          "ka"
+        ]
+      },
       "CreateCategoryDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "minLength": 2,
-            "description": "კატეგორიის სახელი ქართულად",
-            "example": "აკუმულატორები"
-          },
-          "nameEn": {
-            "type": "string",
-            "minLength": 2,
-            "description": "კატეგორიის სახელი ინგლისურად",
-            "example": "Batteries"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "slug": {
             "type": "string",
@@ -3765,8 +3791,7 @@
           }
         },
         "required": [
-          "nameKa",
-          "nameEn",
+          "translations",
           "slug"
         ]
       },
@@ -3815,11 +3840,8 @@
           "id": {
             "type": "number"
           },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
+          "translations": {
+            "type": "object"
           },
           "price": {
             "type": "string"
@@ -3868,7 +3890,7 @@
         },
         "required": [
           "id",
-          "name",
+          "translations",
           "price",
           "stock",
           "isActive",
@@ -3882,11 +3904,8 @@
           "id": {
             "type": "string"
           },
-          "nameKa": {
-            "type": "string"
-          },
-          "nameEn": {
-            "type": "string"
+          "translations": {
+            "type": "object"
           },
           "slug": {
             "type": "string"
@@ -3941,8 +3960,7 @@
         },
         "required": [
           "id",
-          "nameKa",
-          "nameEn",
+          "translations",
           "slug",
           "isActive",
           "sortOrder",
@@ -3979,17 +3997,13 @@
       "UpdateCategoryDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "minLength": 2,
-            "description": "კატეგორიის სახელი ქართულად",
-            "example": "აკუმულატორები"
-          },
-          "nameEn": {
-            "type": "string",
-            "minLength": 2,
-            "description": "კატეგორიის სახელი ინგლისურად",
-            "example": "Batteries"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "slug": {
             "type": "string",
@@ -4059,17 +4073,13 @@
       "CreateAttributeDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "minLength": 2,
-            "description": "მახასიათებლის სახელი ქართულად",
-            "example": "ტევადობა"
-          },
-          "nameEn": {
-            "type": "string",
-            "minLength": 2,
-            "description": "მახასიათებლის სახელი ინგლისურად",
-            "example": "Capacity"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "code": {
             "type": "string",
@@ -4113,8 +4123,7 @@
           }
         },
         "required": [
-          "nameKa",
-          "nameEn",
+          "translations",
           "code",
           "type"
         ]
@@ -4122,17 +4131,13 @@
       "UpdateAttributeDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "minLength": 2,
-            "description": "მახასიათებლის სახელი ქართულად",
-            "example": "ტევადობა"
-          },
-          "nameEn": {
-            "type": "string",
-            "minLength": 2,
-            "description": "მახასიათებლის სახელი ინგლისურად",
-            "example": "Capacity"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "code": {
             "type": "string",
@@ -4176,20 +4181,46 @@
           }
         }
       },
+      "ValueTranslationDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "მნიშვნელობა",
+            "example": "ბანერი"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "ValueTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "ka": {
+            "$ref": "#/components/schemas/ValueTranslationDto"
+          },
+          "en": {
+            "$ref": "#/components/schemas/ValueTranslationDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/ValueTranslationDto"
+          }
+        },
+        "required": [
+          "ka"
+        ]
+      },
       "CreateAttributeOptionDto": {
         "type": "object",
         "properties": {
-          "valueKa": {
-            "type": "string",
-            "minLength": 1,
-            "description": "ოფციის მნიშვნელობა ქართულად",
-            "example": "ბანერი"
-          },
-          "valueEn": {
-            "type": "string",
-            "minLength": 1,
-            "description": "ოფციის მნიშვნელობა ინგლისურად",
-            "example": "Banner"
+          "translations": {
+            "description": "მრავალენოვანი მნიშვნელობა — { ka: {value}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueTranslationsDto"
+              }
+            ]
           },
           "code": {
             "type": "string",
@@ -4205,25 +4236,20 @@
           }
         },
         "required": [
-          "valueKa",
-          "valueEn",
+          "translations",
           "code"
         ]
       },
       "UpdateAttributeOptionDto": {
         "type": "object",
         "properties": {
-          "valueKa": {
-            "type": "string",
-            "minLength": 1,
-            "description": "ოფციის მნიშვნელობა ქართულად",
-            "example": "ბანერი"
-          },
-          "valueEn": {
-            "type": "string",
-            "minLength": 1,
-            "description": "ოფციის მნიშვნელობა ინგლისურად",
-            "example": "Banner"
+          "translations": {
+            "description": "მრავალენოვანი მნიშვნელობა — { ka: {value}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueTranslationsDto"
+              }
+            ]
           },
           "code": {
             "type": "string",
@@ -4242,15 +4268,13 @@
       "CreateColorDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "description": "ფერის სახელი ქართულად",
-            "example": "წითელი"
-          },
-          "nameEn": {
-            "type": "string",
-            "description": "ფერის სახელი ინგლისურად",
-            "example": "Red"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "hexCode": {
             "type": "string",
@@ -4260,22 +4284,19 @@
           }
         },
         "required": [
-          "nameKa",
-          "nameEn"
+          "translations"
         ]
       },
       "UpdateColorDto": {
         "type": "object",
         "properties": {
-          "nameKa": {
-            "type": "string",
-            "description": "ფერის სახელი ქართულად",
-            "example": "წითელი"
-          },
-          "nameEn": {
-            "type": "string",
-            "description": "ფერის სახელი ინგლისურად",
-            "example": "Red"
+          "translations": {
+            "description": "მრავალენოვანი სახელი — { ka: {name}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NameTranslationsDto"
+              }
+            ]
           },
           "hexCode": {
             "type": "string",
@@ -4285,19 +4306,51 @@
           }
         }
       },
-      "CreateProductDto": {
+      "NameDescriptionTranslationDto": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 2,
-            "description": "პროდუქტის სახელი",
+            "description": "სახელი",
             "example": "უსადენო ყურსასმენი"
           },
           "description": {
             "type": "string",
-            "description": "პროდუქტის აღწერა",
+            "description": "აღწერა",
             "example": "ბლუთუზ ყურსასმენი, 20 საათი მუშაობის დრო"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ProductTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "ka": {
+            "$ref": "#/components/schemas/NameDescriptionTranslationDto"
+          },
+          "en": {
+            "$ref": "#/components/schemas/NameDescriptionTranslationDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/NameDescriptionTranslationDto"
+          }
+        },
+        "required": [
+          "ka"
+        ]
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "translations": {
+            "description": "მრავალენოვანი სახელი/აღწერა — { ka: {name, description?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductTranslationsDto"
+              }
+            ]
           },
           "price": {
             "type": "number",
@@ -4372,7 +4425,7 @@
           }
         },
         "required": [
-          "name",
+          "translations",
           "price",
           "companyId"
         ]
@@ -4406,16 +4459,13 @@
       "UpdateProductDto": {
         "type": "object",
         "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 2,
-            "description": "პროდუქტის სახელი",
-            "example": "უსადენო ყურსასმენი"
-          },
-          "description": {
-            "type": "string",
-            "description": "პროდუქტის აღწერა",
-            "example": "ბლუთუზ ყურსასმენი, 20 საათი მუშაობის დრო"
+          "translations": {
+            "description": "მრავალენოვანი სახელი/აღწერა — { ka: {name, description?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductTranslationsDto"
+              }
+            ]
           },
           "price": {
             "type": "number",

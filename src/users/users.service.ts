@@ -47,7 +47,10 @@ export class UsersService {
     // შევამოწოთ, არსებობს თუ არა მომხმარებელი ამ email-ით
     const existingUser = await this.findByEmail(createUserDto.email);
     if (existingUser) {
-      throw new ConflictException('ამ ელფოსტით მომხმარებელი უკვე არსებობს');
+      throw new ConflictException({
+        message: 'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
+        errorCode: 'EMAIL_DUPLICATE',
+      });
     }
 
     // ...და ამ ტელეფონის ნომრით (რომ ორმა მომხმარებელმა ერთი და იგივე
@@ -57,9 +60,10 @@ export class UsersService {
         createUserDto.phoneNumber,
       );
       if (existingPhone) {
-        throw new ConflictException(
-          'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
-        );
+        throw new ConflictException({
+          message: 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
+          errorCode: 'PHONE_DUPLICATE',
+        });
       }
     }
 
@@ -159,7 +163,10 @@ export class UsersService {
       if (userFields.email !== currentUser.email) {
         const existingUser = await this.findByEmail(userFields.email);
         if (existingUser && existingUser.id !== id) {
-          throw new ConflictException('ამ ელფოსტით მომხმარებელი უკვე არსებობს');
+          throw new ConflictException({
+            message: 'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
+            errorCode: 'EMAIL_DUPLICATE',
+          });
         }
 
         if (!otpRequestId || !otpCode) {
@@ -203,9 +210,10 @@ export class UsersService {
           userFields.phoneNumber,
         );
         if (existingPhoneUser && existingPhoneUser.id !== id) {
-          throw new ConflictException(
-            'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
-          );
+          throw new ConflictException({
+            message: 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
+            errorCode: 'PHONE_DUPLICATE',
+          });
         }
 
         if (!phoneOtpRequestId || !phoneOtpCode) {

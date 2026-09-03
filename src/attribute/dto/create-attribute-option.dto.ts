@@ -3,30 +3,22 @@ import {
   IsNotEmpty,
   IsOptional,
   IsInt,
-  MinLength,
   Matches,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ValueTranslationsDto } from '../../common/dto/translations.dto';
 
 export class CreateAttributeOptionDto {
   @ApiProperty({
-    description: 'ოფციის მნიშვნელობა ქართულად',
-    example: 'ბანერი',
+    description:
+      'მრავალენოვანი მნიშვნელობა — { ka: {value}, en?, ru? }, ka სავალდებულოა',
+    type: () => ValueTranslationsDto,
   })
-  @IsString({ message: 'valueKa უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'valueKa სავალდებულოა' })
-  @MinLength(1, { message: 'valueKa ცარიელი ვერ იქნება' })
-  valueKa!: string;
-
-  @ApiProperty({
-    description: 'ოფციის მნიშვნელობა ინგლისურად',
-    example: 'Banner',
-  })
-  @IsString({ message: 'valueEn უნდა იყოს ტექსტური' })
-  @IsNotEmpty({ message: 'valueEn სავალდებულოა' })
-  @MinLength(1, { message: 'valueEn ცარიელი ვერ იქნება' })
-  valueEn!: string;
+  @ValidateNested()
+  @Type(() => ValueTranslationsDto)
+  translations!: ValueTranslationsDto;
 
   @ApiProperty({
     description:

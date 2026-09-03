@@ -14,14 +14,16 @@ import { FindAttributesDto } from './dto/find-attributes.dto';
 import { CreateAttributeOptionDto } from './dto/create-attribute-option.dto';
 import { UpdateAttributeOptionDto } from './dto/update-attribute-option.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
-// (იხ. category.service.ts/products.service.ts-ის იგივე პატერნი).
+// (იხ. category.service.ts/products.service.ts-ის იგივე პატერნი). `nameKa`/
+// `nameEn` აღარ არსებობს flat სვეტად (JSONB translations-შია გადატანილი) —
+// დალაგება მასზე აღარაა მხარდაჭერილი, უცნობი sortBy default-ზე (sortOrder)
+// გადავა.
 const SORTABLE_COLUMNS = new Set([
   'id',
-  'nameKa',
-  'nameEn',
   'code',
   'type',
   'sortOrder',
@@ -107,7 +109,17 @@ export class AttributeService {
       await this.ensureCodeIsFree(updateAttributeDto.code);
     }
 
-    Object.assign(attribute, updateAttributeDto);
+    // per-locale deep-merge Object.assign-მდე — თუ ადმინი მხოლოდ ერთი
+    // locale-ის translations გამოაგზავნა (მაგ. { en: {...} }), დანარჩენი
+    // locale-ები (ka/ru) არ უნდა წაიშალოს (იხ. mergeTranslations).
+    const { translations, ...rest } = updateAttributeDto;
+    Object.assign(attribute, rest);
+    if (translations) {
+      attribute.translations = mergeTranslations(
+        attribute.translations,
+        translations,
+      )!;
+    }
     return this.attributeRepository.save(attribute);
   }
 
@@ -147,7 +159,15 @@ export class AttributeService {
       await this.ensureOptionCodeIsFree(attributeId, updateOptionDto.code);
     }
 
-    Object.assign(option, updateOptionDto);
+    // per-locale deep-merge — იხ. update()-ის იგივე კომენტარი.
+    const { translations, ...rest } = updateOptionDto;
+    Object.assign(option, rest);
+    if (translations) {
+      option.translations = mergeTranslations(
+        option.translations,
+        translations,
+      )!;
+    }
     return this.attributeOptionRepository.save(option);
   }
 

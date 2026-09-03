@@ -33,6 +33,32 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { Locale } from '../common/decorators/locale.decorator';
+import type { Locale as LocaleType } from '../common/types/translations.type';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { Product } from './entities/product.entity';
+
+// storefront-ისთვის resolveTranslation-ით ამოღებული `name`/`description`
+// emat-დება entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved
+// storefront-ისთვის, translations — admin-ის edit ფორმისთვის). category
+// relation-იც (თუ ჩატვირთულია) იმავე სიღრმეზე enrich-დება.
+function enrichProduct(product: Product, locale: LocaleType) {
+  const resolved = resolveTranslation(product.translations, locale);
+  return {
+    ...product,
+    name: resolved?.name,
+    description: resolved?.description,
+    ...(product.category
+      ? {
+          category: {
+            ...product.category,
+            name: resolveTranslation(product.category.translations, locale)
+              ?.name,
+          },
+        }
+      : {}),
+  };
+}
 
 // მოთვალთვალე/მოხმარებელი endpoint-ები (GET) საჯაროა, guard-ის გარეშე —
 // კატეგორიის მსგავსად. მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
@@ -51,20 +77,29 @@ export class ProductsController {
       '(ვალიდური ბირერ ტოკენით) — ყველა, თუ isActive query param-ით სხვა არაა მოთხოვნილი',
   })
   @ApiResponse({ status: 200, description: 'პროდუქტების გვერდიანი სია' })
-  findAll(
+  async findAll(
     @Query() searchProductDto: SearchProductDto,
+    @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = user?.role === UserRole.ADMIN;
-    return this.productsService.findAllPaginated(searchProductDto, isAdmin);
+    const result = await this.productsService.findAllPaginated(
+      searchProductDto,
+      isAdmin,
+    );
+    return {
+      ...result,
+      data: result.data.map((product) => enrichProduct(product, locale)),
+    };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'კონკრეტული პროდუქტის მიღება' })
   @ApiResponse({ status: 200, description: 'პროდუქტი' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(+id);
+  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+    const product = await this.productsService.findOne(+id);
+    return enrichProduct(product, locale);
   }
 
   @Post()

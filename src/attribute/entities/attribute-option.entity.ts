@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Attribute } from './attribute.entity';
+import type { Translations } from '../../common/types/translations.type';
 
 // AttributeOption — attribute-ის კონკრეტული შესაძლო მნიშვნელობა
 // (მაგ. attribute "ბრენდი" → option-ები "Banner", "Mutlu"...). მხოლოდ
@@ -28,11 +29,9 @@ export class AttributeOption {
   @Column()
   attributeId!: string;
 
-  @Column()
-  valueKa!: string;
-
-  @Column()
-  valueEn!: string;
+  // მრავალენოვანი მნიშვნელობა (ka/en/ru) — JSONB, ka ყოველთვის სავალდებულოა.
+  @Column('jsonb', { default: {} })
+  translations!: Translations<{ value: string }>;
 
   // slug-ისებური კოდი (მაგ. `banner`) — filter query-ებში (`?brand=banner,mutlu`)
   // და product_attribute_value-ის attributeOptionId-ის ნაცვლად frontend URL-ში.

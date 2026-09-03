@@ -23,6 +23,20 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { Locale } from '../common/decorators/locale.decorator';
+import type { Locale as LocaleType } from '../common/types/translations.type';
+import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { Color } from './entities/color.entity';
+
+// storefront-ისთვის resolveTranslation-ით ამოღებული `name` emat-დება
+// entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved
+// storefront-ისთვის, translations — admin-ის edit ფორმისთვის).
+function enrichColor(color: Color, locale: LocaleType) {
+  return {
+    ...color,
+    name: resolveTranslation(color.translations, locale)?.name,
+  };
+}
 
 // ფერების ბიბლიოთეკის ცალკე CRUD (ADMIN) — პროდუქტზე ფერების მიბმა/
 // მარაგის მითითება products.controller.ts-შია (`/products/:id/colors`).
@@ -36,16 +50,18 @@ export class ColorsController {
   @Get()
   @ApiOperation({ summary: 'ფერების სია' })
   @ApiResponse({ status: 200, description: 'ფერების სია' })
-  findAll() {
-    return this.colorsService.findAll();
+  async findAll(@Locale() locale: LocaleType) {
+    const colors = await this.colorsService.findAll();
+    return colors.map((color) => enrichColor(color, locale));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'კონკრეტული ფერის მიღება' })
   @ApiResponse({ status: 200, description: 'ფერი' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
-    return this.colorsService.findOne(id);
+  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+    const color = await this.colorsService.findOne(id);
+    return enrichColor(color, locale);
   }
 
   @Post()
