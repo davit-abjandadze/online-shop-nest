@@ -37,6 +37,8 @@ import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { Product } from './entities/product.entity';
+import { ProductAttributeValue } from './entities/product-attribute-value.entity';
+import { ProductColor } from './entities/product-color.entity';
 
 // storefront-ისთვის resolveTranslation-ით ამოღებული `name`/`description`
 // emat-დება entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved
@@ -53,6 +55,57 @@ function enrichProduct(product: Product, locale: LocaleType) {
           category: {
             ...product.category,
             name: resolveTranslation(product.category.translations, locale)
+              ?.name,
+          },
+        }
+      : {}),
+  };
+}
+
+// attribute-value-ებზე მიბმული attribute/attributeOption-ის translations-იც
+// (attribute.name, attributeOption.value) resolve-დება locale-ის მიხედვით,
+// enrichAttribute-ის (attribute.controller.ts) იგივე პატერნით.
+function enrichProductAttributeValue(
+  attributeValue: ProductAttributeValue,
+  locale: LocaleType,
+) {
+  return {
+    ...attributeValue,
+    ...(attributeValue.attribute
+      ? {
+          attribute: {
+            ...attributeValue.attribute,
+            name: resolveTranslation(
+              attributeValue.attribute.translations,
+              locale,
+            )?.name,
+          },
+        }
+      : {}),
+    ...(attributeValue.attributeOption
+      ? {
+          attributeOption: {
+            ...attributeValue.attributeOption,
+            value: resolveTranslation(
+              attributeValue.attributeOption.translations,
+              locale,
+            )?.value,
+          },
+        }
+      : {}),
+  };
+}
+
+// მიბმული color-ის translations (color.name) resolve-დება locale-ის
+// მიხედვით, enrichColor-ის (colors.controller.ts) იგივე პატერნით.
+function enrichProductColor(productColor: ProductColor, locale: LocaleType) {
+  return {
+    ...productColor,
+    ...(productColor.color
+      ? {
+          color: {
+            ...productColor.color,
+            name: resolveTranslation(productColor.color.translations, locale)
               ?.name,
           },
         }
@@ -150,8 +203,16 @@ export class ProductsController {
   @ApiOperation({ summary: 'პროდუქტის attribute value-ების სია' })
   @ApiResponse({ status: 200, description: 'attribute value-ები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  getAttributeValues(@Param('id') id: string) {
-    return this.productsService.getAttributeValues(+id);
+  async getAttributeValues(
+    @Param('id') id: string,
+    @Locale() locale: LocaleType,
+  ) {
+    const attributeValues = await this.productsService.getAttributeValues(
+      +id,
+    );
+    return attributeValues.map((attributeValue) =>
+      enrichProductAttributeValue(attributeValue, locale),
+    );
   }
 
   @Put(':id/attribute-values')
@@ -245,8 +306,11 @@ export class ProductsController {
   @ApiOperation({ summary: 'პროდუქტზე მიბმული ფერების სია (stock-ითურთ)' })
   @ApiResponse({ status: 200, description: 'ფერები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  getColors(@Param('id') id: string) {
-    return this.productsService.getColors(+id);
+  async getColors(@Param('id') id: string, @Locale() locale: LocaleType) {
+    const colors = await this.productsService.getColors(+id);
+    return colors.map((productColor) =>
+      enrichProductColor(productColor, locale),
+    );
   }
 
   @Put(':id/colors')

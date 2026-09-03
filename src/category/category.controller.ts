@@ -53,6 +53,23 @@ function enrichCategory(category: Category, locale: LocaleType) {
   };
 }
 
+// findTree()-ის nested closure-table შედეგისთვის — enrichCategory-სგან
+// განსხვავებით, აქ `children`-იც რეკურსიულად უნდა დარეზოლვდეს, თორემ
+// ხის ღრმა დონეებზე ისევ ნედლი translations დარჩება @Locale()-ის გვერდის ავლით.
+function enrichCategoryTree(category: Category, locale: LocaleType) {
+  const enriched = enrichCategory(category, locale);
+  return {
+    ...enriched,
+    ...(category.children
+      ? {
+          children: category.children.map((child) =>
+            enrichCategoryTree(child, locale),
+          ),
+        }
+      : {}),
+  };
+}
+
 // მკითხველი endpoint-ები (GET) საჯაროა, guard-ის გარეშე — products
 // მოდულის მსგავსად. მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
 @ApiTags('categories')
@@ -78,8 +95,9 @@ export class CategoryController {
   @Get('tree')
   @ApiOperation({ summary: 'კატეგორიების სრული nested ხე' })
   @ApiResponse({ status: 200, description: 'კატეგორიების ხე' })
-  findTree() {
-    return this.categoryService.findTree();
+  async findTree(@Locale() locale: LocaleType) {
+    const tree = await this.categoryService.findTree();
+    return tree.map((category) => enrichCategoryTree(category, locale));
   }
 
   @Get('by-slug/:slug')

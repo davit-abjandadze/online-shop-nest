@@ -86,7 +86,8 @@ export class ProductsService {
 
     const qb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.category', 'category');
+      .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.company', 'company');
 
     if (search) {
       // name/description აღარაა flat სვეტები — ნებისმიერ locale-ში
@@ -158,7 +159,7 @@ export class ProductsService {
   async findOne(id: number) {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: { category: true },
+      relations: { category: true, company: true },
     });
     if (!product) {
       throw new NotFoundException(`პროდუქტი ID-ით ${id} ვერ მოიძებნა`);
