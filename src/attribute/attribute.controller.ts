@@ -66,9 +66,7 @@ export class AttributeController {
       await this.attributeService.findAllPaginated(findAttributesDto);
     return {
       ...result,
-      data: result.data.map((attribute) =>
-        enrichAttribute(attribute, locale),
-      ),
+      data: result.data.map((attribute) => enrichAttribute(attribute, locale)),
     };
   }
 

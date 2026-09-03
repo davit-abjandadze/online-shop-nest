@@ -3491,6 +3491,314 @@
           "hero-slides"
         ]
       }
+    },
+    "/product-sliders": {
+      "get": {
+        "operationId": "ProductSlidersController_findActive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "აქტიური ბლოკების სია"
+          }
+        },
+        "summary": "ყველა აქტიური პროდუქტების სლაიდერის ბლოკი (storefront)",
+        "tags": [
+          "product-sliders"
+        ]
+      },
+      "post": {
+        "operationId": "ProductSlidersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductSliderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ბლოკი შეიქმნა"
+          },
+          "400": {
+            "description": "ვალიდაციის შეცდომა"
+          },
+          "404": {
+            "description": "პროდუქტ(ებ)ი ვერ მოიძებნა"
+          },
+          "409": {
+            "description": "ეს key უკვე დაკავებულია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ახალი ბლოკის შექმნა (ADMIN)",
+        "tags": [
+          "product-sliders"
+        ]
+      }
+    },
+    "/product-sliders/key/{key}": {
+      "get": {
+        "operationId": "ProductSlidersController_findActiveByKey",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ბლოკი"
+          },
+          "404": {
+            "description": "ბლოკი ვერ მოიძებნა"
+          }
+        },
+        "summary": "კონკრეტული ბლოკი key-ით (storefront) — ნებისმიერ გვერდზე ჩასაშენებლად",
+        "tags": [
+          "product-sliders"
+        ]
+      }
+    },
+    "/product-sliders/admin": {
+      "get": {
+        "operationId": "ProductSlidersController_findAllPaginated",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა აქტიურობის მიხედვით",
+            "schema": {
+              "example": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ბლოკების გვერდიანი სია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ბლოკების გვერდიანი სია, აქტიური/არააქტიურის ჩათვლით (ADMIN)",
+        "tags": [
+          "product-sliders"
+        ]
+      }
+    },
+    "/product-sliders/{id}": {
+      "get": {
+        "operationId": "ProductSlidersController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ბლოკი"
+          },
+          "404": {
+            "description": "ბლოკი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "კონკრეტული ბლოკის მიღება (ADMIN, edit ფორმისთვის)",
+        "tags": [
+          "product-sliders"
+        ]
+      },
+      "put": {
+        "operationId": "ProductSlidersController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductSliderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ბლოკი განახლდა"
+          },
+          "404": {
+            "description": "ბლოკი ან პროდუქტ(ებ)ი ვერ მოიძებნა"
+          },
+          "409": {
+            "description": "ეს key უკვე დაკავებულია"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ბლოკის განახლება (ADMIN)",
+        "tags": [
+          "product-sliders"
+        ]
+      },
+      "delete": {
+        "operationId": "ProductSlidersController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ბლოკი წაიშალა"
+          },
+          "404": {
+            "description": "ბლოკი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ბლოკის წაშლა (ADMIN)",
+        "tags": [
+          "product-sliders"
+        ]
+      }
+    },
+    "/product-sliders/{id}/items": {
+      "put": {
+        "operationId": "ProductSlidersController_setItems",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetProductSliderItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "პროდუქტები განახლდა"
+          },
+          "404": {
+            "description": "ბლოკი ან პროდუქტ(ებ)ი ვერ მოიძებნა"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "ბლოკის პროდუქტების სრული ჩანაცვლება, სასურველი რიგით (ADMIN)",
+        "tags": [
+          "product-sliders"
+        ]
+      }
     }
   },
   "info": {
@@ -5454,6 +5762,160 @@
             "default": 0
           }
         }
+      },
+      "ProductSliderTranslationDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "ბლოკის სათაური",
+            "example": "გამორჩეული პროდუქტები"
+          },
+          "viewAllText": {
+            "type": "string",
+            "description": "\"ყველას ნახვა\" ღილაკის ტექსტი",
+            "example": "ყველას ნახვა"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ProductSliderTranslationsDto": {
+        "type": "object",
+        "properties": {
+          "ka": {
+            "$ref": "#/components/schemas/ProductSliderTranslationDto"
+          },
+          "en": {
+            "$ref": "#/components/schemas/ProductSliderTranslationDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/ProductSliderTranslationDto"
+          }
+        },
+        "required": [
+          "ka"
+        ]
+      },
+      "CreateProductSliderDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "სტაბილური იდენტიფიკატორი (slug), რომლითაც frontend-ი ბლოკს ნებისმიერ გვერდზე embed-ავს — GET /product-sliders/key/:key",
+            "example": "home-featured"
+          },
+          "translations": {
+            "description": "მრავალენოვანი ტექსტი — { ka: {title, viewAllText?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductSliderTranslationsDto"
+              }
+            ]
+          },
+          "viewAllLink": {
+            "type": "string",
+            "description": "\"ყველას ნახვა\" ღილაკის ლინკი (მაგ. კონკრეტულ კატეგორიაზე ან ფილტრზე)"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა ბლოკი",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          },
+          "productIds": {
+            "uniqueItems": true,
+            "description": "ბლოკში ჩასასმელი პროდუქტების ID-ები, სასურველი რიგით (მასივის თანმიმდევრობა = ჩვენების რიგი). სურვილისამებრ — შემდეგ ცალკეც შეიძლება PUT /product-sliders/:id/items-ით",
+            "example": [
+              3,
+              7,
+              12
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "translations"
+        ]
+      },
+      "UpdateProductSliderDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "სტაბილური იდენტიფიკატორი (slug), რომლითაც frontend-ი ბლოკს ნებისმიერ გვერდზე embed-ავს — GET /product-sliders/key/:key",
+            "example": "home-featured"
+          },
+          "translations": {
+            "description": "მრავალენოვანი ტექსტი — { ka: {title, viewAllText?}, en?, ru? }, ka სავალდებულოა",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductSliderTranslationsDto"
+              }
+            ]
+          },
+          "viewAllLink": {
+            "type": "string",
+            "description": "\"ყველას ნახვა\" ღილაკის ლინკი (მაგ. კონკრეტულ კატეგორიაზე ან ფილტრზე)"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "აქტიურია თუ არა ბლოკი",
+            "default": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "დალაგების რიგი",
+            "example": 0,
+            "default": 0
+          },
+          "productIds": {
+            "uniqueItems": true,
+            "description": "ბლოკში ჩასასმელი პროდუქტების ID-ები, სასურველი რიგით (მასივის თანმიმდევრობა = ჩვენების რიგი). სურვილისამებრ — შემდეგ ცალკეც შეიძლება PUT /product-sliders/:id/items-ით",
+            "example": [
+              3,
+              7,
+              12
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "SetProductSliderItemsDto": {
+        "type": "object",
+        "properties": {
+          "productIds": {
+            "uniqueItems": true,
+            "description": "პროდუქტების ID-ები სასურველი რიგით",
+            "example": [
+              3,
+              7,
+              12
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "productIds"
+        ]
       }
     }
   }

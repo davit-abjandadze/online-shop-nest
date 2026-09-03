@@ -207,9 +207,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Locale() locale: LocaleType,
   ) {
-    const attributeValues = await this.productsService.getAttributeValues(
-      +id,
-    );
+    const attributeValues = await this.productsService.getAttributeValues(+id);
     return attributeValues.map((attributeValue) =>
       enrichProductAttributeValue(attributeValue, locale),
     );

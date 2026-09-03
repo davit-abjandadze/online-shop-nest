@@ -4,9 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 // (ან valueKa/valueEn, product-ისთვის name/description) სვეტების ჩანაცვლება
 // ერთი `translations` jsonb სვეტით — { ka: {...}, en?: {...}, ru?: {...} }.
 // ru მანამდე საერთოდ არ არსებობდა, ამიტომ backfill მხოლოდ ka/en-ს ავსებს.
-export class AddContentTranslations1787960000000
-  implements MigrationInterface
-{
+export class AddContentTranslations1787960000000 implements MigrationInterface {
   name = 'AddContentTranslations1787960000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -107,7 +105,9 @@ export class AddContentTranslations1787960000000
     await queryRunner.query(
       `ALTER TABLE "color" ADD "nameEn" character varying`,
     );
-    await queryRunner.query(`ALTER TABLE "product" ADD "name" character varying`);
+    await queryRunner.query(
+      `ALTER TABLE "product" ADD "name" character varying`,
+    );
     await queryRunner.query(
       `ALTER TABLE "product" ADD "description" character varying`,
     );

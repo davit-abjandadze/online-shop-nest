@@ -78,6 +78,30 @@ export class HeroSlideTranslationDto {
   buttonText?: string;
 }
 
+// ProductSlider-ის translations shape — { title, viewAllText? } თითოეულ
+// ენაზე. title სავალდებულოა, viewAllText — სურვილისამებრ ("ყველას ნახვა"
+// ღილაკის ტექსტი; თუ არაა მითითებული, frontend-ს default ტექსტი
+// გამოაქვს). viewAllLink/key/isActive/sortOrder — locale-ისგან
+// დამოუკიდებელი, ცალკე plain სვეტებია entity-ში (HeroSlide-ის იგივე
+// პატერნი).
+export class ProductSliderTranslationDto {
+  @ApiProperty({
+    description: 'ბლოკის სათაური',
+    example: 'გამორჩეული პროდუქტები',
+  })
+  @IsString({ message: 'title უნდა იყოს ტექსტური' })
+  @IsNotEmpty({ message: 'title სავალდებულოა' })
+  title!: string;
+
+  @ApiPropertyOptional({
+    description: '"ყველას ნახვა" ღილაკის ტექსტი',
+    example: 'ყველას ნახვა',
+  })
+  @IsOptional()
+  @IsString({ message: 'viewAllText უნდა იყოს ტექსტური' })
+  viewAllText?: string;
+}
+
 // ka ყოველთვის სავალდებულოა (ბიზნეს-წესი — ქართული ბაზისური ენაა,
 // resolveTranslation-ის fallback-იც ka-ზეა აგებული), en/ru — სურვილისამებრ.
 function buildTranslationsDto<T>(EntryDto: new () => T) {
@@ -120,4 +144,9 @@ export class ValueTranslationsDto extends buildTranslationsDto(
 // HeroSlide-ისთვის — { ka: {eyebrow?, title, description?, buttonText?}, en?, ru? }
 export class HeroSlideTranslationsDto extends buildTranslationsDto(
   HeroSlideTranslationDto,
+) {}
+
+// ProductSlider-ისთვის — { ka: {title, viewAllText?}, en?, ru? }
+export class ProductSliderTranslationsDto extends buildTranslationsDto(
+  ProductSliderTranslationDto,
 ) {}

@@ -104,10 +104,7 @@ export class CategoryController {
   @ApiOperation({ summary: 'კატეგორიის მიღება slug-ით' })
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  async findBySlug(
-    @Param('slug') slug: string,
-    @Locale() locale: LocaleType,
-  ) {
+  async findBySlug(@Param('slug') slug: string, @Locale() locale: LocaleType) {
     const category = await this.categoryService.findBySlug(slug);
     return enrichCategory(category, locale);
   }

@@ -93,8 +93,10 @@ export class OrdersService {
         // ეს ka-ზე ცალსახად დაფიქსირებული internal error message-ებია
         // (checkout-ის ვალიდაცია), არა მომხმარებლის locale-ზე დამოკიდებული
         // storefront ტექსტი — resolveTranslation(..., 'ka') განზრახ hardcoded-ია.
-        const productName = resolveTranslation(product.translations, 'ka')
-          ?.name;
+        const productName = resolveTranslation(
+          product.translations,
+          'ka',
+        )?.name;
 
         // დეაქტივირებული პროდუქტი კალათაში შეიძლება უკვე იდებდეს (მანამდე
         // აქტიური იყო) — checkout-ზე ხელახლა ვამოწმებთ, რომ დეაქტივაციის
@@ -180,8 +182,7 @@ export class OrdersService {
             productName,
             colorId: productColor?.colorId ?? null,
             colorName: productColor
-              ? resolveTranslation(productColor.color.translations, 'ka')
-                  ?.name
+              ? resolveTranslation(productColor.color.translations, 'ka')?.name
               : undefined,
             unitPrice: unitPrice.toFixed(2),
             quantity: cartItem.quantity,
@@ -366,7 +367,13 @@ export class OrdersService {
       // (leftJoinAndSelect მთელ user entity-ს, ჰეშირებულ პაროლის ჩათვლით,
       // დააბრუნებდა response-ში).
       .leftJoin('order.user', 'user')
-      .addSelect(['user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phoneNumber']);
+      .addSelect([
+        'user.id',
+        'user.firstName',
+        'user.lastName',
+        'user.email',
+        'user.phoneNumber',
+      ]);
 
     if (extra) {
       extra(qb);
