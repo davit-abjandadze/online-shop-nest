@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
@@ -165,6 +165,28 @@ export class ProductsService {
       throw new NotFoundException(`პროდუქტი ID-ით ${id} ვერ მოიძებნა`);
     }
     return product;
+  }
+
+  // მსგავსი პროდუქტების სლაიდერისთვის (პროდუქტის გვერდი) — იმავე კატეგორიის
+  // აქტიური პროდუქტები, საწყისის გამოკლებით. კატეგორიის გარეშე პროდუქტს
+  // მსგავსი არ ეყოლება (ცარიელი მასივი) — attribute-ზე დაფუძნებული
+  // "სიახლოვის" გამოთვლა v1-ისთვის ზედმეტია, category საკმარისი სიგნალია.
+  async findSimilar(id: number, limit = 10): Promise<Product[]> {
+    const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
+    if (!product.category) {
+      return [];
+    }
+
+    return this.productRepository.find({
+      where: {
+        category: { id: product.category.id },
+        isActive: true,
+        id: Not(id),
+      },
+      relations: { category: true, company: true },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
   }
 
   async create(createProductDto: CreateProductDto) {

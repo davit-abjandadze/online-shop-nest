@@ -155,6 +155,27 @@ export class ProductsController {
     return enrichProduct(product, locale);
   }
 
+  @Get(':id/similar')
+  @ApiOperation({
+    summary:
+      'მსგავსი პროდუქტების სია (პროდუქტის გვერდის სლაიდერისთვის) — იმავე ' +
+      'კატეგორიის აქტიური პროდუქტები, საწყისის გამოკლებით',
+  })
+  @ApiResponse({ status: 200, description: 'მსგავსი პროდუქტები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  async findSimilar(
+    @Param('id') id: string,
+    @Query('limit') limit: string | undefined,
+    @Locale() locale: LocaleType,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const products = await this.productsService.findSimilar(
+      +id,
+      parsedLimit && parsedLimit > 0 ? parsedLimit : undefined,
+    );
+    return products.map((product) => enrichProduct(product, locale));
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

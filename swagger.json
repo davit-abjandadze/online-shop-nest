@@ -1836,6 +1836,39 @@
         ]
       }
     },
+    "/products/{id}/similar": {
+      "get": {
+        "operationId": "ProductsController_findSimilar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "მსგავსი პროდუქტები"
+          },
+          "404": {
+            "description": "პროდუქტი ვერ მოიძებნა"
+          }
+        },
+        "summary": "მსგავსი პროდუქტების სია (პროდუქტის გვერდის სლაიდერისთვის) — იმავე კატეგორიის აქტიური პროდუქტები, საწყისის გამოკლებით",
+        "tags": [
+          "products"
+        ]
+      }
+    },
     "/products/{id}/attribute-values": {
       "get": {
         "operationId": "ProductsController_getAttributeValues",
