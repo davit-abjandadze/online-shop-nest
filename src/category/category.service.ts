@@ -116,7 +116,8 @@ export class CategoryService {
   // საერთოდ არ უნდა გამოჩნდეს storefront ხეში.
   async findTree(isAdmin = false): Promise<Category[]> {
     const tree = await this.treeRepository.findTrees();
-    return isAdmin ? tree : this.filterActiveTree(tree);
+    const filtered = isAdmin ? tree : this.filterActiveTree(tree);
+    return this.sortTree(filtered);
   }
 
   private filterActiveTree(categories: Category[]): Category[] {
@@ -125,6 +126,18 @@ export class CategoryService {
       .map((c) => ({
         ...c,
         children: c.children ? this.filterActiveTree(c.children) : c.children,
+      }));
+  }
+
+  // findTrees() DB-natural (join-ის) რიგით აბრუნებს შედეგს, admin-ის
+  // მართული sortOrder-ის უგულებელყოფით — ვასორტირებთ თითოეულ დონეზე
+  // sortOrder-ის მიხედვით ასაკენდელი, root-ებიდან დაწყებული, რეკურსიულად.
+  private sortTree(categories: Category[]): Category[] {
+    return [...categories]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((c) => ({
+        ...c,
+        children: c.children ? this.sortTree(c.children) : c.children,
       }));
   }
 
@@ -559,9 +572,7 @@ export class CategoryService {
     // კატეგორია "ვერ მოიძებნა"-დაა ჩათვლილი, ისევე როგორც subtree-ს
     // ქვეკატეგორიები getSubtreeCategoryIds-ში.
     if (!category.isActive) {
-      throw new NotFoundException(
-        `კატეგორია slug-ით "${slug}" ვერ მოიძებნა`,
-      );
+      throw new NotFoundException(`კატეგორია slug-ით "${slug}" ვერ მოიძებნა`);
     }
     const categoryIds = await this.getSubtreeCategoryIds(category, query);
     const attributes = await this.getEffectiveFilterableAttributes(
@@ -703,9 +714,7 @@ export class CategoryService {
   ): Promise<PaginatedResponseDto<Product>> {
     const category = await this.findBySlug(slug);
     if (!category.isActive) {
-      throw new NotFoundException(
-        `კატეგორია slug-ით "${slug}" ვერ მოიძებნა`,
-      );
+      throw new NotFoundException(`კატეგორია slug-ით "${slug}" ვერ მოიძებნა`);
     }
     const categoryIds = await this.getSubtreeCategoryIds(category, query);
     const attributes = await this.getEffectiveFilterableAttributes(

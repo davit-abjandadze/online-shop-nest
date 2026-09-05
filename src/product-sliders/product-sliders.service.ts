@@ -33,27 +33,53 @@ export class ProductSlidersService {
 
   // storefront-ისთვის — ყველა აქტიური ბლოკი, sortOrder-ის მიხედვით
   // ასაკენდელი, პროდუქტებით ჩატვირთული (frontend-ს რომ ერთი მოთხოვნით
-  // შეეძლოს გვერდზე ყველა embed-ილი ბლოკის ამოღება).
+  // შეეძლოს გვერდზე ყველა embed-ილი ბლოკის ამოღება). item.product.isActive-იც
+  // აქ მოწმდება (hero-slides.service.ts-ის იგივე პატერნი) — მაგრამ
+  // `product.isActive = true` join-პირობა მხოლოდ item.product-ს აქცევს
+  // null-ად, თავად item-ს კი ეს არ გამორიცხავს (LEFT JOIN) — ამიტომ
+  // null-product item-ები ცალკე filter-დება ქვემოთ, თორემ
+  // enrichProductSlider (item.product.translations) 500-ს დააგდებდა.
   async findActive(): Promise<ProductSlider[]> {
-    return this.productSliderRepository.find({
-      where: { isActive: true },
-      relations: { items: { product: { category: true } } },
-      order: { sortOrder: 'ASC', items: { sortOrder: 'ASC' } },
-    });
+    const sliders = await this.productSliderRepository
+      .createQueryBuilder('productSlider')
+      .leftJoinAndSelect('productSlider.items', 'item')
+      .leftJoinAndSelect('item.product', 'product', 'product.isActive = true')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('productSlider.isActive = :isActive', { isActive: true })
+      .orderBy('productSlider.sortOrder', 'ASC')
+      .addOrderBy('item.sortOrder', 'ASC')
+      .getMany();
+    return sliders.map((slider) => this.dropInactiveItems(slider));
   }
 
   // storefront-ისთვის — კონკრეტული ბლოკი key-ით, frontend-ს რომ ნებისმიერ
   // გვერდზე ამ ერთი ბლოკის ჩაშენება შეეძლოს (`GET /product-sliders/key/:key`).
+  // item.product.isActive-იც აქ მოწმდება findActive-ის იგივე პატერნით.
   async findActiveByKey(key: string): Promise<ProductSlider> {
-    const productSlider = await this.productSliderRepository.findOne({
-      where: { key, isActive: true },
-      relations: { items: { product: { category: true } } },
-      order: { items: { sortOrder: 'ASC' } },
-    });
+    const productSlider = await this.productSliderRepository
+      .createQueryBuilder('productSlider')
+      .leftJoinAndSelect('productSlider.items', 'item')
+      .leftJoinAndSelect('item.product', 'product', 'product.isActive = true')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('productSlider.key = :key', { key })
+      .andWhere('productSlider.isActive = :isActive', { isActive: true })
+      .orderBy('item.sortOrder', 'ASC')
+      .getOne();
     if (!productSlider) {
       throw new NotFoundException(`ბლოკი key-ით "${key}" ვერ მოიძებნა`);
     }
-    return productSlider;
+    return this.dropInactiveItems(productSlider);
+  }
+
+  // LEFT JOIN ... ON product.isActive = true მხოლოდ item.product-ს ტოვებს
+  // null-ად დეაქტივირებული პროდუქტისთვის — თავად item-ს (disconnected
+  // product-ით) აქ ვაშორებთ მასივიდან, რომ enrichProductSlider-მა
+  // null-ზე ვერ დაარტყას.
+  private dropInactiveItems(slider: ProductSlider): ProductSlider {
+    return {
+      ...slider,
+      items: (slider.items ?? []).filter((item) => item.product != null),
+    };
   }
 
   async findAllPaginated(

@@ -1,13 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { Product } from '../entities/product.entity';
 
-export class ProductResponseDto {
-  @ApiProperty({ example: 200 })
-  statusCode!: number;
-
-  @ApiProperty({ example: 'პროდუქტი წარმატებით შეიქმნა' })
-  message!: string;
-
-  @ApiProperty({ type: () => Product, nullable: true })
-  data?: Product;
-}
+// Swagger-ის დოკუმენტაციისთვის — create/update handler-ები ბრტყელ Product
+// entity-ს აბრუნებენ, არა { statusCode, message, data } envelope-ს (ეს
+// ადრე რეალურ response shape-ს არ ემთხვეოდა, იხ. auth-ის login-response.
+// dto.ts-ის იგივე ჩასწორება). ცალკე კლასია (Product-ის pass-through), რომ
+// @ApiResponse({ type }) ერთი ცნობილი, სახელიანი schema-დ დარჩეს.
+export class ProductResponseDto extends Product {}

@@ -152,11 +152,22 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'კონკრეტული პროდუქტის მიღება' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'კონკრეტული პროდუქტის მიღება — non-ADMIN-ისთვის (ან ტოკენის გარეშე) ' +
+      'დეაქტივირებული პროდუქტი 404-ს აბრუნებს, findAll-ის იგივე isActive პატერნი',
+  })
   @ApiResponse({ status: 200, description: 'პროდუქტი' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
-    const product = await this.productsService.findOne(+id);
+  async findOne(
+    @Param('id') id: string,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const product = await this.productsService.findOne(+id, isAdmin);
     return enrichProduct(product, locale);
   }
 
@@ -226,14 +237,21 @@ export class ProductsController {
   // --- Attribute values (ფაზა 4: Product ↔ Attribute value) -------------
 
   @Get(':id/attribute-values')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'პროდუქტის attribute value-ების სია' })
   @ApiResponse({ status: 200, description: 'attribute value-ები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   async getAttributeValues(
     @Param('id') id: string,
     @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
   ) {
-    const attributeValues = await this.productsService.getAttributeValues(+id);
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const attributeValues = await this.productsService.getAttributeValues(
+      +id,
+      isAdmin,
+    );
     return attributeValues.map((attributeValue) =>
       enrichProductAttributeValue(attributeValue, locale),
     );
@@ -263,11 +281,17 @@ export class ProductsController {
   // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
 
   @Get(':id/additional-info')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკების სია' })
   @ApiResponse({ status: 200, description: 'დამატებითი ინფორმაციის ბლოკები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  getAdditionalInfo(@Param('id') id: string) {
-    return this.productsService.getAdditionalInfo(+id);
+  getAdditionalInfo(
+    @Param('id') id: string,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    return this.productsService.getAdditionalInfo(+id, isAdmin);
   }
 
   @Post(':id/additional-info')
@@ -327,11 +351,18 @@ export class ProductsController {
   // კონკრეტულ პროდუქტზე მიბმა/მარაგის მითითება ხდება.
 
   @Get(':id/colors')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'პროდუქტზე მიბმული ფერების სია (stock-ითურთ)' })
   @ApiResponse({ status: 200, description: 'ფერები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  async getColors(@Param('id') id: string, @Locale() locale: LocaleType) {
-    const colors = await this.productsService.getColors(+id);
+  async getColors(
+    @Param('id') id: string,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const colors = await this.productsService.getColors(+id, isAdmin);
     return colors.map((productColor) =>
       enrichProductColor(productColor, locale),
     );
@@ -360,11 +391,17 @@ export class ProductsController {
   // ფილიალების კონკრეტულ პროდუქტზე მიბმა/მარაგის მითითება ხდება.
 
   @Get(':id/branches')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'პროდუქტზე მიბმული ფილიალების სია (stock-ითურთ)' })
   @ApiResponse({ status: 200, description: 'ფილიალები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  getBranches(@Param('id') id: string) {
-    return this.productsService.getBranches(+id);
+  getBranches(
+    @Param('id') id: string,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    return this.productsService.getBranches(+id, isAdmin);
   }
 
   @Put(':id/branches')

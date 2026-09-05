@@ -76,6 +76,14 @@ export class Order {
   @Column({ type: 'timestamptz', nullable: true })
   expiresAt?: Date;
 
+  // მარაგი უკვე დაბრუნებულია თუ არა ამ შეკვეთისთვის — status-ის (CANCELLED/
+  // EXPIRED) მხოლოდ დროებითი მნიშვნელობის ნაცვლად ცალკე persist-ული flag-ია,
+  // რომ cancel → reopen → cancel-ის ციკლმა (ან cron-ის/ადმინის ხელით EXPIRED-ზე
+  // გადაყვანის ორმაგმა ტრიგერმა) მარაგი ორჯერ არ დააბრუნოს/საერთოდ არ დაკარგოს
+  // (იხ. OrdersService.updateStatus/expireStaleOrders).
+  @Column({ default: false })
+  stockRestored!: boolean;
+
   @CreateDateColumn()
   createdAt!: Date;
 

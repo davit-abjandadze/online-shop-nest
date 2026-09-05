@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsBoolean,
   IsArray,
+  ArrayUnique,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -37,6 +38,10 @@ export class ProductAttributeValueItemDto {
     each: true,
     message: 'attributeOptionIds-ის თითოეული ელემენტი უნდა იყოს ვალიდური UUID',
   })
+  // დუბლირებული option ID წინააღმდეგ შემთხვევაში DB-ის unique constraint-ს
+  // (ProductAttributeValue) დაარტყამდა პირდაპირ — უცხო raw 500 კლიენტისთვის
+  // 400-ის ნაცვლად (setColors/setBranches-ის იგივე ArrayUnique პატერნი).
+  @ArrayUnique({ message: 'attributeOptionIds არ უნდა შეიცავდეს დუბლიკატებს' })
   attributeOptionIds?: string[];
 
   @ApiPropertyOptional({ description: 'ტექსტური მნიშვნელობა (text ტიპისთვის)' })

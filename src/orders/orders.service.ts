@@ -33,6 +33,26 @@ const DEFAULT_ORDER_TTL_MINUTES = 15;
 
 const SORTABLE_COLUMNS = new Set(['id', 'status', 'totalAmount', 'createdAt']);
 
+// დასაშვები status-ტრანზაქციების state-machine — UpdateOrderStatusDto აქამდე
+// ნებისმიერ OrderStatus-ს იღებდა @IsEnum-ის მეტი შემოწმების გარეშე (DELIVERED
+// → PENDING-იც კი დაშვებული იყო), რაც სწორედ ის მექანიზმი იყო, რომელიც
+// cancel → reopen → cancel ციკლში მარაგის ორმაგ დაბრუნებას აძლევდა
+// საშუალებას. CANCELLED/EXPIRED ორივე ტერმინალურია — მათგან არსად არ არსებობს
+// გამოსავალი, ანუ "reopen" საერთოდ აღარ არის შესაძლებელი სტატუსების დონეზე.
+const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  [OrderStatus.PENDING]: [
+    OrderStatus.PAID,
+    OrderStatus.CANCELLED,
+    OrderStatus.EXPIRED,
+  ],
+  [OrderStatus.PAID]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
+  [OrderStatus.PROCESSING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+  [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED],
+  [OrderStatus.DELIVERED]: [],
+  [OrderStatus.CANCELLED]: [],
+  [OrderStatus.EXPIRED]: [],
+};
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -71,11 +91,21 @@ export class OrdersService {
       throw new BadRequestException('კალათა ცარიელია');
     }
 
+    // row-ლოქები product.id-ის ასაკენდელი მიხედვით ვღებულობთ — არა cart.items-ის
+    // ბუნებრივი (ჩამატების) რიგით. ორი პარალელური checkout, რომლებიც იმავე
+    // პროდუქტებს საწინააღმდეგო თანმიმდევრობით ამატებდნენ კალათაში (ან
+    // სხვადასხვა დროს), ლოქებს ერთნაირი, კანონიკური თანმიმდევრობით იღებენ —
+    // Postgres-ის deadlock aborts (ერთ-ერთი ტრანზაქცია raw, unhandled
+    // შეცდომით) ამით აღარ ხდება.
+    const sortedCartItems = [...cart.items].sort(
+      (a, b) => a.product.id - b.product.id,
+    );
+
     const orderId = await this.dataSource.transaction(async (manager) => {
       const orderItems: OrderItem[] = [];
       let totalAmount = 0;
 
-      for (const cartItem of cart.items) {
+      for (const cartItem of sortedCartItems) {
         // ვბლოკავთ პროდუქტის row-ს ტრანზაქციის ბოლომდე — cart-ში
         // წაკითხული stock ძველი შეიძლება იყოს, ამიტომ ხელახლა ვკითხულობთ
         // ლოქის ქვეშ და მხოლოდ ამის მიხედვით ვწყვეტთ.
@@ -246,19 +276,36 @@ export class OrdersService {
   }
 
   // ადმინის მიერ სტატუსის ცვლილება (ან მომავალში — Payments callback-იდან).
-  // CANCELLED-ზე გადასვლისას ვაბრუნებთ მარაგს, თუ ჯერ არ იყო
-  // CANCELLED/EXPIRED — თორემ დარეზერვებული stock სამუდამოდ დაიკარგება.
+  // ტრანზაქცია მხოლოდ ALLOWED_STATUS_TRANSITIONS-ით დაშვებულ გადასვლებზე
+  // სრულდება (DELIVERED → PENDING და მისთ. ახლა 400-ს აბრუნებს). CANCELLED-
+  // ან EXPIRED-ზე გადასვლისას (ორივეზე, არა მხოლოდ CANCELLED-ზე) ვაბრუნებთ
+  // მარაგს — order.stockRestored flag-ით დაცული, არა მხოლოდ მიმდინარე
+  // status-ის შემოწმებით, რომ ერთსა და იმავე შეკვეთაზე restock ორჯერ ვერ
+  // შესრულდეს (რეალურად ეს ორმაგი-გამოძახება ახლა state-machine-ითაც
+  // დაბლოკილია, ვინაიდან CANCELLED/EXPIRED ტერმინალურია — flag-ი დამატებითი,
+  // defense-in-depth შრეა).
   async updateStatus(orderId: number, status: OrderStatus): Promise<Order> {
     const order = await this.findOrderOrThrow(orderId);
 
-    const alreadyReleased =
-      order.status === OrderStatus.CANCELLED ||
-      order.status === OrderStatus.EXPIRED;
+    if (order.status === status) {
+      return order;
+    }
 
-    if (status === OrderStatus.CANCELLED && !alreadyReleased) {
+    const allowedNext = ALLOWED_STATUS_TRANSITIONS[order.status] ?? [];
+    if (!allowedNext.includes(status)) {
+      throw new BadRequestException(
+        `სტატუსის ცვლილება "${order.status}" → "${status}" დაუშვებელია`,
+      );
+    }
+
+    const needsRestock =
+      (status === OrderStatus.CANCELLED || status === OrderStatus.EXPIRED) &&
+      !order.stockRestored;
+
+    if (needsRestock) {
       await this.dataSource.transaction(async (manager) => {
         await this.restockOrderItems(manager, order);
-        await manager.update(Order, orderId, { status });
+        await manager.update(Order, orderId, { status, stockRestored: true });
       });
       return this.findOrderOrThrow(orderId);
     }
@@ -284,8 +331,13 @@ export class OrdersService {
 
     for (const order of staleOrders) {
       await this.dataSource.transaction(async (manager) => {
-        await this.restockOrderItems(manager, order);
-        await manager.update(Order, order.id, { status: OrderStatus.EXPIRED });
+        if (!order.stockRestored) {
+          await this.restockOrderItems(manager, order);
+        }
+        await manager.update(Order, order.id, {
+          status: OrderStatus.EXPIRED,
+          stockRestored: true,
+        });
       });
     }
 

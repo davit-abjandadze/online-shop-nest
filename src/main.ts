@@ -17,7 +17,10 @@ async function bootstrap() {
   // production ბაზაზე შემთხვევით deploy-ის შემთხვევაში schema-ს ავტომატურად
   // შეცვლიდა/დაარღვევდა. ამიტომ აქ ცხადად ვამოწმებთ, ვიდრე AppModule/TypeORM
   // საერთოდ შეიქმნება.
-  if (!process.env.NODE_ENV || !VALID_NODE_ENVS.includes(process.env.NODE_ENV)) {
+  if (
+    !process.env.NODE_ENV ||
+    !VALID_NODE_ENVS.includes(process.env.NODE_ENV)
+  ) {
     throw new Error(
       `NODE_ENV გარემოს ცვლადი აუცილებელია და უნდა იყოს ერთ-ერთი: ${VALID_NODE_ENVS.join(', ')} ` +
         `(მიღებულია: ${JSON.stringify(process.env.NODE_ENV)}). იხ. src/app.module.ts.`,

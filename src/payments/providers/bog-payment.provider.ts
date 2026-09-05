@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -156,7 +156,16 @@ export class BogPaymentProvider implements PaymentProviderClient {
     externalId: string;
     status: PaymentStatus;
   } {
-    const payload = JSON.parse(rawBody.toString('utf8')) as BogCallbackPayload;
+    let payload: BogCallbackPayload;
+    try {
+      payload = JSON.parse(rawBody.toString('utf8')) as BogCallbackPayload;
+    } catch {
+      // ხელმოწერით ვალიდური, მაგრამ არა-JSON (ან დაზიანებული) body — 400,
+      // არა uncaught SyntaxError → generic 500.
+      throw new BadRequestException(
+        'callback body ვერ დაპარსდა — არავალიდური JSON',
+      );
+    }
     const statusKey = payload.body?.order_status?.key;
     // შენიშვნა (Phase 0-ის დაუდასტურებელი ფაქტი): callback body-ში BOG-ის
     // provider-order id-ის ზუსტი ველის სახელი დოკუმენტაციაში არაა ცალსახად

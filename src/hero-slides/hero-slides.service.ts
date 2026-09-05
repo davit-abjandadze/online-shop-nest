@@ -26,12 +26,18 @@ export class HeroSlidesService {
 
   // storefront-ისთვის — მხოლოდ აქტიური სლაიდები, sortOrder-ის მიხედვით
   // ასაკენდელი, პროდუქტით ჩატვირთული (ღილაკის ლინკის derive-ისთვის).
+  // product.isActive-იც აქ მოწმდება (category.service.ts-ის
+  // buildFilteredProductsQuery-ის იგივე პატერნი) — დეაქტივირებულ პროდუქტზე
+  // მიბმული სლაიდი აღარ გამოჩნდება, თუმცა პროდუქტის გარეშე (product: null)
+  // სლაიდი ხელუხლებელი რჩება (LEFT JOIN + product.id IS NULL OR ...).
   async findActive(): Promise<HeroSlide[]> {
-    return this.heroSlideRepository.find({
-      where: { isActive: true },
-      relations: { product: true },
-      order: { sortOrder: 'ASC' },
-    });
+    return this.heroSlideRepository
+      .createQueryBuilder('heroSlide')
+      .leftJoinAndSelect('heroSlide.product', 'product')
+      .where('heroSlide.isActive = :isActive', { isActive: true })
+      .andWhere('(product.id IS NULL OR product.isActive = true)')
+      .orderBy('heroSlide.sortOrder', 'ASC')
+      .getMany();
   }
 
   async findAllPaginated(

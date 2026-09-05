@@ -40,7 +40,16 @@ import { Category } from './entities/category.entity';
 // entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved storefront-
 // ისთვის, translations — admin-ის edit ფორმისთვის). parent relation-იც
 // (თუ ჩატვირთულია) იმავე სიღრმეზე enrich-დება.
-function enrichCategory(category: Category, locale: LocaleType) {
+type EnrichedCategory = Omit<Category, 'parent' | 'children'> & {
+  name: string | undefined;
+  parent?: (Category & { name?: string }) | null;
+  children?: Category[];
+};
+
+function enrichCategory(
+  category: Category,
+  locale: LocaleType,
+): EnrichedCategory {
   return {
     ...category,
     name: resolveTranslation(category.translations, locale)?.name,
@@ -56,10 +65,17 @@ function enrichCategory(category: Category, locale: LocaleType) {
   };
 }
 
+type EnrichedCategoryTree = Omit<EnrichedCategory, 'children'> & {
+  children?: (EnrichedCategoryTree | Category)[];
+};
+
 // findTree()-ის nested closure-table შედეგისთვის — enrichCategory-სგან
 // განსხვავებით, აქ `children`-იც რეკურსიულად უნდა დარეზოლვდეს, თორემ
 // ხის ღრმა დონეებზე ისევ ნედლი translations დარჩება @Locale()-ის გვერდის ავლით.
-function enrichCategoryTree(category: Category, locale: LocaleType) {
+function enrichCategoryTree(
+  category: Category,
+  locale: LocaleType,
+): EnrichedCategoryTree {
   const enriched = enrichCategory(category, locale);
   return {
     ...enriched,

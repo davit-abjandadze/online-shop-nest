@@ -157,12 +157,18 @@ export class ProductsService {
     return new PaginatedResponseDto(data, total, page, limit);
   }
 
-  async findOne(id: number) {
+  // isAdmin=false (storefront-ის default) — დეაქტივირებული პროდუქტი 404-ს
+  // აბრუნებს, თუნდაც ID ზუსტად სწორი იყოს (findAllPaginated-ის იგივე
+  // isActive პატერნი, რომ ID-ების enumeration-ითაც არ გამჟღავნდეს
+  // isActive=false პროდუქტების არსებობა). ADMIN-CRUD (create/update/remove,
+  // set*) ყოველთვის isAdmin=true-თი იძახებს, რომ დეაქტივირებული პროდუქტის
+  // მართვაც შესაძლებელი დარჩეს.
+  async findOne(id: number, isAdmin = false) {
     const product = await this.productRepository.findOne({
       where: { id },
       relations: { category: true, company: true },
     });
-    if (!product) {
+    if (!product || (!isAdmin && !product.isActive)) {
       throw new NotFoundException(`პროდუქტი ID-ით ${id} ვერ მოიძებნა`);
     }
     return product;
@@ -173,7 +179,7 @@ export class ProductsService {
   // მსგავსი არ ეყოლება (ცარიელი მასივი) — attribute-ზე დაფუძნებული
   // "სიახლოვის" გამოთვლა v1-ისთვის ზედმეტია, category საკმარისი სიგნალია.
   async findSimilar(id: number, limit = 10): Promise<Product[]> {
-    const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
+    const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა (isActive=false → 404)
     if (!product.category) {
       return [];
     }
@@ -207,7 +213,7 @@ export class ProductsService {
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
-    const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
+    const product = await this.findOne(id, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
     const {
       categoryId,
       companyId,
@@ -251,7 +257,7 @@ export class ProductsService {
   }
 
   async remove(id: number) {
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, true); // ADMIN
     return this.productRepository.remove(product);
   }
 
@@ -259,8 +265,9 @@ export class ProductsService {
 
   async getAttributeValues(
     productId: number,
+    isAdmin = false,
   ): Promise<ProductAttributeValue[]> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
     return this.productAttributeValueRepository.find({
       where: { productId },
       relations: { attribute: true, attributeOption: true },
@@ -278,7 +285,7 @@ export class ProductsService {
     productId: number,
     setProductAttributeValuesDto: SetProductAttributeValuesDto,
   ): Promise<ProductAttributeValue[]> {
-    const product = await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    const product = await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
     if (!product.category) {
       throw new BadRequestException(
         'პროდუქტს არ აქვს კატეგორია მიბმული — ჯერ დაამატეთ კატეგორია',
@@ -403,8 +410,11 @@ export class ProductsService {
 
   // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
 
-  async getAdditionalInfo(productId: number): Promise<ProductAdditionalInfo[]> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+  async getAdditionalInfo(
+    productId: number,
+    isAdmin = false,
+  ): Promise<ProductAdditionalInfo[]> {
+    await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
     return this.productAdditionalInfoRepository.find({
       where: { productId },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
@@ -415,7 +425,7 @@ export class ProductsService {
     productId: number,
     createDto: CreateProductAdditionalInfoDto,
   ): Promise<ProductAdditionalInfo> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
     const info = this.productAdditionalInfoRepository.create({
       ...createDto,
       productId,
@@ -443,8 +453,8 @@ export class ProductsService {
 
   // --- ფერები (Product ↔ Color, თითოეულზე ცალკე stock) ------------------
 
-  async getColors(productId: number): Promise<ProductColor[]> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+  async getColors(productId: number, isAdmin = false): Promise<ProductColor[]> {
+    await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
     return this.productColorRepository.find({
       where: { productId },
       relations: { color: true },
@@ -467,7 +477,7 @@ export class ProductsService {
     productId: number,
     setProductColorsDto: SetProductColorsDto,
   ): Promise<ProductColor[]> {
-    const product = await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    const product = await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
     const colorIds = setProductColorsDto.colors.map((c) => c.colorId);
     const uniqueColorIds = new Set(colorIds);
@@ -511,8 +521,11 @@ export class ProductsService {
 
   // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
 
-  async getBranches(productId: number): Promise<ProductBranch[]> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+  async getBranches(
+    productId: number,
+    isAdmin = false,
+  ): Promise<ProductBranch[]> {
+    await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
     return this.productBranchRepository.find({
       where: { productId },
       relations: { branch: { company: true } },
@@ -527,7 +540,7 @@ export class ProductsService {
     productId: number,
     setProductBranchesDto: SetProductBranchesDto,
   ): Promise<ProductBranch[]> {
-    await this.findOne(productId); // შეამოწმებს, არსებობს თუ არა
+    await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
     const branchIds = setProductBranchesDto.branches.map((b) => b.branchId);
     const uniqueBranchIds = new Set(branchIds);

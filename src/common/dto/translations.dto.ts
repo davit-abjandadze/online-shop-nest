@@ -126,6 +126,37 @@ function buildTranslationsDto<T>(EntryDto: new () => T) {
   return TranslationsDtoBase;
 }
 
+// Update DTO-ებისთვის — ka-ც optional-ია (buildTranslationsDto-სგან
+// განსხვავებით), რომ PATCH-ს მხოლოდ ერთი locale-ის (მაგ. { en: {...} })
+// გამოგზავნაც შეეძლოს 400-ის (ka სავალდებულოა) გარეშე. PartialType
+// Create*Dto-დან მხოლოდ translations ველს ხდის optional-ად — არ ჩადის
+// ჩადგმულ TranslationsDto-შიც, ka კვლავ სავალდებულო რჩებოდა (იხ. history).
+// Update*Dto-ებში translations ველი ცალკე override-ილია ამ Partial
+// ვერსიით. ka-ს გამოტოვება უსაფრთხოა — mergeTranslations locale დონეზე
+// აერთიანებს, არსებული ka წაშლას არ იწვევს.
+function buildPartialTranslationsDto<T>(EntryDto: new () => T) {
+  class PartialTranslationsDtoBase {
+    @ApiPropertyOptional({ type: () => EntryDto })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => EntryDto)
+    ka?: T;
+
+    @ApiPropertyOptional({ type: () => EntryDto })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => EntryDto)
+    en?: T;
+
+    @ApiPropertyOptional({ type: () => EntryDto })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => EntryDto)
+    ru?: T;
+  }
+  return PartialTranslationsDtoBase;
+}
+
 // Product-ისთვის — { ka: {name, description?}, en?, ru? }
 export class ProductTranslationsDto extends buildTranslationsDto(
   NameDescriptionTranslationDto,
@@ -148,5 +179,27 @@ export class HeroSlideTranslationsDto extends buildTranslationsDto(
 
 // ProductSlider-ისთვის — { ka: {title, viewAllText?}, en?, ru? }
 export class ProductSliderTranslationsDto extends buildTranslationsDto(
+  ProductSliderTranslationDto,
+) {}
+
+// --- Update DTO-ებში გამოსაყენებელი Partial ვერსიები (ka optional) -------
+
+export class ProductPartialTranslationsDto extends buildPartialTranslationsDto(
+  NameDescriptionTranslationDto,
+) {}
+
+export class NamePartialTranslationsDto extends buildPartialTranslationsDto(
+  NameTranslationDto,
+) {}
+
+export class ValuePartialTranslationsDto extends buildPartialTranslationsDto(
+  ValueTranslationDto,
+) {}
+
+export class HeroSlidePartialTranslationsDto extends buildPartialTranslationsDto(
+  HeroSlideTranslationDto,
+) {}
+
+export class ProductSliderPartialTranslationsDto extends buildPartialTranslationsDto(
   ProductSliderTranslationDto,
 ) {}

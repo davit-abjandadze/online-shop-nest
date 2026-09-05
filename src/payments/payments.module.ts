@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -27,8 +27,24 @@ import { OrdersModule } from '../orders/orders.module';
         configService: ConfigService,
         bog: BogPaymentProvider,
         mock: MockPaymentProvider,
-      ) =>
-        configService.get<string>('PAYMENT_PROVIDER') === 'bog' ? bog : mock,
+      ) => {
+        const useBog = configService.get<string>('PAYMENT_PROVIDER') === 'bog';
+        // MockPaymentProvider.verifyCallback() განზრახ ყოველთვის true-ს
+        // აბრუნებს (კომპანიის რეგისტრაციამდე stub-ია — იხ. mock-payment.
+        // provider.ts) — production-ში ამის დავიწყებით დატოვება public
+        // /payments/callback/bog route-ს ნებისმიერი POST-ისთვის ღიად
+        // ტოვებს. კოდის ცვლილება (bog-ზე იძულებითი გადართვა) აქ ნაადრევია,
+        // სანამ კომპანია იურიდიულად არ დარეგისტრირდება — ამიტომ მხოლოდ
+        // ხმამაღალი გაფრთხილება ეს, არა throw.
+        if (!useBog && configService.get<string>('NODE_ENV') === 'production') {
+          new Logger('PaymentsModule').warn(
+            'PAYMENT_PROVIDER არ არის "bog" production-ში — MockPaymentProvider.verifyCallback() ' +
+              'ყოველთვის true-ს აბრუნებს, callback route დაუცველია ნებისმიერი POST-ისგან. ' +
+              'დარწმუნდით, ეს განზრახულია (კომპანიის რეგისტრაციამდე მოსალოდნელი მდგომარეობაა).',
+          );
+        }
+        return useBog ? bog : mock;
+      },
       inject: [ConfigService, BogPaymentProvider, MockPaymentProvider],
     },
     PaymentsService,

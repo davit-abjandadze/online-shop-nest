@@ -1,13 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { Category } from '../entities/category.entity';
 
-export class CategoryResponseDto {
-  @ApiProperty({ example: 200 })
-  statusCode!: number;
-
-  @ApiProperty({ example: 'კატეგორია წარმატებით შეიქმნა' })
-  message!: string;
-
-  @ApiProperty({ type: () => Category, nullable: true })
-  data?: Category;
-}
+// Swagger-ის დოკუმენტაციისთვის — create/update handler-ები ბრტყელ Category
+// entity-ს აბრუნებენ, არა { statusCode, message, data } envelope-ს (ეს
+// ადრე რეალურ response shape-ს არ ემთხვეოდა, იხ. auth-ის login-response.
+// dto.ts-ის იგივე ჩასწორება). ცალკე კლასია (Category-ის pass-through), რომ
+// @ApiResponse({ type }) ერთი ცნობილი, სახელიანი schema-დ დარჩეს.
+export class CategoryResponseDto extends Category {}

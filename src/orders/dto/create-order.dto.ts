@@ -26,7 +26,7 @@ export class CreateOrderDto {
     example: 'თბილისი, რუსთაველის გამზირი 1',
   })
   @ValidateIf(
-    (o) =>
+    (o: CreateOrderDto) =>
       (o.deliveryMethod ?? DeliveryMethod.COURIER) === DeliveryMethod.COURIER,
   )
   @IsString()
@@ -37,7 +37,7 @@ export class CreateOrderDto {
     description:
       'არჩეული ფილიალის ID (deliveryMethod=pickup-სთვის სავალდებულო)',
   })
-  @ValidateIf((o) => o.deliveryMethod === DeliveryMethod.PICKUP)
+  @ValidateIf((o: CreateOrderDto) => o.deliveryMethod === DeliveryMethod.PICKUP)
   @Type(() => Number)
   @IsInt()
   branchId?: number;
