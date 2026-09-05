@@ -72,6 +72,7 @@ export class CategoryService {
 
   async findAllPaginated(
     findCategoriesDto: FindCategoriesDto,
+    isAdmin = false,
   ): Promise<PaginatedResponseDto<Category>> {
     const {
       page = 1,
@@ -79,6 +80,7 @@ export class CategoryService {
       sortBy = 'sortOrder',
       order = 'ASC',
       parentId,
+      isActive,
     } = findCategoriesDto;
 
     const qb = this.categoryRepository
@@ -87,6 +89,18 @@ export class CategoryService {
 
     if (parentId) {
       qb.andWhere('parent.id = :parentId', { parentId });
+    }
+
+    // non-ADMIN (ან ტოკენის გარეშე) მომხმარებლისთვის isActive ყოველთვის
+    // true-ზეა დაფიქსირებული — მოთხოვნილი isActive query param უგულებელყოფილია,
+    // რომ დეაქტივირებული კატეგორიების არსებობაც კი არ გამჟღავნდეს (products.
+    // service.ts-ის findAllPaginated-ის იგივე პატერნი). ADMIN-ს კი შეუძლია
+    // ნახოს ყველა (default, isActive არ გადმოცემია) ან კონკრეტულად გაფილტროს.
+    const effectiveIsActive = isAdmin ? isActive : true;
+    if (effectiveIsActive !== undefined) {
+      qb.andWhere('category.isActive = :isActive', {
+        isActive: effectiveIsActive,
+      });
     }
 
     const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
@@ -98,8 +112,20 @@ export class CategoryService {
   }
 
   // სრული nested ხე — root-ებიდან დაწყებული, ჩაშენებული children[]-ებით.
-  async findTree(): Promise<Category[]> {
-    return this.treeRepository.findTrees();
+  // non-ADMIN-ისთვის დეაქტივირებული კატეგორია (და მისი მთლიანი subtree)
+  // საერთოდ არ უნდა გამოჩნდეს storefront ხეში.
+  async findTree(isAdmin = false): Promise<Category[]> {
+    const tree = await this.treeRepository.findTrees();
+    return isAdmin ? tree : this.filterActiveTree(tree);
+  }
+
+  private filterActiveTree(categories: Category[]): Category[] {
+    return categories
+      .filter((c) => c.isActive)
+      .map((c) => ({
+        ...c,
+        children: c.children ? this.filterActiveTree(c.children) : c.children,
+      }));
   }
 
   async findOne(id: string): Promise<Category> {
@@ -318,7 +344,7 @@ export class CategoryService {
       const sub = await this.categoryRepository.findOne({
         where: { slug: query.subcategory },
       });
-      if (!sub) {
+      if (!sub || !sub.isActive) {
         throw new NotFoundException(
           `ქვეკატეგორია slug-ით "${query.subcategory}" ვერ მოიძებნა`,
         );
@@ -333,8 +359,11 @@ export class CategoryService {
       root = sub;
     }
 
+    // storefront-ის ეს ორი endpoint (getFilters/getProductsForCategory)
+    // ADMIN-ისთვის ცალკე ვარიანტს არ ითვალისწინებს — დეაქტივირებული
+    // ქვეკატეგორია (და მისი subtree) ყოველთვის გამორიცხულია.
     const descendants = await this.treeRepository.findDescendants(root);
-    return descendants.map((d) => d.id);
+    return descendants.filter((d) => d.isActive).map((d) => d.id);
   }
 
   // `categoryIds` subtree-ს (+ ბაზური კატეგორიის წინაპრების) ფარგლებში
@@ -526,6 +555,14 @@ export class CategoryService {
     locale: Locale = 'ka',
   ) {
     const category = await this.findBySlug(slug);
+    // storefront-ის endpoint-ია, ADMIN-variant არაა — დეაქტივირებული
+    // კატეგორია "ვერ მოიძებნა"-დაა ჩათვლილი, ისევე როგორც subtree-ს
+    // ქვეკატეგორიები getSubtreeCategoryIds-ში.
+    if (!category.isActive) {
+      throw new NotFoundException(
+        `კატეგორია slug-ით "${slug}" ვერ მოიძებნა`,
+      );
+    }
     const categoryIds = await this.getSubtreeCategoryIds(category, query);
     const attributes = await this.getEffectiveFilterableAttributes(
       category,
@@ -665,6 +702,11 @@ export class CategoryService {
     query: CategoryFiltersQuery,
   ): Promise<PaginatedResponseDto<Product>> {
     const category = await this.findBySlug(slug);
+    if (!category.isActive) {
+      throw new NotFoundException(
+        `კატეგორია slug-ით "${slug}" ვერ მოიძებნა`,
+      );
+    }
     const categoryIds = await this.getSubtreeCategoryIds(category, query);
     const attributes = await this.getEffectiveFilterableAttributes(
       category,

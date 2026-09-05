@@ -693,6 +693,15 @@
               "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6",
               "type": "string"
             }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "გაფილტვრა აქტიურობის მიხედვით (მხოლოდ ADMIN-ისთვის)",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

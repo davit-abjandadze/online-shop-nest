@@ -26,8 +26,10 @@ import { CategoryResponseDto } from './dto/category-response.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
@@ -81,14 +83,19 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'კატეგორიების ბრტყელი, გვერდიანი სია' })
   @ApiResponse({ status: 200, description: 'კატეგორიების გვერდიანი სია' })
   async findAll(
     @Query() findCategoriesDto: FindCategoriesDto,
     @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
   ) {
-    const result =
-      await this.categoryService.findAllPaginated(findCategoriesDto);
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const result = await this.categoryService.findAllPaginated(
+      findCategoriesDto,
+      isAdmin,
+    );
     return {
       ...result,
       data: result.data.map((category) => enrichCategory(category, locale)),
@@ -96,10 +103,15 @@ export class CategoryController {
   }
 
   @Get('tree')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'კატეგორიების სრული nested ხე' })
   @ApiResponse({ status: 200, description: 'კატეგორიების ხე' })
-  async findTree(@Locale() locale: LocaleType) {
-    const tree = await this.categoryService.findTree();
+  async findTree(
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = user?.role === UserRole.ADMIN;
+    const tree = await this.categoryService.findTree(isAdmin);
     return tree.map((category) => enrichCategoryTree(category, locale));
   }
 
