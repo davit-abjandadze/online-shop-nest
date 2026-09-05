@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Address } from './entities/address.entity';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -10,6 +10,8 @@ export class AddressesService {
   constructor(
     @InjectRepository(Address)
     private addressRepository: Repository<Address>,
+    @InjectDataSource()
+    private dataSource: DataSource,
   ) {}
 
   // მომხმარებლის მისამართები, ნაგულისხმევი პირველი, შემდეგ ბოლოს დამატებულის
@@ -33,26 +35,36 @@ export class AddressesService {
   }
 
   async create(userId: number, dto: CreateAddressDto): Promise<Address> {
-    // პირველი დამატებული მისამართი ავტომატურად ხდება ნაგულისხმევი, რომ
-    // checkout-ს ყოველთვის ჰქონდეს რაიმე წინასწარ არჩეული.
-    const existingCount = await this.addressRepository.count({
-      where: { user: { id: userId } },
-    });
-    const isDefault = existingCount === 0 || !!dto.isDefault;
+    // "მხოლოდ ერთი ნაგულისხმევი" წესი ატომურად უნდა შესრულდეს — ტრანზაქციის
+    // შიგნით userId-ის ყველა მისამართის row-ს ვბლოკავთ (pessimistic_write),
+    // რომ ორმა პარალელურმა POST-მა ერთდროულად ორივემ "ნაგულისხმევი არ არსებობს"
+    // არ დაინახოს და ორივემ isDefault:true არ დააფიქსიროს.
+    return this.dataSource.transaction(async (manager) => {
+      const existing = await manager
+        .createQueryBuilder(Address, 'address')
+        .setLock('pessimistic_write')
+        .where('address.userId = :userId', { userId })
+        .getMany();
 
-    if (isDefault) {
-      await this.addressRepository.update(
-        { user: { id: userId } },
-        { isDefault: false },
-      );
-    }
+      // პირველი დამატებული მისამართი ავტომატურად ხდება ნაგულისხმევი, რომ
+      // checkout-ს ყოველთვის ჰქონდეს რაიმე წინასწარ არჩეული.
+      const isDefault = existing.length === 0 || !!dto.isDefault;
 
-    const address = this.addressRepository.create({
-      ...dto,
-      isDefault,
-      user: { id: userId },
+      if (isDefault && existing.some((a) => a.isDefault)) {
+        await manager.update(
+          Address,
+          { user: { id: userId } },
+          { isDefault: false },
+        );
+      }
+
+      const address = manager.create(Address, {
+        ...dto,
+        isDefault,
+        user: { id: userId },
+      });
+      return manager.save(address);
     });
-    return this.addressRepository.save(address);
   }
 
   async update(
@@ -60,17 +72,39 @@ export class AddressesService {
     id: number,
     dto: UpdateAddressDto,
   ): Promise<Address> {
-    const address = await this.findOwned(userId, id);
+    return this.dataSource.transaction(async (manager) => {
+      // იგივე ლოქინგი, რაც create()-ში — მოსანიშნი მისამართის და დანარჩენების
+      // row-ები ტრანზაქციის ბოლომდე დაბლოკილია, სანამ ნაგულისხმევი ეცვლება.
+      const address = await manager
+        .createQueryBuilder(Address, 'address')
+        .setLock('pessimistic_write')
+        .where('address.id = :id AND address.userId = :userId', {
+          id,
+          userId,
+        })
+        .getOne();
 
-    if (dto.isDefault) {
-      await this.addressRepository.update(
-        { user: { id: userId } },
-        { isDefault: false },
-      );
-    }
+      if (!address) {
+        throw new NotFoundException(`მისამართი ID-ით ${id} ვერ მოიძებნა`);
+      }
 
-    Object.assign(address, dto);
-    return this.addressRepository.save(address);
+      const siblings = await manager
+        .createQueryBuilder(Address, 'address')
+        .setLock('pessimistic_write')
+        .where('address.userId = :userId', { userId })
+        .getMany();
+
+      if (dto.isDefault && siblings.some((a) => a.isDefault && a.id !== id)) {
+        await manager.update(
+          Address,
+          { user: { id: userId } },
+          { isDefault: false },
+        );
+      }
+
+      Object.assign(address, dto);
+      return manager.save(address);
+    });
   }
 
   async remove(userId: number, id: number): Promise<void> {

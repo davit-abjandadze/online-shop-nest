@@ -2692,20 +2692,74 @@
         "operationId": "BranchesController_findAll",
         "parameters": [
           {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
             "name": "companyId",
             "required": false,
             "in": "query",
+            "description": "გაფილტვრა კონკრეტული კომპანიის მიხედვით",
             "schema": {
+              "format": "uuid",
+              "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6",
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "ფილიალების სია"
+            "description": "ფილიალების გვერდიანი სია"
           }
         },
-        "summary": "აქტიური ფილიალების სია (checkout-ისთვის)",
+        "summary": "აქტიური ფილიალების გვერდიანი სია (checkout-ისთვის)",
         "tags": [
           "branches"
         ]
@@ -2768,17 +2822,71 @@
         "operationId": "BranchesController_findAllAdmin",
         "parameters": [
           {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          },
+          {
             "name": "companyId",
             "required": false,
             "in": "query",
+            "description": "გაფილტვრა კონკრეტული კომპანიის მიხედვით",
             "schema": {
+              "format": "uuid",
+              "example": "e3b0c442-98fc-1c14-9afc-2c963f66afa6",
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "ფილიალების სია"
+            "description": "ფილიალების გვერდიანი სია"
           }
         },
         "security": [
@@ -2786,7 +2894,7 @@
             "bearer": []
           }
         ],
-        "summary": "ყველა ფილიალის სია, დახურულების ჩათვლით (ADMIN)",
+        "summary": "ყველა ფილიალის გვერდიანი სია, დახურულების ჩათვლით (ADMIN)",
         "tags": [
           "branches"
         ]
@@ -2867,13 +2975,65 @@
     "/companies": {
       "get": {
         "operationId": "CompaniesController_findAll",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "კომპანიების სია"
+            "description": "კომპანიების გვერდიანი სია"
           }
         },
-        "summary": "აქტიური კომპანიების სია",
+        "summary": "აქტიური კომპანიების გვერდიანი სია",
         "tags": [
           "companies"
         ]
@@ -2910,10 +3070,62 @@
     "/companies/admin/all": {
       "get": {
         "operationId": "CompaniesController_findAllAdmin",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "გვერდის ნომერი (იწყება 1-დან)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "ჩანაწერების რაოდენობა თითო გვერდზე",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების ველი",
+            "schema": {
+              "default": "createdAt",
+              "example": "createdAt",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "required": false,
+            "in": "query",
+            "description": "დალაგების მიმართულება",
+            "schema": {
+              "default": "DESC",
+              "example": "DESC",
+              "type": "string",
+              "enum": [
+                "ASC",
+                "DESC"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "კომპანიების სია"
+            "description": "კომპანიების გვერდიანი სია"
           }
         },
         "security": [
@@ -2921,7 +3133,7 @@
             "bearer": []
           }
         ],
-        "summary": "ყველა კომპანიის სია, დახურულების ჩათვლით (ADMIN)",
+        "summary": "ყველა კომპანიის გვერდიანი სია, დახურულების ჩათვლით (ADMIN)",
         "tags": [
           "companies"
         ]
@@ -5601,6 +5813,7 @@
           },
           "logoUrl": {
             "type": "string",
+            "format": "uri",
             "description": "კომპანიის ლოგოს URL"
           },
           "isActive": {
@@ -5634,6 +5847,7 @@
           },
           "logoUrl": {
             "type": "string",
+            "format": "uri",
             "description": "კომპანიის ლოგოს URL"
           },
           "isActive": {

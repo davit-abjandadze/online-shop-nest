@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsBoolean,
   IsInt,
+  IsUrl,
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,7 +27,7 @@ export class CreateCompanyDto {
 
   @ApiPropertyOptional({ description: 'კომპანიის ლოგოს URL' })
   @IsOptional()
-  @IsString()
+  @IsUrl({}, { message: 'logoUrl უნდა იყოს ვალიდური URL' })
   logoUrl?: string;
 
   @ApiPropertyOptional({

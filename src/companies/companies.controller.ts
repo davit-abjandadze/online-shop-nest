@@ -5,24 +5,18 @@ import {
   Patch,
   Delete,
   Param,
+  ParseUUIDPipe,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { FindCompaniesDto } from './dto/find-companies.dto';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 
 // მკითხველი endpoint-ი (GET /companies) საჯაროა — Branch/Category მოდულების
 // იგივე გამიჯვნა: write ოპერაციები + სრული სია (დახურულების ჩათვლით)
@@ -33,34 +27,32 @@ export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'აქტიური კომპანიების სია' })
-  @ApiResponse({ status: 200, description: 'კომპანიების სია' })
-  findAll() {
-    return this.companiesService.findAllActive();
+  @ApiOperation({ summary: 'აქტიური კომპანიების გვერდიანი სია' })
+  @ApiResponse({ status: 200, description: 'კომპანიების გვერდიანი სია' })
+  findAll(@Query() dto: FindCompaniesDto) {
+    return this.companiesService.findAllActive(dto);
   }
 
   @Get('admin/all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'ყველა კომპანიის სია, დახურულების ჩათვლით (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'კომპანიების სია' })
-  findAllAdmin() {
-    return this.companiesService.findAllAdmin();
+  @AdminOnly()
+  @ApiOperation({
+    summary: 'ყველა კომპანიის გვერდიანი სია, დახურულების ჩათვლით (ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'კომპანიების გვერდიანი სია' })
+  findAllAdmin(@Query() dto: FindCompaniesDto) {
+    return this.companiesService.findAllAdmin(dto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'კონკრეტული კომპანიის მიღება' })
   @ApiResponse({ status: 200, description: 'კომპანია' })
   @ApiResponse({ status: 404, description: 'კომპანია ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.companiesService.findOne(id);
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი კომპანიის დამატება (ADMIN)' })
   @ApiResponse({ status: 201, description: 'კომპანია დაემატა' })
@@ -69,24 +61,23 @@ export class CompaniesController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'კომპანიის რედაქტირება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'კომპანია განახლდა' })
   @ApiResponse({ status: 404, description: 'კომპანია ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() dto: UpdateCompanyDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCompanyDto,
+  ) {
     return this.companiesService.update(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'კომპანიის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'კომპანია წაიშალა' })
   @ApiResponse({ status: 404, description: 'კომპანია ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.companiesService.remove(id);
   }
 }

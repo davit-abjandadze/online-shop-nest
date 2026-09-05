@@ -9,21 +9,13 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { BranchesService } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { FindBranchesDto } from './dto/find-branches.dto';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 
 // მკითხველი endpoint-ი (GET /branches) საჯაროა — checkout-ის "ფილიალიდან
 // გატანა" სექციას ავტორიზაცია არ სჭირდება. Write ოპერაციები + სრული სია
@@ -35,10 +27,12 @@ export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'აქტიური ფილიალების სია (checkout-ისთვის)' })
-  @ApiResponse({ status: 200, description: 'ფილიალების სია' })
-  findAll(@Query('companyId') companyId?: string) {
-    return this.branchesService.findAllActive(companyId);
+  @ApiOperation({
+    summary: 'აქტიური ფილიალების გვერდიანი სია (checkout-ისთვის)',
+  })
+  @ApiResponse({ status: 200, description: 'ფილიალების გვერდიანი სია' })
+  findAll(@Query() dto: FindBranchesDto) {
+    return this.branchesService.findAllActive(dto);
   }
 
   @Get('available')
@@ -56,19 +50,17 @@ export class BranchesController {
   }
 
   @Get('admin/all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'ყველა ფილიალის სია, დახურულების ჩათვლით (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'ფილიალების სია' })
-  findAllAdmin(@Query('companyId') companyId?: string) {
-    return this.branchesService.findAllAdmin(companyId);
+  @AdminOnly()
+  @ApiOperation({
+    summary: 'ყველა ფილიალის გვერდიანი სია, დახურულების ჩათვლით (ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'ფილიალების გვერდიანი სია' })
+  findAllAdmin(@Query() dto: FindBranchesDto) {
+    return this.branchesService.findAllAdmin(dto);
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი ფილიალის დამატება (ADMIN)' })
   @ApiResponse({ status: 201, description: 'ფილიალი დაემატა' })
@@ -77,9 +69,7 @@ export class BranchesController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ფილიალის რედაქტირება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფილიალი განახლდა' })
   @ApiResponse({ status: 404, description: 'ფილიალი ვერ მოიძებნა' })
@@ -88,9 +78,7 @@ export class BranchesController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ფილიალის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფილიალი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ფილიალი ვერ მოიძებნა' })

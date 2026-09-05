@@ -1,11 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import { Branch } from './entities/branch.entity';
 import { ProductBranch } from '../products/entities/product-branch.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
+import { FindBranchesDto } from './dto/find-branches.dto';
 import { CompaniesService } from '../companies/companies.service';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
+
+// sortBy პირდაპირ user-ისგან query string-იდან მოდის — SQL injection-ის
+// თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს (category/products
+// მოდულების იგივე pattern).
+const SORTABLE_COLUMNS = new Set(['id', 'name', 'sortOrder', 'createdAt']);
 
 @Injectable()
 export class BranchesService {
@@ -19,21 +27,42 @@ export class BranchesService {
 
   // checkout-ის "ფილიალიდან გატანა" სია — მხოლოდ აქტიური ფილიალები,
   // სურვილისამებრ კონკრეტული კომპანიით გაფილტრული.
-  async findAllActive(companyId?: string): Promise<Branch[]> {
-    return this.branchRepository.find({
-      where: { isActive: true, ...(companyId ? { companyId } : {}) },
-      relations: { company: true },
-      order: { sortOrder: 'ASC', id: 'ASC' },
-    });
+  async findAllActive(
+    dto: FindBranchesDto,
+  ): Promise<PaginatedResponseDto<Branch>> {
+    return this.findAllPaginated(dto, { isActive: true });
   }
 
   // ადმინის დეშბორდი დახურული ფილიალებსაც ხედავს.
-  async findAllAdmin(companyId?: string): Promise<Branch[]> {
-    return this.branchRepository.find({
-      where: companyId ? { companyId } : {},
+  async findAllAdmin(
+    dto: FindBranchesDto,
+  ): Promise<PaginatedResponseDto<Branch>> {
+    return this.findAllPaginated(dto, {});
+  }
+
+  private async findAllPaginated(
+    {
+      page = 1,
+      limit = 10,
+      sortBy,
+      order = 'DESC',
+      companyId,
+    }: FindBranchesDto,
+    extraWhere: Partial<Pick<Branch, 'isActive'>>,
+  ): Promise<PaginatedResponseDto<Branch>> {
+    const where: FindOptionsWhere<Branch> = {
+      ...extraWhere,
+      ...(companyId ? { companyId } : {}),
+    };
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
+    const [data, total] = await this.branchRepository.findAndCount({
+      where,
       relations: { company: true },
-      order: { sortOrder: 'ASC', id: 'ASC' },
+      order: { [sortColumn]: order, id: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   async findOne(id: number): Promise<Branch> {
