@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AttributeService } from './attribute.service';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
 import { UpdateAttributeDto } from './dto/update-attribute.dto';
@@ -50,6 +51,8 @@ function enrichAttribute(attribute: Attribute, locale: LocaleType) {
 // მკითხველი endpoint-ები (GET) საჯაროა — frontend-ის filter-sidebar-ს/admin
 // ფორმას სჭირდება attribute-ების სია ავტორიზაციის გარეშეც (category
 // მოდულის იგივე პატერნი). მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
+// კატალოგის endpoint-ები per-IP rate limit-ს არ ექვემდებარება — იხ. AppModule.
+@SkipThrottle()
 @ApiTags('attributes')
 @Controller('attributes')
 export class AttributeController {

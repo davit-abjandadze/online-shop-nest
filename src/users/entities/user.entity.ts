@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 import { ApiHideProperty } from '@nestjs/swagger';
+import { encryptedColumnTransformer } from '../../common/utils/encryption.util';
 
 // 1. შევქმნათ როლების Enum
 export enum UserRole {
@@ -50,13 +51,28 @@ export class User {
 
   // პირადი ნომერი — 11-ნიშნა კოდი. DTO-დონეზე სავალდებულო არაა, თუმცა
   // მითითების შემთხვევაში ზუსტად 11 ციფრი უნდა იყოს (იხ. CreateUserDto/RegisterDto).
-  @Column({ nullable: true, length: 11 })
+  // ბაზაში დაშიფრულად ინახება (encryptedColumnTransformer, AES-256-CBC) — plaintext
+  // ვეღარც ბაზის დამპში ჩანს და ვეღარც ლოგებში; `length: 11`-ის ნაცვლად ზოგადი
+  // `varchar` საჭირო გახდა, რადგან დაშიფრული (base64) მნიშვნელობა გაცილებით გრძელია.
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    transformer: encryptedColumnTransformer,
+  })
   personalNumber?: string;
 
   // ტელეფონის ნომერი — სავალდებულო ველია (DTO-დონეზე @IsNotEmpty).
   // სვეტი nullable-ია, რომ synchronize-მა არსებულ ჩანაწერებზე ALTER-ისას არ დაეცეს.
   // unique: true — ერთი და იგივე ნომრით ორჯერ ვერ დარეგისტრირდები (იხ. UsersService.create).
-  @Column({ nullable: true, unique: true })
+  // ბაზაში დაშიფრულად ინახება — transformer დეტერმინისტულია (იხ. encryption.util.ts),
+  // ამიტომ unique-შეზღუდვა და findByPhoneNumber-ის WHERE-ით ტოლობითი ძებნა კვლავ
+  // მუშაობს ciphertext-ზეც, ცვლილების გარეშე UsersService-ში.
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    unique: true,
+    transformer: encryptedColumnTransformer,
+  })
   phoneNumber?: string;
 
   // ორივე ველი მხოლოდ სერვერზე იმართება (UsersService.create/update) OTP-ის
@@ -77,4 +93,11 @@ export class User {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  // პაროლის ბოლო ცვლილების დრო — გამოიყენება უკვე გაცემული JWT-ების
+  // ინვალიდაციისთვის (იხ. JwtStrategy.validate): თუ token-ის iat ამ დროზე
+  // ადრეულია, ტოკენი უარყოფილია, მიუხედავად იმისა, რომ ხელმოწერა ვალიდურია
+  // და ვადა ჯერ არ ამოწურულა. ივსება changePassword/resetPassword-ზე.
+  @Column({ type: 'timestamp', nullable: true })
+  passwordChangedAt?: Date | null;
 }

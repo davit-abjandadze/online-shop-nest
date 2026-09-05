@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -115,6 +116,10 @@ function enrichProductColor(productColor: ProductColor, locale: LocaleType) {
 
 // მოთვალთვალე/მოხმარებელი endpoint-ები (GET) საჯაროა, guard-ის გარეშე —
 // კატეგორიის მსგავსად. მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
+// კატალოგის დათვალიერება (და მისი admin-CRUD, რომელიც ისედაც JWT+ROLE-ითაა
+// დაცული) გლობალურ per-IP rate limit-ს არ ექვემდებარება — ერთი IP-ის უკან
+// ბევრი მყიდველი დგას და ერთი გვერდის ჩატვირთვაც რამდენიმე მოთხოვნაა.
+@SkipThrottle()
 @ApiTags('products')
 @Controller('products')
 export class ProductsController {

@@ -11,6 +11,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { EmailOtpService } from '../otp/email-otp.service';
 import { OtpService } from '../otp/otp.service';
 
@@ -112,7 +113,7 @@ export class UsersService {
       qb.andWhere('user.gender = :gender', { gender });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
     qb.orderBy(`user.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
 
     qb.skip((page - 1) * limit).take(limit);
@@ -279,7 +280,14 @@ export class UsersService {
     return this.userRepository.findOne({ where: { id } });
   }
   // ← ახალი მეთოდი: პაროლის განახლება
+  // passwordChangedAt ივსება ყოველი გამოძახებისას (ჩვეულებრივი change-password
+  // და reset-password ორივე ამ მეთოდს იძახებს) — ეს საშუალებას აძლევს
+  // JwtStrategy.validate-ს, ცვლილებამდე გაცემული ყველა token (access და reset)
+  // ინვალიდურად ჩათვალოს, მიუხედავად იმისა, რომ მათი ხელმოწერა/ვადა კვლავ ვალიდურია.
   async updatePassword(userId: number, hashedPassword: string) {
-    await this.userRepository.update(userId, { password: hashedPassword });
+    await this.userRepository.update(userId, {
+      password: hashedPassword,
+      passwordChangedAt: new Date(),
+    });
   }
 }

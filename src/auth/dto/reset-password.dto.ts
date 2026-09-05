@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
 export class ResetPasswordDto {
   @ApiProperty({ description: 'Token, რომელიც მიღებულია email-იდან' })
@@ -10,6 +11,6 @@ export class ResetPasswordDto {
   @ApiProperty({ description: 'ახალი პაროლი', example: 'newPassword123' })
   @IsString()
   @IsNotEmpty({ message: 'პაროლი სავალდებულოა' })
-  @MinLength(6, { message: 'პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო' })
+  @IsStrongPassword()
   newPassword!: string;
 }

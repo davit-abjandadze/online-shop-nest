@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ColorsService } from './colors.service';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
@@ -42,6 +43,8 @@ function enrichColor(color: Color, locale: LocaleType) {
 // მარაგის მითითება products.controller.ts-შია (`/products/:id/colors`).
 // მკითხველი endpoint-ები (GET) საჯაროა — admin-ის პროდუქტის ფორმას/
 // frontend-ს სჭირდება ფერების სია ავტორიზაციის გარეშეც.
+// კატალოგის endpoint-ები per-IP rate limit-ს არ ექვემდებარება — იხ. AppModule.
+@SkipThrottle()
 @ApiTags('colors')
 @Controller('colors')
 export class ColorsController {

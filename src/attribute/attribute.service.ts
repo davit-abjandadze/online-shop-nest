@@ -14,6 +14,7 @@ import { FindAttributesDto } from './dto/find-attributes.dto';
 import { CreateAttributeOptionDto } from './dto/create-attribute-option.dto';
 import { UpdateAttributeOptionDto } from './dto/update-attribute-option.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -72,7 +73,7 @@ export class AttributeService {
       qb.andWhere('attribute.isFilterable = :isFilterable', { isFilterable });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'sortOrder';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
     qb.addOrderBy(`attribute.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 

@@ -28,6 +28,7 @@ import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 
@@ -146,7 +147,7 @@ export class ProductsService {
       });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
     qb.orderBy(`product.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
 
     qb.skip((page - 1) * limit).take(limit);

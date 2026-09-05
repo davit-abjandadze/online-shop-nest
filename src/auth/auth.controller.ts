@@ -13,6 +13,7 @@ import {
   ApiResponse,
   ApiBearerAuth, // ← დაემატა (Swagger-ში ტოკენის ველის საჩვენებლად)
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/create-login.dto';
@@ -28,6 +29,7 @@ import { UserRole } from '../users/entities/user.entity';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
@@ -37,6 +39,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 მოთხოვნა წუთში — spam-რეგისტრაციისგან დასაცავად
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'მომხმარებლის რეგისტრაცია' })
   @ApiResponse({
@@ -51,6 +54,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 მოთხოვნა წუთში — brute-force პაროლის გამოცნობისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'მომხმარებლის ავტორიზაცია' })
   @ApiResponse({
@@ -121,6 +125,7 @@ export class AuthController {
     return this.authService.changePassword(user.userId, changePasswordDto);
   }
   @Post('google')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 მოთხოვნა წუთში
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Google-ით ავტორიზაცია/რეგისტრაცია' })
   @ApiResponse({
@@ -128,10 +133,11 @@ export class AuthController {
     description: 'წარმატებული ავტორიზაცია',
     type: LoginResponseDto,
   })
-  async googleLogin(
-    @Body() body: { email: string; firstName: string; lastName: string },
-  ) {
-    return this.authService.googleLogin(body);
+  async googleLogin(@Body() googleLoginDto: GoogleLoginDto) {
+    // ⚠️ email/firstName/lastName აღარ მიიღება პირდაპირ request body-დან — ეს
+    // საშუალებას მისცემდა ნებისმიერს, ვის ანგარიშზეც სურდა, token მიეღო
+    // (იხ. AuthService.googleLogin, სადაც idToken რეალურად ვერიფიცირდება Google-ის მიერ).
+    return this.authService.googleLogin(googleLoginDto.idToken);
   }
 
   // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
@@ -144,6 +150,7 @@ export class AuthController {
   // }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 მოთხოვნა წუთში — email-spam-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'პაროლის აღდგენის მოთხოვნა (email-ის გაგზავნა)' })
   @ApiResponse({ status: 200, description: 'ინსტრუქცია გაიგზავნა' })
@@ -153,6 +160,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 მოთხოვნა წუთში
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'პაროლის აღდგენა token-ით' })
   @ApiResponse({ status: 200, description: 'პაროლი წარმატებით შეიცვალა' })

@@ -1,5 +1,6 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { OtpService } from './otp.service';
 import { EmailOtpService } from './email-otp.service';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -23,6 +24,7 @@ export class OtpController {
   ) {}
 
   @Post('send')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 მოთხოვნა წუთში — verify.ge-ის ბილინგადი SMS-ის spam-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'OTP კოდის გაგზავნა მითითებულ მობილურზე' })
   @ApiResponse({
@@ -36,6 +38,7 @@ export class OtpController {
   }
 
   @Post('verify')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 მოთხოვნა წუთში — კოდის brute-force-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'OTP კოდის დადასტურება' })
   @ApiResponse({ status: 200, description: 'შედეგი: verified true/false' })
@@ -45,6 +48,7 @@ export class OtpController {
   }
 
   @Post('send-email')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 მოთხოვნა წუთში — email-spam-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'OTP კოდის გაგზავნა მითითებულ ელფოსტაზე' })
   @ApiResponse({
@@ -58,6 +62,7 @@ export class OtpController {
   }
 
   @Post('verify-email')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 მოთხოვნა წუთში — კოდის brute-force-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ელფოსტაზე გაგზავნილი OTP კოდის დადასტურება' })
   @ApiResponse({ status: 200, description: 'შედეგი: verified true/false' })

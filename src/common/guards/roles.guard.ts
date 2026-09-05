@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -26,6 +27,12 @@ export class RolesGuard implements CanActivate {
 
     // 2. ვიღებთ მომხმარებელს request-იდან (რომელიც JwtAuthGuard-მა ჩაწერა)
     const { user } = context.switchToHttp().getRequest();
+
+    // თუ user არ არსებობს, ესეიგი JwtAuthGuard არ გაშვებულა ამ route-ზე —
+    // ვაბრუნებთ სუფთა 401-ს raw TypeError-ის ნაცვლად
+    if (!user) {
+      throw new UnauthorizedException('ავტორიზაცია საჭიროა');
+    }
 
     // 3. ვამოწმებთ, შეესაბამება თუ არა მომხმარებლის როლი მოთხოვნილ როლს
     const hasRole = requiredRoles.some((role) => user.role === role);

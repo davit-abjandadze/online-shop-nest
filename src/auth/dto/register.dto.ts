@@ -1,7 +1,6 @@
 import {
   IsEmail,
   IsString,
-  MinLength,
   IsNotEmpty,
   IsOptional,
   IsEnum,
@@ -11,6 +10,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '../../users/entities/user.entity';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
 export class RegisterDto {
   @IsString()
@@ -25,7 +25,7 @@ export class RegisterDto {
   email: string;
 
   @IsString()
-  @MinLength(6)
+  @IsStrongPassword()
   password: string;
 
   @ApiPropertyOptional({ enum: Gender, description: 'მომხმარებლის სქესი' })

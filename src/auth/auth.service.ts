@@ -17,15 +17,28 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { EmailService } from '../common/email/email.service';
 import { ConfigService } from '@nestjs/config';
 import { OtpService } from '../otp/otp.service';
+import { OAuth2Client } from 'google-auth-library';
+import { maskPersonalNumber, maskPhoneNumber } from '../common/utils/mask.util';
+import { isTokenIssuedBeforePasswordChange } from '../common/utils/token-freshness.util';
 @Injectable()
 export class AuthService {
+  // Google-ის ID Token-ების ვერიფიკაციისთვის (googleLogin) — client secret არ სჭირდება,
+  // მხოლოდ client id-ს (aud claim-ის შესამოწმებლად) და Google-ის public key-ებს, რომლებსაც
+  // ეს კლიენტი თავად იტვირთავს/ქეშავს. ერთხელ ვკითხულობთ configService-იდან და ვინახავთ —
+  // googleLogin მას აქედან იყენებს ხელახლა კითხვის ნაცვლად.
+  private readonly googleClientId?: string;
+  private readonly googleOAuthClient: OAuth2Client;
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private emailService: EmailService,
     private otpService: OtpService,
     private configService: ConfigService,
-  ) {}
+  ) {
+    this.googleClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    this.googleOAuthClient = new OAuth2Client(this.googleClientId);
+  }
 
   async register(registerDto: RegisterDto) {
     // თუ SMS-ვერიფიკაცია ჩართულია (PHONE_VERIFICATION_ENABLED), რეგისტრაციამდე
@@ -126,20 +139,63 @@ export class AuthService {
     );
     await this.usersService.updatePassword(userId, hashedNewPassword);
 
-    // 5. სტანდარტიზებული პასუხი
+    // 5. ახალი ტოკენი — passwordChangedAt-ის განახლების შემდეგ კლიენტის ხელში
+    // არსებული ძველი access_token ბათილია (იხ. JwtStrategy.validate), ამიტომ
+    // მაშინვე ახალს ვაბრუნებთ, რომ მომხმარებელი უჩუმრად არ „ამოვარდეს".
+    const { access_token } = this.generateToken(user);
+
+    // 6. სტანდარტიზებული პასუხი
     return {
       statusCode: 200,
       message: 'პაროლი წარმატებით შეიცვალა',
+      access_token,
     };
   }
 
-  // ⭐ ახალი მეთოდი Google ავტორიზაციისთვის
-  async googleLogin(profile: {
-    email: string;
-    firstName: string;
-    lastName: string;
-  }) {
-    // 1. ვეძებთ მომხმარებელს email-ით
+  // ⭐ Google ავტორიზაცია
+  // ⚠️ 2026-09-04: ადრე ეს მეთოდი client-ის მიერ request body-ში გამოგზავნილ email-ს
+  // ნდობით იღებდა და პირდაპირ ეძებდა/ქმნიდა მომხმარებელს — ანუ ნებისმიერს შეეძლო
+  // POST /auth/google-ზე { email: "victim@site.com", ... } გაეგზავნა და მიეღო
+  // access_token ნებისმიერი არსებული ანგარიშისთვის (account takeover, ავტორიზაციის
+  // სრული გვერდის ავლა). ახლა idToken-ს ვღებულობთ და Google-ის public key-ებით
+  // ვამოწმებთ (ხელმოწერა + aud + issuer + ვადა) — email/სახელი Google-ის მიერ
+  // დამოწმებული payload-იდან ვიღებთ, არა client-ისგან.
+  async googleLogin(idToken: string) {
+    if (!this.googleClientId) {
+      throw new UnauthorizedException(
+        'Google ავტორიზაცია არ არის კონფიგურირებული (GOOGLE_CLIENT_ID)',
+      );
+    }
+
+    let payload: {
+      email?: string;
+      email_verified?: boolean;
+      given_name?: string;
+      family_name?: string;
+    };
+    try {
+      const ticket = await this.googleOAuthClient.verifyIdToken({
+        idToken,
+        audience: this.googleClientId,
+      });
+      payload = ticket.getPayload() ?? {};
+    } catch {
+      throw new UnauthorizedException('არასწორი ან ვადაგასული Google token');
+    }
+
+    if (!payload.email || !payload.email_verified) {
+      throw new UnauthorizedException(
+        'Google ანგარიშის ელფოსტა არ არის დამოწმებული',
+      );
+    }
+
+    const profile = {
+      email: payload.email,
+      firstName: payload.given_name ?? '',
+      lastName: payload.family_name ?? '',
+    };
+
+    // 1. ვეძებთ მომხმარებელს email-ით (ახლა Google-ის მიერ დამოწმებული email-ით)
     let user = await this.usersService.findByEmail(profile.email);
 
     // 2. თუ არ არსებობს, ვქმნით ახალს
@@ -230,6 +286,20 @@ export class AuthService {
         throw new BadRequestException('მომხმარებელი ვერ მოიძებნა');
       }
 
+      // ⚠️ 2026-09-04: reset token თავისი 1სთ ვადის განმავლობაში მრავალჯერ
+      // გამოსაყენებელი იყო — ერთხელ პაროლის აღდგენის შემდეგაც კი (ან სხვა
+      // change-password/reset-password ოპერაციის შემდეგაც) იგივე ბმული ისევ
+      // მუშაობდა, თუ ის გადაუწვდა ვინმეს. ვამოწმებთ, რომ token გაცემულია
+      // ბოლო პაროლის ცვლილების შემდეგ — წინააღმდეგ შემთხვევაში ის უკვე
+      // მოძველებულია.
+      if (
+        isTokenIssuedBeforePasswordChange(payload.iat, user.passwordChangedAt)
+      ) {
+        throw new BadRequestException(
+          'ეს ბმული აღარ არის აქტუალური — პაროლი უკვე შეცვლილია',
+        );
+      }
+
       // დავაჰეშოთ ახალი პაროლი და შევინახოთ
       const hashedPassword = await bcrypt.hash(
         resetPasswordDto.newPassword,
@@ -263,8 +333,11 @@ export class AuthService {
         role: user.role, // ← დავამატეთ პასუხშიც
         gender: user.gender,
         age: user.age,
-        personalNumber: user.personalNumber,
-        phoneNumber: user.phoneNumber,
+        // ნიღბული ვაბრუნებთ — მთლიანი პირადი ნომერი/ტელეფონი login/register
+        // პასუხში აღარ ჩანს, რომ ეს PII არ მოხვდეს request/response ლოგებში
+        // ან error-reporting ხელსაწყოებში (იხ. common/utils/mask.util.ts)
+        personalNumber: maskPersonalNumber(user.personalNumber),
+        phoneNumber: maskPhoneNumber(user.phoneNumber),
         isEmailVerified: user.isEmailVerified,
         isPhoneVerified: user.isPhoneVerified,
       },

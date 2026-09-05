@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { HeroSlidesService } from './hero-slides.service';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { UpdateHeroSlideDto } from './dto/update-hero-slide.dto';
@@ -58,6 +59,8 @@ function enrichHeroSlide(heroSlide: HeroSlide, locale: LocaleType) {
 
 // storefront-ის GET /hero-slides საჯაროა, guard-ის გარეშე — category/
 // products-ის იგივე პატერნი. Admin-ის სია/CRUD ADMIN როლს მოითხოვს.
+// კატალოგის endpoint-ები per-IP rate limit-ს არ ექვემდებარება — იხ. AppModule.
+@SkipThrottle()
 @ApiTags('hero-slides')
 @Controller('hero-slides')
 export class HeroSlidesController {

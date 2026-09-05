@@ -3,14 +3,47 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import type { Application } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // User.personalNumber/phoneNumber ბაზაში დაშიფრულად ინახება (encryption.util.ts) —
+  // ENCRYPTION_KEY-ის გარეშე ეს ველები საერთოდ ვერ დაიწერება/წაიკითხება, ამიტომ ბუთის
+  // დასაწყისშივე ვამოწმებთ, რომ ცხადი, გასაგები შეცდომა დაგვხვდეს, ვიდრე პირველ
+  // login/register-ზე გაუგებარ decrypt-ის ჩავარდნას დავხვდებოდით.
+  if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
+    throw new Error(
+      'ENCRYPTION_KEY გარემოს ცვლადი აუცილებელია და უნდა შეიცავდეს ზუსტად 64 hex სიმბოლოს (32 ბაიტი) — ' +
+        'გენერაცია: `openssl rand -hex 32`. იხ. src/common/utils/encryption.util.ts',
+    );
+  }
+
   // rawBody: true — Payments-ის BOG callback route-ს (POST /payments/callback/bog)
   // სჭირდება ნედლი (raw) request body ბაიტები ხელმოწერის (Callback-Signature)
   // ვერიფიკაციისთვის; parse-ილი JSON-ის ხელახლა serialize-ვა ველების
   // თანმიმდევრობას არღვევს და ხელმოწერას ბათილს ხდის.
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // ⚠️ ThrottlerGuard (per-IP rate limit, იხ. AppModule) კლიენტის IP-ს Express-ის
+  // req.ip-იდან იღებს. reverse proxy-ის (nginx/CDN) უკან req.ip ყოველთვის proxy-ის
+  // მისამართია, ანუ მთელი ტრაფიკი ერთ „მომხმარებლად" ჩაითვლებოდა და
+  // login-ის 5/წთ ლიმიტი მთელ საიტს დაბლოკავდა. TRUST_PROXY-ს დაყენებისას
+  // X-Forwarded-For-ს ვენდობით და რეალურ IP-ს ვიღებთ.
+  //
+  // განზრახ env-ით იმართება და default-ად გამორთულია: თუ აპლიკაცია პირდაპირ
+  // ინტერნეტშია (proxy-ის გარეშე), trust proxy-ის ჩართვა საშუალებას მისცემდა
+  // ნებისმიერს, X-Forwarded-For-ის გაყალბებით rate limit-ს გვერდი აუაროს.
+  // მნიშვნელობა: proxy-ების რაოდენობა (მაგ. `1`), ან `true` (ყველას ვენდობით).
+  const trustProxy = process.env.TRUST_PROXY;
+  if (trustProxy) {
+    const value = /^\d+$/.test(trustProxy)
+      ? Number(trustProxy)
+      : trustProxy === 'true'
+        ? true
+        : trustProxy;
+    const expressApp = app.getHttpAdapter().getInstance() as Application;
+    expressApp.set('trust proxy', value);
+  }
 
   // CORS_ORIGINS env-ით (მძიმით გამოყოფილი სია) production დომენების დასამატებლად,
   // ხოლო თუ არაა მითითებული — ლოკალური dev origin-ები ისევ მუშაობს, როგორც ადრე.

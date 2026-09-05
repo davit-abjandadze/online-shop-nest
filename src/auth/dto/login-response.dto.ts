@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { UserRole, Gender } from '../../users/entities/user.entity';
 
-class UserDataDto {
+class TokenUserDto {
   @ApiProperty({ example: 1 })
   id: number;
 
@@ -13,31 +14,36 @@ class UserDataDto {
   @ApiProperty({ example: 'ბერიძე' })
   lastName: string;
 
+  @ApiProperty({ enum: UserRole, example: UserRole.USER })
+  role: UserRole;
+
+  @ApiProperty({ enum: Gender, required: false })
+  gender?: Gender;
+
   @ApiProperty({ example: 25, required: false })
   age?: number;
 
-  @ApiProperty({ example: '01234567890', required: false })
+  // ნიღბულია (AuthService.generateToken()) — ბოლო 2 ციფრი ჩანს, დანარჩენი დაფარულია
+  @ApiProperty({ example: '*********90', required: false })
   personalNumber?: string;
 
-  @ApiProperty({ example: '+995555123456' })
+  // ნიღბულია (AuthService.generateToken()) — ბოლო 4 ციფრი ჩანს, დანარჩენი დაფარულია
+  @ApiProperty({ example: '*********3456' })
   phoneNumber: string;
+
+  @ApiProperty({ example: false })
+  isEmailVerified: boolean;
+
+  @ApiProperty({ example: true })
+  isPhoneVerified: boolean;
 }
 
-class TokenDataDto {
+// ეს DTO ზუსტად აღწერს AuthService.generateToken()-ის დაბრუნებულ სტრუქტურას —
+// AuthController.login()/googleLogin() ამ ობიექტს პირდაპირ (envelope-ის გარეშე) აბრუნებს
+export class LoginResponseDto {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
   access_token: string;
 
-  @ApiProperty({ type: UserDataDto })
-  user: UserDataDto;
-}
-
-export class LoginResponseDto {
-  @ApiProperty({ example: 200 })
-  statusCode: number;
-
-  @ApiProperty({ example: 'წარმატებით შეხვედით სისტემაში' })
-  message: string;
-
-  @ApiProperty({ type: TokenDataDto })
-  data: TokenDataDto;
+  @ApiProperty({ type: TokenUserDto })
+  user: TokenUserDto;
 }

@@ -22,6 +22,7 @@ import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { BranchesService } from '../branches/branches.service';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -383,7 +384,7 @@ export class OrdersService {
       qb.andWhere('order.status = :status', { status });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'createdAt';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
     qb.orderBy(`order.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
 
     qb.skip((page - 1) * limit).take(limit);

@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ProductSlidersService } from './product-sliders.service';
 import { CreateProductSliderDto } from './dto/create-product-slider.dto';
 import { UpdateProductSliderDto } from './dto/update-product-slider.dto';
@@ -73,6 +74,8 @@ function enrichProductSlider(productSlider: ProductSlider, locale: LocaleType) {
 // storefront-ის GET /product-sliders და GET /product-sliders/key/:key
 // საჯაროა, guard-ის გარეშე — hero-slides-ის იგივე პატერნი. Admin-ის
 // სია/CRUD/items ADMIN როლს მოითხოვს.
+// კატალოგის endpoint-ები per-IP rate limit-ს არ ექვემდებარება — იხ. AppModule.
+@SkipThrottle()
 @ApiTags('product-sliders')
 @Controller('product-sliders')
 export class ProductSlidersController {

@@ -20,6 +20,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 import { Locale } from '../common/types/translations.type';
@@ -88,7 +89,7 @@ export class CategoryService {
       qb.andWhere('parent.id = :parentId', { parentId });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'sortOrder';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
     qb.orderBy(`category.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 
@@ -676,9 +677,11 @@ export class CategoryService {
       CategoryService.parsePositiveInt(query.limit, 10),
       100,
     );
-    const sortColumn = PRODUCT_SORTABLE_COLUMNS.has(query.sortBy)
-      ? query.sortBy
-      : 'createdAt';
+    const sortColumn = resolveSortColumn(
+      query.sortBy,
+      PRODUCT_SORTABLE_COLUMNS,
+      'createdAt',
+    );
     const order = query.order === 'ASC' ? 'ASC' : 'DESC';
 
     const qb = this.buildFilteredProductsQuery(

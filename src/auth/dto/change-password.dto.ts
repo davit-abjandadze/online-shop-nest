@@ -1,5 +1,6 @@
-import { IsString, MinLength, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
 export class ChangePasswordDto {
   @ApiProperty({
@@ -11,10 +12,11 @@ export class ChangePasswordDto {
   oldPassword: string;
 
   @ApiProperty({
-    description: 'ახალი პაროლი (მინიმუმ 6 სიმბოლო)',
+    description:
+      'ახალი პაროლი (მინიმუმ 8 სიმბოლო, დიდი და პატარა ასო და ციფრი)',
     example: 'newPassword456',
   })
   @IsString()
-  @MinLength(6, { message: 'ახალი პაროლი უნდა იყოს მინიმუმ 6 სიმბოლო' })
+  @IsStrongPassword()
   newPassword: string;
 }

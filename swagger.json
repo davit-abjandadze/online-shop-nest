@@ -544,6 +544,16 @@
       "post": {
         "operationId": "AuthController_googleLogin",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "წარმატებული ავტორიზაცია",
@@ -4083,8 +4093,7 @@
             "format": "email"
           },
           "password": {
-            "type": "string",
-            "minLength": 6
+            "type": "string"
           },
           "phoneNumber": {
             "type": "string"
@@ -4098,7 +4107,7 @@
           "phoneNumber"
         ]
       },
-      "UserDataDto": {
+      "TokenUserDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -4117,17 +4126,40 @@
             "type": "string",
             "example": "ბერიძე"
           },
+          "role": {
+            "enum": [
+              "admin",
+              "user"
+            ],
+            "type": "string",
+            "example": "user"
+          },
+          "gender": {
+            "enum": [
+              "male",
+              "female"
+            ],
+            "type": "string"
+          },
           "age": {
             "type": "number",
             "example": 25
           },
           "personalNumber": {
             "type": "string",
-            "example": "01234567890"
+            "example": "*********90"
           },
           "phoneNumber": {
             "type": "string",
-            "example": "+995555123456"
+            "example": "*********3456"
+          },
+          "isEmailVerified": {
+            "type": "boolean",
+            "example": false
+          },
+          "isPhoneVerified": {
+            "type": "boolean",
+            "example": true
           }
         },
         "required": [
@@ -4135,10 +4167,13 @@
           "email",
           "firstName",
           "lastName",
-          "phoneNumber"
+          "role",
+          "phoneNumber",
+          "isEmailVerified",
+          "isPhoneVerified"
         ]
       },
-      "TokenDataDto": {
+      "RegisterResponseDto": {
         "type": "object",
         "properties": {
           "access_token": {
@@ -4146,33 +4181,12 @@
             "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           },
           "user": {
-            "$ref": "#/components/schemas/UserDataDto"
+            "$ref": "#/components/schemas/TokenUserDto"
           }
         },
         "required": [
           "access_token",
           "user"
-        ]
-      },
-      "RegisterResponseDto": {
-        "type": "object",
-        "properties": {
-          "statusCode": {
-            "type": "number",
-            "example": 201
-          },
-          "message": {
-            "type": "string",
-            "example": "მომხმარებელი წარმატებით დარეგისტრირდა"
-          },
-          "data": {
-            "$ref": "#/components/schemas/TokenDataDto"
-          }
-        },
-        "required": [
-          "statusCode",
-          "message",
-          "data"
         ]
       },
       "LoginDto": {
@@ -4195,22 +4209,17 @@
       "LoginResponseDto": {
         "type": "object",
         "properties": {
-          "statusCode": {
-            "type": "number",
-            "example": 200
-          },
-          "message": {
+          "access_token": {
             "type": "string",
-            "example": "წარმატებით შეხვედით სისტემაში"
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           },
-          "data": {
-            "$ref": "#/components/schemas/TokenDataDto"
+          "user": {
+            "$ref": "#/components/schemas/TokenUserDto"
           }
         },
         "required": [
-          "statusCode",
-          "message",
-          "data"
+          "access_token",
+          "user"
         ]
       },
       "ChangePasswordDto": {
@@ -4223,8 +4232,7 @@
           },
           "newPassword": {
             "type": "string",
-            "minLength": 6,
-            "description": "ახალი პაროლი (მინიმუმ 6 სიმბოლო)",
+            "description": "ახალი პაროლი (მინიმუმ 8 სიმბოლო, დიდი და პატარა ასო და ციფრი)",
             "example": "newPassword456"
           }
         },
@@ -4243,11 +4251,29 @@
           "message": {
             "type": "string",
             "example": "პაროლი წარმატებით შეიცვალა"
+          },
+          "access_token": {
+            "type": "string",
+            "description": "ახალი access token — ძველი ამ მოთხოვნის შემდეგ ბათილია",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           }
         },
         "required": [
           "statusCode",
-          "message"
+          "message",
+          "access_token"
+        ]
+      },
+      "GoogleLoginDto": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string",
+            "description": "Google Identity Services-ის მიერ გაცემული ID Token (JWT)"
+          }
+        },
+        "required": [
+          "idToken"
         ]
       },
       "ForgotPasswordDto": {
@@ -4273,7 +4299,6 @@
           },
           "newPassword": {
             "type": "string",
-            "minLength": 6,
             "description": "ახალი პაროლი",
             "example": "newPassword123"
           }

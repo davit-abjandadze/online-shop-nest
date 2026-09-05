@@ -7,6 +7,7 @@ import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { UpdateHeroSlideDto } from './dto/update-hero-slide.dto';
 import { FindHeroSlidesDto } from './dto/find-hero-slides.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -52,7 +53,7 @@ export class HeroSlidesService {
       qb.andWhere('heroSlide.isActive = :isActive', { isActive });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'sortOrder';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
     qb.orderBy(`heroSlide.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
     qb.skip((page - 1) * limit).take(limit);
 

@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { PaymentStatus } from './entities/payment.entity';
@@ -56,6 +57,11 @@ export class PaymentsController {
   // დაცვა მხოლოდ ხელმოწერის ვერიფიკაციითაა (PaymentsService.handleCallback
   // 401/403-ს აგდებს არასწორ/არარსებულ Callback-Signature-ზე).
   @Post('callback/bog')
+  // ⚠️ გლობალური per-IP rate limit (AppModule) ამ route-ს არ უნდა ეხებოდეს:
+  // BOG-ის callback-ები ვიწრო IP-დიაპაზონიდან მოდის, ანუ ერთ „მომხმარებლად"
+  // ჩაითვლება — ბურსტზე 429 დაბრუნება იმას ნიშნავს, რომ რეალურად გადახდილი
+  // შეკვეთა ჩვენს ბაზაში გადაუხდელი დარჩება. დაცვა ხელმოწერის ვერიფიკაციაა.
+  @SkipThrottle()
   @HttpCode(200)
   @ApiOperation({
     summary: 'BOG-ის გადახდის callback (არაავტორიზებული, ხელმოწერით დაცული)',

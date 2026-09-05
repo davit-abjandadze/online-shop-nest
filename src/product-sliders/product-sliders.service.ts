@@ -12,6 +12,7 @@ import { CreateProductSliderDto } from './dto/create-product-slider.dto';
 import { UpdateProductSliderDto } from './dto/update-product-slider.dto';
 import { FindProductSlidersDto } from './dto/find-product-sliders.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -75,7 +76,7 @@ export class ProductSlidersService {
       qb.andWhere('productSlider.isActive = :isActive', { isActive });
     }
 
-    const sortColumn = SORTABLE_COLUMNS.has(sortBy) ? sortBy : 'sortOrder';
+    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
     qb.orderBy(
       `productSlider.${sortColumn}`,
       order === 'DESC' ? 'DESC' : 'ASC',

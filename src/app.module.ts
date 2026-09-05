@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
@@ -28,6 +30,24 @@ import { EmailService } from './common/email/email.service';
 
     // ⭐ სამომავლო cron job-ებისთვის (მაგ. შეკვეთების/ვაუჩერების ვადის გასულობის შემოწმება)
     ScheduleModule.forRoot(),
+
+    // გლობალური rate limiting (brute-force login/OTP-spam-ისგან დასაცავად).
+    // default limit ყველა endpoint-ს ეხება; auth/otp controller-ებში ცალკეული
+    // route-ები @Throttle()-ით ამკაცრებენ ლიმიტს (იხ. AuthController, OtpController).
+    //
+    // ⚠️ ლიმიტი per-IP-ია, არა per-user: NAT-ის/კორპორატიული ქსელის/მობილური
+    // ოპერატორის უკან მყოფი რამდენიმე მყიდველი ერთ IP-დ ჩანს, ერთი გვერდის
+    // ჩატვირთვა კი ისედაც რამდენიმე პარალელურ მოთხოვნას აგზავნის. ამიტომ
+    // default საკმაოდ თავისუფალია, კატალოგის (მხოლოდ-კითხვადი, არა-მგრძნობიარე)
+    // controller-ები კი @SkipThrottle()-ით საერთოდ გამორიცხულია — იხ.
+    // products/categories/colors/attributes/hero-slides/product-sliders.
+    // მკაცრი ლიმიტი მიზნობრივად იქ დგას, სადაც საჭიროა (auth, otp).
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 წუთი
+        limit: 120, // 120 მოთხოვნა წუთში ერთ IP-ზე (default)
+      },
+    ]),
 
     // 2. TypeORM-ის კავშირი
     TypeOrmModule.forRootAsync({
@@ -73,7 +93,10 @@ import { EmailService } from './common/email/email.service';
     HeroSlidesModule,
     ProductSlidersModule,
   ],
-  providers: [EmailService], // ← დარეგისტრირება
+  providers: [
+    EmailService, // ← დარეგისტრირება
+    { provide: APP_GUARD, useClass: ThrottlerGuard }, // გლობალური rate limiting
+  ],
   exports: [EmailService], // ← ექსპორტი, რომ AuthService-მა გამოიყენოს
 })
 export class AppModule {}

@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { CategoryService } from './category.service';
 import type { CategoryFiltersQuery } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -72,6 +73,8 @@ function enrichCategoryTree(category: Category, locale: LocaleType) {
 
 // მკითხველი endpoint-ები (GET) საჯაროა, guard-ის გარეშე — products
 // მოდულის მსგავსად. მხოლოდ create/update/delete მოითხოვს ADMIN როლს.
+// კატალოგის endpoint-ები per-IP rate limit-ს არ ექვემდებარება — იხ. AppModule.
+@SkipThrottle()
 @ApiTags('categories')
 @Controller('categories')
 export class CategoryController {
