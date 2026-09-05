@@ -61,8 +61,13 @@ import { EmailService } from './common/email/email.service';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
         autoLoadEntities: true, // ავტომატურად იპოვის ყველა Entity-ს
-        // synchronize მხოლოდ ლოკალურ დეველოპმენტში — production-ში schema
-        // migrations მართავს (იხ. src/migrations/, src/data-source.ts).
+        // synchronize მხოლოდ ლოკალურ დეველოპმენტში/ტესტებში — production-ში schema
+        // migrations მართავს (იხ. src/migrations/, src/data-source.ts). ეს "fail
+        // open" აღარაა: main.ts-ში ბუთის დასაწყისშივე ვამოწმებთ, რომ NODE_ENV
+        // ცხადადაა ერთ-ერთი ცნობილი მნიშვნელობიდან (development/test/production) —
+        // ამიტომ აქ `!== 'production'` ვეღარ "მოტყუვდება" ცარიელი/დაუშვებელი
+        // NODE_ENV-ით, რომელიც აქამდე ჩუმად production ბაზაზეც synchronize:
+        // true-ს გაუშვებდა.
         synchronize: process.env.NODE_ENV !== 'production',
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         migrationsRun: process.env.NODE_ENV === 'production',

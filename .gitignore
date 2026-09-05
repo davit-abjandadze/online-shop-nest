@@ -63,6 +63,11 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # graphify (generated code-knowledge-graph output)
 /graphify-out/
 
+# ყოველ app boot-ზე ავტომატურად გენერირდება (src/main.ts) — არ არის საჭირო
+# git-ში, მთელი API-ის ზედაპირს (endpoint-ები/DTO-ები) ავლენს repo-ს
+# წამკითხველისთვის და ყოველ `yarn start`-ზე უსარგებლო diff-ს ქმნის.
+/swagger.json
+
 # Terraform (infra/) — state/plan ფაილები DB password-ს/secrets-ს plaintext-ად შეიცავს
 infra/.terraform/
 infra/*.tfstate

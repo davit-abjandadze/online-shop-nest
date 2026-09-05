@@ -63,9 +63,11 @@ placeholder `"Online Shop"` — rename once the shop has a real name). `AppModul
 `TypeOrmModule.forRootAsync` (reads `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD`/`DB_DATABASE` from
 `ConfigModule`, `autoLoadEntities: true`, `synchronize` true outside `production`) and
 `ScheduleModule.forRoot()`, kept registered for future cron jobs (e.g. expiring unpaid orders) — there are
-no `@Cron` jobs left in the codebase right now. `src/migrations/` is currently empty; the old
-referendum-schema migrations were deleted and no shop migrations exist yet (`synchronize: true` handles
-schema sync in dev in the meantime).
+no `@Cron` jobs left in the codebase right now. `src/migrations/` now holds real shop migrations (18 files,
+spanning products/categories through addresses, branches, companies, and content translations) —
+`migrationsRun: true` applies them automatically in `production`; `synchronize: true` still handles schema
+sync in dev/test instead of running migrations there. Confirm CI/staging actually exercises
+`migration:run` against a prod-like schema before merging, since local dev never runs that path.
 
 ### Auth
 JWT-based, via `@nestjs/passport` + `@nestjs/jwt` + `passport-jwt`. `AuthService.login`/`register` verify
@@ -84,11 +86,13 @@ request instead of re-reading `request.user` manually. Other auth endpoints: `PO
 claim and 1h expiry, emailed via `EmailService` using `FRONTEND_URL`).
 
 ### Database / ORM
-TypeORM with `postgres` (`pg` driver). Entities under `src/<domain>/entities/`. Note the `typeorm` version
-pinned in `package.json` is unusually old (`^1.1.0`) relative to `@nestjs/typeorm` `^11` — if TypeORM APIs
-don't behave as the v0.3.x docs suggest, check the actually-installed version in `node_modules` before
-assuming a bug. Enums are modeled as Postgres `enum` columns (e.g. `UserRole`, `Gender` on `User`) — this
-pattern should be followed for new shop entities too (e.g. an `OrderStatus` enum on a future `Order`).
+TypeORM with `postgres` (`pg` driver). Entities under `src/<domain>/entities/`. The `typeorm` version
+pinned in `package.json` (`^1.1.0`) looks alarmingly old at a glance next to `@nestjs/typeorm` `^11`, but
+it's a real, current TypeORM release (TypeORM's own versioning just happens to look like that) and
+`@nestjs/typeorm`'s peer range genuinely resolves it — there's no actual version-mismatch bug here; check
+the installed version in `node_modules` before chasing one. Enums are modeled as Postgres `enum` columns
+(e.g. `UserRole`, `Gender` on `User`) — this pattern should be followed for new shop entities too (e.g. an
+`OrderStatus` enum on a future `Order`).
 
 ### Swagger / OpenAPI
 `src/main.ts` builds the OpenAPI document with `@nestjs/swagger`'s `DocumentBuilder` (bearer auth enabled),

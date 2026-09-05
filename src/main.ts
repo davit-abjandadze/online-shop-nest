@@ -6,7 +6,24 @@ import { join } from 'path';
 import type { Application } from 'express';
 import { AppModule } from './app.module';
 
+const VALID_NODE_ENVS = ['development', 'test', 'production'];
+
 async function bootstrap() {
+  // NODE_ENV-ს app.module.ts-ში synchronize/migrationsRun (schema-ის ავტომატური
+  // სინქრონიზაცია/migration-ების გაშვება) და ქვემოთ production-ის Swagger UI-ის
+  // ჩართვა/გამორთვა ეყრდნობა. ეს ყველაფერი "fail closed" პრინციპით მუშაობს
+  // მხოლოდ მაშინ, თუ NODE_ENV ცხადადაა მითითებული — ცარიელი/დაუშვებელი მნიშვნელობა
+  // აქამდე ჩუმად "არა-production"-ად (ანუ synchronize: true-დ) ითვლებოდა, რაც
+  // production ბაზაზე შემთხვევით deploy-ის შემთხვევაში schema-ს ავტომატურად
+  // შეცვლიდა/დაარღვევდა. ამიტომ აქ ცხადად ვამოწმებთ, ვიდრე AppModule/TypeORM
+  // საერთოდ შეიქმნება.
+  if (!process.env.NODE_ENV || !VALID_NODE_ENVS.includes(process.env.NODE_ENV)) {
+    throw new Error(
+      `NODE_ENV გარემოს ცვლადი აუცილებელია და უნდა იყოს ერთ-ერთი: ${VALID_NODE_ENVS.join(', ')} ` +
+        `(მიღებულია: ${JSON.stringify(process.env.NODE_ENV)}). იხ. src/app.module.ts.`,
+    );
+  }
+
   // User.personalNumber/phoneNumber ბაზაში დაშიფრულად ინახება (encryption.util.ts) —
   // ENCRYPTION_KEY-ის გარეშე ეს ველები საერთოდ ვერ დაიწერება/წაიკითხება, ამიტომ ბუთის
   // დასაწყისშივე ვამოწმებთ, რომ ცხადი, გასაგები შეცდომა დაგვხვდეს, ვიდრე პირველ
@@ -49,11 +66,7 @@ async function bootstrap() {
   // ხოლო თუ არაა მითითებული — ლოკალური dev origin-ები ისევ მუშაობს, როგორც ადრე.
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-    : [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://192.168.0.126:3000',
-      ];
+    : ['http://localhost:3000', 'http://localhost:3001'];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -96,10 +109,29 @@ async function bootstrap() {
       JSON.stringify(document, null, 2),
     );
   } catch (err) {
-    console.warn('swagger.json ვერ ჩაიწერა:', err.message);
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('swagger.json ვერ ჩაიწერა:', message);
   }
 
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+  // PORT-ის არასწორი მნიშვნელობა (მაგ. ცარიელი სტრიქონი, ტექსტი) NaN-ს იძლევა —
+  // app.listen(NaN)-ის ქცევა undefined behavior-ია, ამიტომ ცხადად ვამოწმებთ.
+  let port = 5000;
+  if (process.env.PORT) {
+    const parsed = parseInt(process.env.PORT, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+      throw new Error(
+        `PORT გარემოს ცვლადი არასწორია: ${JSON.stringify(process.env.PORT)} — უნდა იყოს 1-65535 შორის მთელი რიცხვი.`,
+      );
+    }
+    port = parsed;
+  }
   await app.listen(port, '0.0.0.0');
 }
-bootstrap();
+bootstrap().catch((err) => {
+  // NestFactory.create/app.listen-ის ან ზემოთ env-ვალიდაციის ჩავარდნა (მაგ. DB
+  // მიუწვდომელია ბუთზე) წინააღმდეგ შემთხვევაში unhandled promise rejection-ად
+  // დარჩებოდა — ორქესტრატორმა (Docker/PM2/k8s) ვერ დაინახავდა ცხადად ჩავარდნილ
+  // exit code-ს.
+  console.error('აპლიკაციის ბუთი ჩავარდა:', err);
+  process.exit(1);
+});
