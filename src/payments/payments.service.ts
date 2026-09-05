@@ -50,11 +50,26 @@ export class PaymentsService {
     const { externalId, redirectUrl } =
       await this.provider.createPayment(order);
 
-    const payment = this.paymentRepository.create({
-      order,
-      providerOrderId: externalId,
-      status: PaymentStatus.CREATED,
+    // Payment.order არის OneToOne + UNIQUE(orderId) — ხელახალი initiate
+    // (მაგ. მომხმარებელმა redirect გვერდი დახურა და თავიდან სცადა) არსებულ
+    // Payment-ს განაახლებს ახალი provider-order-ით ახალი row-ის შექმნის
+    // ნაცვლად, თორემ UNIQUE constraint-ზე დაირღვევა (500) — ეს შესაბამისობაშია
+    // Payment entity-ის კომენტართან: "ერთ შეკვეთას — ერთი გადახდა".
+    let payment = await this.paymentRepository.findOne({
+      where: { order: { id: order.id } },
     });
+
+    if (payment) {
+      payment.providerOrderId = externalId;
+      payment.status = PaymentStatus.CREATED;
+      payment.rawCallbackPayload = undefined;
+    } else {
+      payment = this.paymentRepository.create({
+        order,
+        providerOrderId: externalId,
+        status: PaymentStatus.CREATED,
+      });
+    }
     await this.paymentRepository.save(payment);
 
     return { redirectUrl };
@@ -99,6 +114,21 @@ export class PaymentsService {
     await this.paymentRepository.save(payment);
 
     if (status === PaymentStatus.COMPLETED) {
+      // თუ callback-მდე უკვე გავიდა 15წთ და cron-მა შეკვეთა EXPIRED-ში
+      // გადაიყვანა (ან ადმინმა CANCELLED გახადა) — მარაგი უკვე დაბრუნებულია
+      // და შესაძლოა სხვა შეკვეთამ უკვე დაიკავა. ასეთ შემთხვევაში PAID-ზე
+      // ბრმად გადაყვანა overselling-ს გამოიწვევდა — ამის ნაცვლად ვტოვებთ
+      // შეკვეთის სტატუსს და ვაფიქსირებთ, რომ საჭიროა ხელით
+      // შემოწმება/თანხის დაბრუნება.
+      if (
+        payment.order.status === OrderStatus.EXPIRED ||
+        payment.order.status === OrderStatus.CANCELLED
+      ) {
+        this.logger.error(
+          `Payment ${payment.id}: COMPLETED callback შემოვიდა შეკვეთაზე #${payment.order.id}, რომელიც უკვე ${payment.order.status}-ია (მარაგი უკვე დაბრუნებულია) — საჭიროა ხელით შემოწმება/თანხის დაბრუნება`,
+        );
+        return;
+      }
       await this.ordersService.updateStatus(payment.order.id, OrderStatus.PAID);
     }
     // REJECTED-ზე შეკვეთას PENDING-ად ვტოვებთ, რომ მომხმარებელმა ხელახლა
