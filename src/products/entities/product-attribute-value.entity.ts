@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   Unique,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -35,6 +36,11 @@ export class ProductAttributeValue {
   @JoinColumn({ name: 'attributeId' })
   attribute!: Attribute;
 
+  // @Index — CategoryService.getFilters()-ის facet-count queries
+  // `facet.attributeId = :facetAttrId`-ით join-ავს; (productId, attributeId,
+  // attributeOptionId) unique constraint-ი productId-ზე ლიდერით ვერ
+  // ეხმარება ამ attributeId-მხოლოდ ძებნას, ამიტომ ცალკე ინდექსია საჭირო.
+  @Index()
   @Column()
   attributeId!: string;
 

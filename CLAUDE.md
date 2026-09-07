@@ -102,7 +102,13 @@ script; that wiring is no longer known-current for this project — reconnect it
 in `main.ts` is currently limited to a hardcoded allowlist of localhost/LAN origins via `CORS_ORIGINS` (env)
 — add new frontend origins there if needed. A global `ValidationPipe` runs with `whitelist: true`,
 `forbidNonWhitelisted: true`, `transform: true`, so DTOs are the strict contract for every request
-body/query.
+body/query. **Accepted exception:** `GET /categories/:slug/filters` and `GET /categories/:slug/products`
+(`CategoryController`) take their query params as a plain `Record<string, string>`
+(`CategoryFiltersQuery`), not a DTO — the filterable attribute codes (e.g. `?brand=..&amperage_min=..`)
+are admin-configured data, not known at compile time, so they can't be statically declared on a class and
+the global whitelist has nothing to check them against. Validation/parsing for these two routes happens by
+hand inside `CategoryService` instead. This is intentional, not drift — don't "fix" it by trying to force a
+static DTO here.
 
 ### Request/response conventions
 Entities and DTOs use **camelCase** properties throughout (`firstName`, `createdAt`, `categoryId`, etc.) —

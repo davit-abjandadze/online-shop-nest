@@ -4,7 +4,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { createVerify } from 'crypto';
 import { Order } from '../../orders/entities/order.entity';
-import { PaymentStatus } from '../entities/payment.entity';
+import { PaymentProvider, PaymentStatus } from '../entities/payment.entity';
 import { PaymentProviderClient } from './payment-provider.interface';
 
 // BOG-ის callback-ის ველების ის ნაწილი, რასაც ეს provider ფაქტობრივად კითხულობს
@@ -35,6 +35,7 @@ const STATUS_MAP: Record<string, PaymentStatus> = {
 
 @Injectable()
 export class BogPaymentProvider implements PaymentProviderClient {
+  readonly provider = PaymentProvider.BOG;
   private readonly logger = new Logger(BogPaymentProvider.name);
   private readonly baseUrl: string;
   private readonly authUrl =

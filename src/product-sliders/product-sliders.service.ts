@@ -12,8 +12,8 @@ import { CreateProductSliderDto } from './dto/create-product-slider.dto';
 import { UpdateProductSliderDto } from './dto/update-product-slider.dto';
 import { FindProductSlidersDto } from './dto/find-product-sliders.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -85,13 +85,7 @@ export class ProductSlidersService {
   async findAllPaginated(
     findProductSlidersDto: FindProductSlidersDto,
   ): Promise<PaginatedResponseDto<ProductSlider>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'sortOrder',
-      order = 'ASC',
-      isActive,
-    } = findProductSlidersDto;
+    const { isActive } = findProductSlidersDto;
 
     const qb = this.productSliderRepository
       .createQueryBuilder('productSlider')
@@ -102,16 +96,17 @@ export class ProductSlidersService {
       qb.andWhere('productSlider.isActive = :isActive', { isActive });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    qb.orderBy(
-      `productSlider.${sortColumn}`,
-      order === 'DESC' ? 'DESC' : 'ASC',
+    return paginate(
+      qb,
+      'productSlider',
+      findProductSlidersDto,
+      SORTABLE_COLUMNS,
+      'sortOrder',
+      {
+        defaultOrder: 'ASC',
+        secondaryOrderBy: { column: 'item.sortOrder', direction: 'ASC' },
+      },
     );
-    qb.addOrderBy('item.sortOrder', 'ASC');
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   async findOne(id: string): Promise<ProductSlider> {

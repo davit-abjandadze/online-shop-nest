@@ -11,12 +11,7 @@ import {
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { CategoryService } from './category.service';
 import type { CategoryFiltersQuery } from './category.service';
@@ -25,12 +20,11 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CategoryResponseDto } from './dto/category-response.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { isAdminUser } from '../common/utils/is-admin.util';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -107,7 +101,7 @@ export class CategoryController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const result = await this.categoryService.findAllPaginated(
       findCategoriesDto,
       isAdmin,
@@ -126,7 +120,7 @@ export class CategoryController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const tree = await this.categoryService.findTree(isAdmin);
     return tree.map((category) => enrichCategoryTree(category, locale));
   }
@@ -150,9 +144,7 @@ export class CategoryController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი კატეგორიის შექმნა (ADMIN)' })
   @ApiResponse({
@@ -167,9 +159,7 @@ export class CategoryController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'კატეგორიის განახლება (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -185,9 +175,7 @@ export class CategoryController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'კატეგორიის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'კატეგორია წაიშალა' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
@@ -213,9 +201,7 @@ export class CategoryController {
   }
 
   @Post(':id/attributes')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'მახასიათებლის მიბმა კატეგორიაზე (ADMIN)' })
   @ApiResponse({ status: 201, description: 'მახასიათებელი მიებმა კატეგორიას' })
@@ -238,9 +224,7 @@ export class CategoryController {
   }
 
   @Delete(':id/attributes/:attributeId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'მახასიათებლის მოხსნა კატეგორიიდან (ADMIN)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი მოიხსნა' })
   @ApiResponse({

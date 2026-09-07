@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, createHmac } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  randomBytes,
+} from 'crypto';
 import { ValueTransformer } from 'typeorm';
 
 // ველების დაშიფვრა at rest (personalNumber, phoneNumber — User entity) — ეს ველები
@@ -6,16 +11,28 @@ import { ValueTransformer } from 'typeorm';
 // hex სიმბოლო) სავალდებულოა env-ში; მისი გარეშე აპლიკაცია ვერ ჩაიტვირთება, რომ
 // შემთხვევით plaintext-ზე არ "დაბრუნდეს" (fallback-ის გარეშე).
 //
-// დეტერმინისტული AES-256-CBC (IV = HMAC-SHA256(key, plaintext)-ის პირველი 16 ბაიტი) —
-// განზრახ არა შემთხვევითი IV: phoneNumber-ს აქვს unique-შეზღუდვა და ორივე ველზე
-// ხდება ტოლობით ძებნა (findByPhoneNumber, findByEmail-ის მსგავსად), რაც non-deterministic
-// (random-IV) დაშიფვრით შეუძლებელი იქნებოდა — ბაზაში ყოველი ჩანაწერი სხვანაირად
-// დაშიფრულიყო და WHERE-ით ვეღარ ვიპოვიდით. კომპრომისი: ერთი და იგივე plaintext
-// ყოველთვის ერთსა და იმავე ciphertext-ს იძლევა (ნაწილობრივ სუსტდება სემანტიკური
-// უსაფრთხოება — statistical/frequency ანალიზი თეორიულად შესაძლებელია), მაგრამ
-// plaintext ბაზის დამპში/ლოგში აღარ ჩანს, რაც აქ მთავარი მიზანია.
+// ⚠️ 2026-09-06 უსაფრთხოების ფიქსი: ძველი სქემა დეტერმინისტული AES-256-CBC იყო
+// (IV = HMAC-SHA256(key, plaintext)-ის პირველი 16 ბაიტი) — ეს ნიშნავდა, რომ ერთი
+// და იგივე plaintext ყოველთვის ერთსა და იმავე ciphertext-ს იძლეოდა (ბაზის
+// დამპზე წვდომას მქონე თავდამსხმელს რიგების კორელაციის საშუალებას აძლევდა), და
+// CBC-ს არანაირი MAC/AEAD არ გააჩნია (ცვლილება ciphertext-ში decrypt-ზე
+// ჩუმად წარმატებულ, თუმცა ნაგავ plaintext-ს იძლეოდა). ახლა ახალი მნიშვნელობები
+// AES-256-GCM-ით, შემთხვევითი (non-deterministic) IV-ით და ავთენტიფიცირებული
+// (auth tag) ფორმატით იშიფრება (`encrypt`/`GCM_PREFIX`-იანი ფორმატი) — ამიტომ
+// ტოლობითი ძებნა (`findByPhoneNumber`) აღარ shdeba თავად ciphertext-ზე, ცალკე
+// `hashForSearch()` blind-index-ს იყენებს (HMAC-SHA256 დამოუკიდებელი
+// წარმოებული key-თი — `User.phoneNumberHash`). ძველი (ჯერ კიდევ CBC-ით
+// დაშიფრული) ჩანაწერების წასაკითხად `decrypt()` ორივე ფორმატს ცნობს — ახალი
+// ჩანაწერები/save-ები ყოველთვის ახალი GCM ფორმატით იწერება.
 const ALGORITHM = 'aes-256-cbc';
 const IV_LENGTH = 16;
+
+const GCM_ALGORITHM = 'aes-256-gcm';
+const GCM_IV_LENGTH = 12;
+const GCM_AUTH_TAG_LENGTH = 16;
+// ტექსტური პრეფიქსი, რომლითაც ვცნობთ, რომ stored მნიშვნელობა ახალი (GCM)
+// ფორმატითაა დაშიფრული და არა ძველი დეტერმინისტული CBC-ით.
+const GCM_PREFIX = 'v2:';
 
 function getKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY;
@@ -47,6 +64,63 @@ function deterministicIv(key: Buffer, plaintext: string): Buffer {
     .subarray(0, IV_LENGTH);
 }
 
+// blind-index-ის საკვანძო — domain-separated (განსხვავებული label) იმავე
+// ENCRYPTION_KEY-დან, `deriveIvKey`-ის მსგავსად, რომ ჰეშირების key AES-ის
+// key-ს ან IV-derivation key-ს არასდროს დაემთხვეს.
+function deriveSearchKey(key: Buffer): Buffer {
+  return createHmac('sha256', key)
+    .update('encryption.util:blind-index')
+    .digest();
+}
+
+// ტოლობითი ძებნისთვის (მაგ. UsersService.findByPhoneNumber) — დეტერმინისტული,
+// მაგრამ დამოუკიდებელი key-თი გამომუშავებული ჰეში, არა თავად ciphertext.
+// შედეგი არასდროს ინახება/ბრუნდება plaintext-ის ნაცვლად — მხოლოდ
+// User.phoneNumberHash-ის მსგავს, ცალკე "search"-სვეტში ტოლობითი WHERE-სთვის.
+export function hashForSearch(value: string): string {
+  const key = getKey();
+  return createHmac('sha256', deriveSearchKey(key)).update(value).digest('hex');
+}
+
+// ახალი ფორმატი: AES-256-GCM, შემთხვევითი (non-deterministic) IV + auth tag —
+// ერთი და იგივე plaintext ყოველ დაშიფვრაზე სხვადასხვა ciphertext-ს იძლევა და
+// ნებისმიერი ciphertext-ის მანიპულაცია decrypt-ზე throw-ს (და არა ჩუმად
+// არასწორ plaintext-ს) იწვევს.
+export function encrypt(plaintext: string): string {
+  const key = getKey();
+  const iv = randomBytes(GCM_IV_LENGTH);
+  const cipher = createCipheriv(GCM_ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, 'utf8'),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+  return (
+    GCM_PREFIX + Buffer.concat([iv, authTag, encrypted]).toString('base64')
+  );
+}
+
+function decryptGcm(stored: string): string {
+  const key = getKey();
+  const buf = Buffer.from(stored.slice(GCM_PREFIX.length), 'base64');
+  const iv = buf.subarray(0, GCM_IV_LENGTH);
+  const authTag = buf.subarray(
+    GCM_IV_LENGTH,
+    GCM_IV_LENGTH + GCM_AUTH_TAG_LENGTH,
+  );
+  const encrypted = buf.subarray(GCM_IV_LENGTH + GCM_AUTH_TAG_LENGTH);
+  const decipher = createDecipheriv(GCM_ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([
+    decipher.update(encrypted),
+    decipher.final(),
+  ]);
+  return decrypted.toString('utf8');
+}
+
+// ⚠️ LEGACY: ძველი დეტერმინისტული AES-256-CBC ფორმატი — მხოლოდ უკვე
+// დაშიფრული ძველი ჩანაწერების წასაკითხად ვინახავთ (იხ. decrypt() ქვემოთ).
+// ახალი ჩანაწერები აღარ იწერება ამ ფორმატით — იხ. encrypt() ზემოთ.
 export function encryptDeterministic(plaintext: string): string {
   const key = getKey();
   const iv = deterministicIv(key, plaintext);
@@ -90,8 +164,17 @@ export function decryptStrict(stored: string): string {
 // არის დაშიფრული ამ ფორმატში) plaintext მნიშვნელობას უცვლელად ვაბრუნებთ — ეს
 // dev/staging-ს იცავს იმ crash-ისგან, სანამ ვინმე ხელით არ გაუშვებს მიგრაციას;
 // მომდევნო .save()-ზე encryptedColumnTransformer.to() ისედაც დაშიფრავს მას.
+//
+// ⚠️ 2026-09-06: ახლა ჯერ ახალ (GCM, `v2:`-პრეფიქსიანი) ფორმატს ვცდილობთ; თუ
+// stored ამ პრეფიქსით არ იწყება, ესეიგი ან ძველი დეტერმინისტული CBC ფორმატია
+// (decryptStrict), ან თუნდაც plaintext (ორივე ზემოთ აღწერილი ლმობიერების
+// მიზეზების გამო) — ორივე შემთხვევა ისევე უცვლელად ბრუნდება, თუ ვერცერთი
+// ფორმატით ვერ გაიშიფრა.
 export function decrypt(stored: string): string {
   try {
+    if (stored.startsWith(GCM_PREFIX)) {
+      return decryptGcm(stored);
+    }
     return decryptStrict(stored);
   } catch {
     return stored;
@@ -99,14 +182,15 @@ export function decrypt(stored: string): string {
 }
 
 // TypeORM column transformer — Entity-ის ველზე `transformer: encryptedColumnTransformer`-ის
-// მიბმისას, .save()-ზე ავტომატურად შიფრავს (to), .find*()-ზე ავტომატურად
-// გაშიფრავს (from) — დანარჩენი კოდი (მაგ. mask.util.ts-ის masking, findByPhoneNumber-ის
-// WHERE-ით ძებნა) plaintext-თან/plaintext-ის დაშიფრულ ვარიანტთან ისევე მუშაობს,
-// როგორც აქამდე, ცვლილების გარეშე.
+// მიბმისას, .save()-ზე ავტომატურად შიფრავს (to, ახალი GCM ფორმატით) — .find*()-ზე
+// ავტომატურად გაშიფრავს (from, ორივე ფორმატს ცნობს — იხ. decrypt() ზემოთ).
+// ⚠️ phoneNumber-ისთვის: ეს GCM (non-deterministic) ciphertext-ია, ამიტომ WHERE-ით
+// ტოლობითი ძებნა (findByPhoneNumber) ამ სვეტზე ვეღარ მუშაობს — მის ნაცვლად
+// User.phoneNumberHash (hashForSearch()) გამოიყენება, იხ. users.service.ts.
 export const encryptedColumnTransformer: ValueTransformer = {
   to(value?: string | null): string | null | undefined {
     if (value === null || value === undefined || value === '') return value;
-    return encryptDeterministic(value);
+    return encrypt(value);
   },
   from(value?: string | null): string | null | undefined {
     if (value === null || value === undefined || value === '') return value;

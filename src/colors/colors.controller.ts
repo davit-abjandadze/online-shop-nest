@@ -8,22 +8,13 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ColorsService } from './colors.service';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -68,9 +59,7 @@ export class ColorsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი ფერის შექმნა (ADMIN)' })
   @ApiResponse({ status: 201, description: 'ფერი შეიქმნა' })
@@ -80,9 +69,7 @@ export class ColorsController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ფერის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფერი განახლდა' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })
@@ -91,9 +78,7 @@ export class ColorsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ფერის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფერი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })

@@ -8,14 +8,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Attribute, AttributeType } from './entities/attribute.entity';
 import { AttributeOption } from './entities/attribute-option.entity';
+import { CategoryAttribute } from '../category/entities/category-attribute.entity';
+import { ProductAttributeValue } from '../products/entities/product-attribute-value.entity';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
 import { UpdateAttributeDto } from './dto/update-attribute.dto';
 import { FindAttributesDto } from './dto/find-attributes.dto';
 import { CreateAttributeOptionDto } from './dto/create-attribute-option.dto';
 import { UpdateAttributeOptionDto } from './dto/update-attribute-option.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -47,19 +49,16 @@ export class AttributeService {
     private attributeRepository: Repository<Attribute>,
     @InjectRepository(AttributeOption)
     private attributeOptionRepository: Repository<AttributeOption>,
+    @InjectRepository(CategoryAttribute)
+    private categoryAttributeRepository: Repository<CategoryAttribute>,
+    @InjectRepository(ProductAttributeValue)
+    private productAttributeValueRepository: Repository<ProductAttributeValue>,
   ) {}
 
   async findAllPaginated(
     findAttributesDto: FindAttributesDto,
   ): Promise<PaginatedResponseDto<Attribute>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'sortOrder',
-      order = 'ASC',
-      type,
-      isFilterable,
-    } = findAttributesDto;
+    const { type, isFilterable } = findAttributesDto;
 
     const qb = this.attributeRepository
       .createQueryBuilder('attribute')
@@ -73,12 +72,14 @@ export class AttributeService {
       qb.andWhere('attribute.isFilterable = :isFilterable', { isFilterable });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    qb.addOrderBy(`attribute.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(
+      qb,
+      'attribute',
+      findAttributesDto,
+      SORTABLE_COLUMNS,
+      'sortOrder',
+      { defaultOrder: 'ASC', useAddOrderBy: true },
+    );
   }
 
   async findOne(id: string): Promise<Attribute> {
@@ -127,8 +128,24 @@ export class AttributeService {
   async remove(id: string): Promise<Attribute> {
     const attribute = await this.findOne(id);
 
-    // category_attribute/product_attribute_value join-ები ჯერ არ არსებობს
-    // (ფაზა 3/4), ამიტომ ამ ეტაპზე წაშლის დამატებითი დაცვა არ სჭირდება —
+    // ⚠️ ფიქსი: category_attribute/product_attribute_value ორივეს FK
+    // CASCADE აქვს ამ attribute-ზე — მანამდე წაშლა ჩუმად შლიდა ყველა
+    // მიბმულ category-ს (მისი filter-ის კონფიგურაციას) და ყველა
+    // product-ის ამ attribute-ზე შენახულ მნიშვნელობას, არავითარი
+    // დადასტურების ან affected-row-count-ის გარეშე — CategoryService.
+    // remove()-ის იგივე in-use დაცვის პატერნის ანალოგიურად აქაც ვბლოკავთ.
+    const [linkedCategories, linkedProductValues] = await Promise.all([
+      this.categoryAttributeRepository.count({ where: { attributeId: id } }),
+      this.productAttributeValueRepository.count({
+        where: { attributeId: id },
+      }),
+    ]);
+    if (linkedCategories > 0 || linkedProductValues > 0) {
+      throw new ConflictException(
+        `მახასიათებლის წაშლა შეუძლებელია — მიბმულია ${linkedCategories} კატეგორიაზე და ${linkedProductValues} პროდუქტის მნიშვნელობაზე`,
+      );
+    }
+
     // options კასკადურად წაიშლება (`cascade: true` entity-ზე).
     return this.attributeRepository.remove(attribute);
   }

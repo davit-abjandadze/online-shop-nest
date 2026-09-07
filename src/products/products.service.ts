@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
+import type { DeepPartial, FindOptionsWhere, ObjectLiteral } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
@@ -25,12 +26,18 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { SetProductAttributeValuesDto } from './dto/set-product-attribute-values.dto';
 import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-info.dto';
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
-import { SetProductColorsDto } from './dto/set-product-colors.dto';
-import { SetProductBranchesDto } from './dto/set-product-branches.dto';
+import {
+  SetProductColorsDto,
+  ProductColorItemDto,
+} from './dto/set-product-colors.dto';
+import {
+  SetProductBranchesDto,
+  ProductBranchItemDto,
+} from './dto/set-product-branches.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -72,10 +79,6 @@ export class ProductsService {
     isAdmin = false,
   ): Promise<PaginatedResponseDto<Product>> {
     const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      order = 'DESC',
       search,
       categoryId,
       minPrice,
@@ -147,14 +150,13 @@ export class ProductsService {
       });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
-    qb.orderBy(`product.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
-
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(
+      qb,
+      'product',
+      searchProductDto,
+      SORTABLE_COLUMNS,
+      'createdAt',
+    );
   }
 
   // isAdmin=false (storefront-ის default) — დეაქტივირებული პროდუქტი 404-ს
@@ -453,8 +455,20 @@ export class ProductsService {
 
   // --- ფერები (Product ↔ Color, თითოეულზე ცალკე stock) ------------------
 
-  async getColors(productId: number, isAdmin = false): Promise<ProductColor[]> {
-    await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
+  // `skipExistenceCheck` — CartService-ის resolveAvailableStock-ისთვის:
+  // addItem()/updateItemQuantity() უკვე ამოწმებს/ტვირთავს ამ პროდუქტს
+  // (findOne/findOwnItem) ამ getColors()-ის გამოძახებამდე რამდენიმე ხაზით
+  // ადრე იმავე request-ში — ხელახლა findOne(productId)-ის გამოძახება
+  // (⚠️ ფიქსი: აქამდე ყოველთვის ხდებოდა) ზედმეტი, უკვე ცნობილი პროდუქტის
+  // ხელახლა ჩატვირთვას ნიშნავდა.
+  async getColors(
+    productId: number,
+    isAdmin = false,
+    skipExistenceCheck = false,
+  ): Promise<ProductColor[]> {
+    if (!skipExistenceCheck) {
+      await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
+    }
     return this.productColorRepository.find({
       where: { productId },
       relations: { color: true },
@@ -479,39 +493,23 @@ export class ProductsService {
   ): Promise<ProductColor[]> {
     const product = await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
-    const colorIds = setProductColorsDto.colors.map((c) => c.colorId);
-    const uniqueColorIds = new Set(colorIds);
-    if (uniqueColorIds.size !== colorIds.length) {
-      throw new BadRequestException(
-        'ერთი და იგივე ფერი ვერ განმეორდება ერთ პროდუქტზე',
-      );
-    }
-
-    if (colorIds.length > 0) {
-      const existingColors = await this.colorRepository.findBy({
-        id: In(colorIds),
-      });
-      if (existingColors.length !== uniqueColorIds.size) {
-        const foundIds = new Set(existingColors.map((c) => c.id));
-        const missing = colorIds.filter((id) => !foundIds.has(id));
-        throw new BadRequestException(
-          `ფერი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
-        );
-      }
-    }
-
-    await this.productColorRepository.delete({ productId });
-    if (setProductColorsDto.colors.length === 0) {
-      return [];
-    }
-    const entities = setProductColorsDto.colors.map((item) =>
-      this.productColorRepository.create({
+    const saved = await this.syncProductRelation<
+      ProductColorItemDto,
+      ProductColor,
+      string,
+      Color
+    >(productId, setProductColorsDto.colors, {
+      relationRepository: this.productColorRepository,
+      lookupRepository: this.colorRepository,
+      getRefId: (item) => item.colorId,
+      duplicateMessage: 'ერთი და იგივე ფერი ვერ განმეორდება ერთ პროდუქტზე',
+      missingLabel: 'ფერი(ები)',
+      buildEntity: (item) => ({
         productId,
         colorId: item.colorId,
         stock: item.stock,
       }),
-    );
-    const saved = await this.productColorRepository.save(entities);
+    });
 
     product.stock = saved.reduce((sum, pc) => sum + pc.stock, 0);
     await this.productRepository.save(product);
@@ -542,39 +540,77 @@ export class ProductsService {
   ): Promise<ProductBranch[]> {
     await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
-    const branchIds = setProductBranchesDto.branches.map((b) => b.branchId);
-    const uniqueBranchIds = new Set(branchIds);
-    if (uniqueBranchIds.size !== branchIds.length) {
-      throw new BadRequestException(
-        'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
-      );
-    }
-
-    if (branchIds.length > 0) {
-      const existingBranches = await this.branchRepository.findBy({
-        id: In(branchIds),
-      });
-      if (existingBranches.length !== uniqueBranchIds.size) {
-        const foundIds = new Set(existingBranches.map((b) => b.id));
-        const missing = branchIds.filter((id) => !foundIds.has(id));
-        throw new BadRequestException(
-          `ფილიალი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
-        );
-      }
-    }
-
-    await this.productBranchRepository.delete({ productId });
-    if (setProductBranchesDto.branches.length === 0) {
-      return [];
-    }
-    const entities = setProductBranchesDto.branches.map((item) =>
-      this.productBranchRepository.create({
+    return this.syncProductRelation<
+      ProductBranchItemDto,
+      ProductBranch,
+      number,
+      Branch
+    >(productId, setProductBranchesDto.branches, {
+      relationRepository: this.productBranchRepository,
+      lookupRepository: this.branchRepository,
+      getRefId: (item) => item.branchId,
+      duplicateMessage: 'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
+      missingLabel: 'ფილიალი(ები)',
+      buildEntity: (item) => ({
         productId,
         branchId: item.branchId,
         stock: item.stock,
       }),
+    });
+  }
+
+  // setColors/setBranches-ის საერთო "bulk set" ლოგიკა — bulk-set DTO
+  // მასივის refId-ების დუბლირების შემოწმება, lookupRepository-ში
+  // არსებობის ვალიდაცია, ძველი productId-ის row-ების delete + ახლების
+  // create/save (setAttributeValues-ის იგივე bulk replace პატერნით).
+  // productId-ის FK column სახელი ორივე entity-ზე ერთნაირია
+  // ("productId"), ამიტომ ცალკე პარამეტრად არ გვჭირდება.
+  private async syncProductRelation<
+    TItem,
+    TEntity extends ObjectLiteral,
+    TRefId extends string | number,
+    TLookup extends ObjectLiteral & { id: TRefId },
+  >(
+    productId: number,
+    items: TItem[],
+    options: {
+      relationRepository: Repository<TEntity>;
+      lookupRepository: Repository<TLookup>;
+      getRefId: (item: TItem) => TRefId;
+      duplicateMessage: string;
+      missingLabel: string;
+      buildEntity: (item: TItem) => DeepPartial<TEntity>;
+    },
+  ): Promise<TEntity[]> {
+    const refIds = items.map(options.getRefId);
+    const uniqueIds = new Set(refIds);
+    if (uniqueIds.size !== refIds.length) {
+      throw new BadRequestException(options.duplicateMessage);
+    }
+
+    if (refIds.length > 0) {
+      const existing = await options.lookupRepository.findBy({
+        id: In(refIds),
+      } as FindOptionsWhere<TLookup>);
+      if (existing.length !== uniqueIds.size) {
+        const foundIds = new Set(existing.map((e) => e.id));
+        const missing = refIds.filter((id) => !foundIds.has(id));
+        throw new BadRequestException(
+          `${options.missingLabel} ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+        );
+      }
+    }
+
+    await options.relationRepository.delete({
+      productId,
+    } as unknown as FindOptionsWhere<TEntity>);
+    if (items.length === 0) {
+      return [];
+    }
+    const entities: TEntity[] = items.map((item) =>
+      options.relationRepository.create(options.buildEntity(item)),
     );
-    return this.productBranchRepository.save(entities);
+    return options.relationRepository.save(entities);
   }
 
   private async assertCompanyExists(companyId: string): Promise<void> {

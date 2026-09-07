@@ -9,14 +9,8 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AttributeService } from './attribute.service';
 import { CreateAttributeDto } from './dto/create-attribute.dto';
@@ -24,10 +18,7 @@ import { UpdateAttributeDto } from './dto/update-attribute.dto';
 import { FindAttributesDto } from './dto/find-attributes.dto';
 import { CreateAttributeOptionDto } from './dto/create-attribute-option.dto';
 import { UpdateAttributeOptionDto } from './dto/update-attribute-option.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -83,9 +74,7 @@ export class AttributeController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი მახასიათებლის შექმნა (ADMIN)' })
   @ApiResponse({ status: 201, description: 'მახასიათებელი შეიქმნა' })
@@ -96,9 +85,7 @@ export class AttributeController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'მახასიათებლის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი განახლდა' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
@@ -110,9 +97,7 @@ export class AttributeController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'მახასიათებლის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი წაიშალა' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
@@ -121,9 +106,7 @@ export class AttributeController {
   }
 
   @Post(':id/options')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'მახასიათებელზე ახალი ოფციის დამატება (ADMIN)' })
   @ApiResponse({ status: 201, description: 'ოფცია დაემატა' })
@@ -143,9 +126,7 @@ export class AttributeController {
   }
 
   @Put(':id/options/:optionId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ოფციის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ოფცია განახლდა' })
   @ApiResponse({ status: 404, description: 'ოფცია ვერ მოიძებნა' })
@@ -162,9 +143,7 @@ export class AttributeController {
   }
 
   @Delete(':id/options/:optionId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ოფციის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ოფცია წაიშალა' })
   @ApiResponse({ status: 404, description: 'ოფცია ვერ მოიძებნა' })

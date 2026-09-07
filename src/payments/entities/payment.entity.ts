@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { Order } from '../../orders/entities/order.entity';
 
@@ -13,6 +14,7 @@ import { Order } from '../../orders/entities/order.entity';
 // პროვაიდერის) დამატებისას სვეტის ტიპი არ შეიცვალოს.
 export enum PaymentProvider {
   BOG = 'bog',
+  MOCK = 'mock',
 }
 
 // BOG-ის callback-ის `order_status.key` ვოკაბულარის 1:1 ანარეკლი — ცალკე
@@ -46,6 +48,14 @@ export class Payment {
 
   // პროვაიდერის მხარეს შექმნილი გადახდის ID (BOG-ის შემთხვევაში create-order
   // პასუხის `id` — callback-შიც იგივე მოდის, რითაც ვპოულობთ ამ Payment-ს).
+  // ⚠️ ფიქსი: findOne({ where: { providerOrderId }})-ს ყოველ BOG callback-ზე
+  // ვხმართავთ (PaymentsService.handleCallback) — ინდექსის გარეშე ეს Postgres-ს
+  // ყოველ callback-ზე სრულ sequential scan-ს აიძულებდა ცხრილის ზრდასთან
+  // ერთად, და ვერაფერი უშლიდა ხელს ორ სხვადასხვა Payment row-ს ერთი და იმავე
+  // providerOrderId ჰქონოდა. Unique ინდექსი NULL-ებზე არ მოქმედებს (Postgres-ში
+  // მრავალი NULL დაშვებულია), ამიტომ jest ჯერ არ initiate-ილ Payment-ებს არ
+  // ეხება.
+  @Index({ unique: true })
   @Column({ nullable: true })
   providerOrderId?: string;
 

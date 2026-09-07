@@ -43,7 +43,13 @@ export class CartService {
     quantity: number,
     colorId?: string,
   ): Promise<Cart> {
-    const product = await this.productsService.findOne(productId);
+    // ⚠️ ფიქსი: findOne(productId) (isAdmin=false) დეაქტივირებულ პროდუქტზე
+    // თავად 404-ს აგდებდა — ქვემოთ მდგომი isActive შემოწმება (400) ამის
+    // გამო არასდროს ეშვებოდა, updateItemQuantity-ის იდენტური შემოწმებისგან
+    // განსხვავებით (რომელიც item.product-ს findOwnItem-იდან იღებს, findOne-ს
+    // არ იძახებს). isAdmin=true აქ 404-ს კი არ გვთხოვს, უბრალოდ isActive
+    // filter-ს ატოვებინებს findOne-ს — შემდეგ ხაზზე თავადვე ვამოწმებთ.
+    const product = await this.productsService.findOne(productId, true);
     if (!product.isActive) {
       // ka-ზე ცალსახად დაფიქსირებული internal error message (orders.
       // service.ts-ის იგივე პატერნი) — არა locale-ზე დამოკიდებული storefront
@@ -128,7 +134,12 @@ export class CartService {
     productStock: number,
     colorId?: string,
   ): Promise<number> {
-    const colors = await this.productsService.getColors(productId);
+    // ⚠️ ფიქსი: getColors() ნაგულისხმევად თავად ხელახლა ტვირთავდა/ამოწმებდა
+    // პროდუქტს (findOne) — ორივე callsite-ს (addItem/updateItemQuantity)
+    // უკვე უტვირთავს/ვალიდირებს ამ პროდუქტს ამ გამოძახებამდე იმავე
+    // request-ში, ამიტომ skipExistenceCheck=true-ით ვერიდებით ზედმეტ
+    // round-trip-ს.
+    const colors = await this.productsService.getColors(productId, false, true);
 
     if (colors.length === 0) {
       if (colorId) {

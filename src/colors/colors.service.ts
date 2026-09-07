@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Color } from './entities/color.entity';
+import { ProductColor } from '../products/entities/product-color.entity';
+import { Product } from '../products/entities/product.entity';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
@@ -11,6 +13,8 @@ export class ColorsService {
   constructor(
     @InjectRepository(Color)
     private colorRepository: Repository<Color>,
+    @InjectDataSource()
+    private dataSource: DataSource,
   ) {}
 
   // ფერების ბიბლიოთეკა მცირე, admin-managed სია — pagination-ი აქ
@@ -49,6 +53,31 @@ export class ColorsService {
     const color = await this.findOne(id);
     // product_color-ზე FK CASCADE-ია (იხ. ProductColor) — ფერის წაშლისას
     // მასზე მიბმული პროდუქტ-ფერი row-ებიც კასკადურად წაიშლება.
-    return this.colorRepository.remove(color);
+    //
+    // ⚠️ ფიქსი: Product.stock ProductsService.setColors()-ის მიერ ხელით
+    // სინქრონდება (= ფერების stock-ების ჯამი) — CASCADE-ით წაშლილი
+    // ProductColor row-ები setColors-ს არ ავლენს, ანუ Product.stock ამ
+    // წაშლის შემდეგ მუდმივად გადაჭარბებულს აჩვენებდა ხელმისაწვდომობას.
+    // ტრანზაქციაში წინასწარ ვნიშნავთ, რომელ პროდუქტებზეა ეს ფერი მიბმული,
+    // წაშლის შემდეგ კი თითოეულს Product.stock-ს ხელახლა ვთვლით დარჩენილი
+    // ProductColor row-ების ჯამით.
+    return this.dataSource.transaction(async (manager) => {
+      const affected = await manager.find(ProductColor, {
+        where: { colorId: id },
+      });
+      const productIds = [...new Set(affected.map((pc) => pc.productId))];
+
+      await manager.remove(Color, color);
+
+      for (const productId of productIds) {
+        const remaining = await manager.find(ProductColor, {
+          where: { productId },
+        });
+        const stock = remaining.reduce((sum, pc) => sum + pc.stock, 0);
+        await manager.update(Product, productId, { stock });
+      }
+
+      return color;
+    });
   }
 }

@@ -17,9 +17,16 @@ export class FavoritesService {
   ) {}
 
   // მომხმარებლის ფავორიტების სია, ნაბოლოდ დამატებულის თავიდან.
+  //
+  // ⚠️ ფიქსი: products/category/hero-slides/product-sliders-ის ყველა სხვა
+  // სია isActive=false პროდუქტებს მალავს — ეს კი მალავდა არა, ანუ
+  // დეაქტივირებული პროდუქტის სრული დეტალი (GET /products/:id-ის 404-ის
+  // საწინააღმდეგოდ) კვლავ ხელმისაწვდომი რჩებოდა ფავორიტების საშუალებით.
+  // isActive=false პროდუქტს არ ვშლით (favorite ჩანაწერი ისევ ინახება),
+  // უბრალოდ სიაში აღარ ვაბრუნებთ — ისევე, როგორც findOne 404-ს იძლევა.
   async findAllForUser(userId: number): Promise<Favorite[]> {
     return this.favoriteRepository.find({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, product: { isActive: true } },
       relations: { product: { category: true } },
       order: { createdAt: 'DESC' },
     });

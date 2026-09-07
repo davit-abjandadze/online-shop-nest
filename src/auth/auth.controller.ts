@@ -23,13 +23,12 @@ import { LoginResponseDto } from './dto/login-response.dto';
 // ↓↓↓ ახალი იმპორტები როლების სისტემისთვის ↓↓↓
 // შენი ფოლდერების სტრუქტურის მიხედვით შეცვალე გზები (paths) თუ საჭიროა
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GoogleLoginDto } from './dto/google-login.dto';
+// import { FacebookLoginDto } from './dto/facebook-login.dto'; // ⚠️ იხ. Facebook endpoint-ის კომენტარი ქვემოთ
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
@@ -83,11 +82,11 @@ export class AuthController {
     return { message: 'ეს ინფორმაცია მხოლოდ ავტორიზებულებს შეუძლიათ ნახონ' };
   }
 
-  // 2. მხოლოდ ადმინისტრატორისთვის (ADMIN)
+  // 2. მხოლოდ ადმინისტრატორისთვის (ADMIN) — @AdminOnly() აერთიანებს
+  // JwtAuthGuard-ს (ჯერ ტოკენი), RolesGuard+@Roles(ADMIN)-ს (მერე როლი) და
+  // @ApiBearerAuth()-ს (იხ. common/decorators/admin-only.decorator.ts).
   @Get('dashboard')
-  @UseGuards(JwtAuthGuard, RolesGuard) // ჯერ ვამოწმებთ ტოკენს, მერე როლს!
-  @Roles(UserRole.ADMIN) // ← ეს დეკორატორი კრძალავს ჩვეულებრივ USER-ებს
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'მხოლოდ ადმინისტრატორის პანელი' })
   @ApiResponse({ status: 200, description: 'წარმატებული წვდომა' })
   @ApiResponse({
@@ -142,11 +141,15 @@ export class AuthController {
 
   // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
   // @Post('facebook')
+  // @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 მოთხოვნა წუთში
   // @HttpCode(HttpStatus.OK)
   // @ApiOperation({ summary: 'Facebook-ით ავტორიზაცია/რეგისტრაცია' })
   // @ApiResponse({ status: 200, description: 'წარმატებული ავტორიზაცია', type: LoginResponseDto })
-  // async facebookLogin(@Body() body: { email: string; firstName: string; lastName: string }) {
-  //   return this.authService.facebookLogin(body);
+  // async facebookLogin(@Body() facebookLoginDto: FacebookLoginDto) {
+  //   // ⚠️ email/firstName/lastName აღარ მიიღება პირდაპირ request body-დან — ეს
+  //   // საშუალებას მისცემდა ნებისმიერს, ვის ანგარიშზეც სურდა, token მიეღო
+  //   // (იხ. AuthService.facebookLogin, სადაც accessToken რეალურად ვერიფიცირდება Facebook-ის Graph API-ით).
+  //   return this.authService.facebookLogin(facebookLoginDto.accessToken);
   // }
 
   @Post('forgot-password')

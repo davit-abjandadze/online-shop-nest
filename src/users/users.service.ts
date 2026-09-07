@@ -14,6 +14,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { EmailOtpService } from '../otp/email-otp.service';
 import { OtpService } from '../otp/otp.service';
+import { hashForSearch } from '../common/utils/encryption.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — თუ პირდაპირ
 // orderBy-ში ჩავსვამთ, SQL injection-ის რისკია. ამიტომ ვუშვებთ მხოლოდ
@@ -72,6 +73,11 @@ export class UsersService {
       ...createUserDto,
       isEmailVerified: verifiedFlags?.isEmailVerified ?? false,
       isPhoneVerified: verifiedFlags?.isPhoneVerified ?? false,
+      // phoneNumber ახლა non-deterministic (AES-256-GCM) ciphertext-ად ინახება —
+      // ტოლობითი ძებნისა/unique-შეზღუდვისთვის ცალკე blind-index (hash) გვჭირდება.
+      phoneNumberHash: createUserDto.phoneNumber
+        ? hashForSearch(createUserDto.phoneNumber)
+        : undefined,
     });
     return this.userRepository.save(newUser);
   }
@@ -136,7 +142,13 @@ export class UsersService {
   }
 
   async findByPhoneNumber(phoneNumber: string) {
-    return this.userRepository.findOne({ where: { phoneNumber } });
+    // phoneNumber სვეტი non-deterministic ciphertext-ია (AES-256-GCM,
+    // შემთხვევითი IV) — WHERE-ით პირდაპირ ტოლობა ვეღარ იმუშავებდა (ერთი და
+    // იგივე plaintext ყოველ დაშიფვრაზე სხვადასხვა ciphertext-ს იძლევა).
+    // ტოლობის შესამოწმებლად ცალკე blind-index (phoneNumberHash) სვეტი გვაქვს.
+    return this.userRepository.findOne({
+      where: { phoneNumberHash: hashForSearch(phoneNumber) },
+    });
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
@@ -154,110 +166,145 @@ export class UsersService {
       isPhoneVerified?: boolean;
     } = {};
 
+    // ⚠️ ფიქსი: email/phoneNumber ორივეს ერთდროულად ცვლილებისას ეს იმავე
+    // User row-ს ცალ-ცალკე findOne(id)-ით ორჯერ ტვირთავდა (ერთხელ აქ,
+    // ერთხელ ქვემოთ phoneNumber-ბლოკში) — ერთხელ ვტვირთავთ და ორივე
+    // ბლოკი მას იზიარებს.
+    const currentUser =
+      userFields.email !== undefined || userFields.phoneNumber !== undefined
+        ? await this.findOne(id)
+        : undefined;
+
     // ელფოსტის შეცვლას სჭირდება წინასწარ დადასტურებული OTP კოდი ახალ ელფოსტაზე
     // (POST /otp/send-email + POST /otp/verify-email) — ისევე, როგორც რეგისტრაციისას
     // მობილურის ნომერს. აქ დამატებით ვამოწმებთ ორივე მხარეს (otp verify-ის success-ს
     // ვერ ვენდობით მარტოდან — requestId ერთჯერადია და აქვე კვლავ დგინდება).
-    if (userFields.email !== undefined) {
-      const currentUser = await this.findOne(id);
-
-      if (userFields.email !== currentUser.email) {
-        const existingUser = await this.findByEmail(userFields.email);
-        if (existingUser && existingUser.id !== id) {
-          throw new ConflictException({
-            message: 'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
-            errorCode: 'EMAIL_DUPLICATE',
-          });
-        }
-
-        if (!otpRequestId || !otpCode) {
-          throw new BadRequestException(
-            'ელფოსტის შესაცვლელად საჭიროა ახალი ელფოსტის დადასტურება — ჯერ გამოიძახეთ POST /otp/send-email',
-          );
-        }
-
-        const verified = this.emailOtpService.verifyOtp(
-          otpRequestId,
-          otpCode,
-          userFields.email,
-        );
-        if (!verified) {
-          throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
-        }
-        verifiedPatch.isEmailVerified = true;
-      } else if (!currentUser.isEmailVerified && otpRequestId && otpCode) {
-        // ელფოსტა არ შეცვლილა, მაგრამ მომხმარებელს ეს ელფოსტა ჯერ დაუდასტურებელი
-        // ჰქონდა (მაგ. ჩვეულებრივი რეგისტრაცია, სადაც მხოლოდ ტელეფონი მოწმდება) —
-        // თუ ამჟამინდელ ელფოსტაზე წარმატებით გაიარა OTP-ვერიფიკაცია, ვადასტურებთ.
-        const verified = this.emailOtpService.verifyOtp(
-          otpRequestId,
-          otpCode,
-          userFields.email,
-        );
-        if (!verified) {
-          throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
-        }
+    if (userFields.email !== undefined && currentUser) {
+      const email = userFields.email;
+      const verified = await this.applyVerifiedFieldChange({
+        newValue: email,
+        currentValue: currentUser.email,
+        currentlyVerified: currentUser.isEmailVerified,
+        otpRequestId,
+        otpCode,
+        userId: id,
+        findExisting: (value) => this.findByEmail(value),
+        verifyOtp: (requestId, code) =>
+          this.emailOtpService.verifyOtp(requestId, code, email),
+        duplicateErrorCode: 'EMAIL_DUPLICATE',
+        duplicateMessage: 'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
+        missingOtpMessage:
+          'ელფოსტის შესაცვლელად საჭიროა ახალი ელფოსტის დადასტურება — ჯერ გამოიძახეთ POST /otp/send-email',
+      });
+      if (verified) {
         verifiedPatch.isEmailVerified = true;
       }
     }
 
     // მობილურის ნომრის შეცვლას სჭირდება წინასწარ დადასტურებული OTP კოდი ახალ ნომერზე
     // (POST /otp/send + POST /otp/verify, verify.ge) — ისევე, როგორც რეგისტრაციაზე.
-    if (userFields.phoneNumber !== undefined) {
-      const currentUser = await this.findOne(id);
-
-      if (userFields.phoneNumber !== currentUser.phoneNumber) {
-        const existingPhoneUser = await this.findByPhoneNumber(
-          userFields.phoneNumber,
-        );
-        if (existingPhoneUser && existingPhoneUser.id !== id) {
-          throw new ConflictException({
-            message: 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
-            errorCode: 'PHONE_DUPLICATE',
-          });
-        }
-
-        if (!phoneOtpRequestId || !phoneOtpCode) {
-          throw new BadRequestException(
-            'მობილურის ნომრის შესაცვლელად საჭიროა ახალი ნომრის დადასტურება — ჯერ გამოიძახეთ POST /otp/send',
-          );
-        }
-
-        const verified = await this.otpService.verifyOtp(
-          phoneOtpRequestId,
-          phoneOtpCode,
-        );
-        if (!verified) {
-          throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
-        }
-        verifiedPatch.isPhoneVerified = true;
-      } else if (
-        !currentUser.isPhoneVerified &&
-        phoneOtpRequestId &&
-        phoneOtpCode
-      ) {
-        // ნომერი არ შეცვლილა, მაგრამ ეს ნომერი ჯერ დაუდასტურებელი იყო —
-        // თუ ამჟამინდელ ნომერზე წარმატებით გაიარა OTP-ვერიფიკაცია, ვადასტურებთ.
-        const verified = await this.otpService.verifyOtp(
-          phoneOtpRequestId,
-          phoneOtpCode,
-        );
-        if (!verified) {
-          throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
-        }
+    if (userFields.phoneNumber !== undefined && currentUser) {
+      const phoneNumber = userFields.phoneNumber;
+      const verified = await this.applyVerifiedFieldChange({
+        newValue: phoneNumber,
+        currentValue: currentUser.phoneNumber,
+        currentlyVerified: currentUser.isPhoneVerified,
+        otpRequestId: phoneOtpRequestId,
+        otpCode: phoneOtpCode,
+        userId: id,
+        findExisting: (value) => this.findByPhoneNumber(value),
+        verifyOtp: (requestId, code) =>
+          this.otpService.verifyOtp(requestId, code),
+        duplicateErrorCode: 'PHONE_DUPLICATE',
+        duplicateMessage: 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
+        missingOtpMessage:
+          'მობილურის ნომრის შესაცვლელად საჭიროა ახალი ნომრის დადასტურება — ჯერ გამოიძახეთ POST /otp/send',
+      });
+      if (verified) {
         verifiedPatch.isPhoneVerified = true;
       }
     }
+
+    // phoneNumber იცვლება ⇒ blind-index (phoneNumberHash) აქვე უნდა
+    // გადავითვალოთ, თორემ ის ძველ ნომერს დაუკავშირდება (findByPhoneNumber
+    // და unique-შეზღუდვა მასზეა დამოკიდებული, არა თავად ciphertext-ზე).
+    const phoneNumberHashPatch =
+      userFields.phoneNumber !== undefined
+        ? { phoneNumberHash: hashForSearch(userFields.phoneNumber) }
+        : {};
 
     const user = await this.userRepository.preload({
       id: +id,
       ...userFields,
       ...verifiedPatch,
+      ...phoneNumberHashPatch,
     });
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
     return this.userRepository.save(user);
+  }
+
+  // email/phoneNumber-ის დამოწმებული ცვლილების საერთო ლოგიკა (update()-ის
+  // ორივე ბლოკს შორის მეორდებოდა): თუ ველი შეიცვალა — უნიკალურობის
+  // შემოწმება + OTP-ის სავალდებულო დამოწმება; თუ არ შეცვლილა, მაგრამ ჯერ
+  // დაუდასტურებელი იყო და OTP მაინც გადმოეცა — ასევე დამოწმება. აბრუნებს
+  // true-ს, თუ შესაბამისი `isXVerified` ალამი true-ზე უნდა დაისვას.
+  private async applyVerifiedFieldChange(params: {
+    newValue: string;
+    currentValue: string | undefined;
+    currentlyVerified: boolean;
+    otpRequestId: string | undefined;
+    otpCode: string | undefined;
+    userId: number;
+    findExisting: (value: string) => Promise<{ id: number } | null>;
+    verifyOtp: (requestId: string, code: string) => boolean | Promise<boolean>;
+    duplicateErrorCode: string;
+    duplicateMessage: string;
+    missingOtpMessage: string;
+  }): Promise<boolean> {
+    const {
+      newValue,
+      currentValue,
+      currentlyVerified,
+      otpRequestId,
+      otpCode,
+      userId,
+      findExisting,
+      verifyOtp,
+      duplicateErrorCode,
+      duplicateMessage,
+      missingOtpMessage,
+    } = params;
+
+    if (newValue !== currentValue) {
+      const existing = await findExisting(newValue);
+      if (existing && existing.id !== userId) {
+        throw new ConflictException({
+          message: duplicateMessage,
+          errorCode: duplicateErrorCode,
+        });
+      }
+
+      if (!otpRequestId || !otpCode) {
+        throw new BadRequestException(missingOtpMessage);
+      }
+
+      const verified = await verifyOtp(otpRequestId, otpCode);
+      if (!verified) {
+        throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
+      }
+      return true;
+    } else if (!currentlyVerified && otpRequestId && otpCode) {
+      // ველი არ შეცვლილა, მაგრამ ჯერ დაუდასტურებელი იყო — თუ ამჟამინდელ
+      // მნიშვნელობაზე წარმატებით გაიარა OTP-ვერიფიკაცია, ვადასტურებთ.
+      const verified = await verifyOtp(otpRequestId, otpCode);
+      if (!verified) {
+        throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
+      }
+      return true;
+    }
+    return false;
   }
 
   async remove(id: number) {

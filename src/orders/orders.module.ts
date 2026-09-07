@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { Payment } from '../payments/entities/payment.entity';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { CartModule } from '../cart/cart.module';
@@ -10,7 +11,12 @@ import { BranchesModule } from '../branches/branches.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem]),
+    // Payment ცალკე მოდულს (PaymentsModule) ეკუთვნის, მაგრამ PaymentsModule
+    // თავადვე OrdersModule-ს იმპორტავს (callback-ზე შეკვეთის სტატუსის
+    // განახლებისთვის) — PaymentsService-ის აქ იმპორტი წრიულ დამოკიდებულებას
+    // შექმნიდა, ამიტომ OrdersService მხოლოდ Payment repository-ს იღებს
+    // (PAID→CANCELLED-ზე refund-flag-ის დასასმელად, იხ. updateStatus).
+    TypeOrmModule.forFeature([Order, OrderItem, Payment]),
     CartModule,
     ProductsModule,
     BranchesModule,

@@ -81,12 +81,14 @@ export class PaymentsService {
         await this.provider.createPayment(lockedOrder);
 
       if (payment) {
+        payment.provider = this.provider.provider;
         payment.providerOrderId = externalId;
         payment.status = PaymentStatus.CREATED;
         payment.rawCallbackPayload = undefined;
       } else {
         payment = paymentRepo.create({
           order: lockedOrder,
+          provider: this.provider.provider,
           providerOrderId: externalId,
           status: PaymentStatus.CREATED,
         });
@@ -155,5 +157,36 @@ export class PaymentsService {
     }
     // REJECTED-ზე შეკვეთას PENDING-ად ვტოვებთ, რომ მომხმარებელმა ხელახლა
     // სცადოს გადახდა — refund/cancel-ის ცალკე ნაკადი out-of-scope-ია v1-ში.
+  }
+
+  // ⚠️ უსაფრთხოების ფიქსი (PaymentsController.completeMockPayment): მანამდე
+  // ამ route-ს არც ავტორიზაცია და არც საკუთრების შემოწმება არ ჰქონდა — ნებისმიერს
+  // შეეძლო ნებისმიერი orderId/externalId წყვილით შემთხვევით სხვისი შეკვეთის
+  // "გადახდილად" მონიშვნა. აქ ვამოწმებთ ორივეს: (1) findOneForUser-ით, რომ orderId
+  // რეალურად მოთხოვნის ავტორის (ან ADMIN-ის) შეკვეთაა; (2) რომ URL-ის externalId
+  // სინამდვილეშიც ამ კონკრეტული შეკვეთის Payment-ს ეკუთვნის და არა შემთხვევით
+  // სხვა (თუნდაც საკუთარი) შეკვეთის externalId-ია მოსული.
+  async assertOrderOwnedByForMockComplete(
+    userId: number,
+    role: UserRole,
+    orderId: number,
+    externalId: string,
+  ): Promise<Order> {
+    const order = await this.ordersService.findOneForUser(
+      userId,
+      role,
+      orderId,
+    );
+
+    const payment = await this.paymentRepository.findOne({
+      where: { order: { id: orderId } },
+    });
+    if (!payment || payment.providerOrderId !== externalId) {
+      throw new ForbiddenException(
+        'გადახდის ID არ ემთხვევა მითითებულ შეკვეთას',
+      );
+    }
+
+    return order;
   }
 }

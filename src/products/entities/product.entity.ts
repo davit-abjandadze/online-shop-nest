@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -60,6 +61,10 @@ export class Product {
   isActive!: boolean;
 
   // კატეგორიის წაშლისას პროდუქტი არ იშლება, უბრალოდ category null ხდება.
+  // @Index — GET /categories/:slug/products და getFilters() ორივე
+  // კატეგორიის subtree-ს products-ს categoryId-ით filter-ავს; ინდექსის
+  // გარეშე ეს sequential scan-ია ცხრილის ზრდასთან ერთად.
+  @Index()
   @ManyToOne(() => Category, (category) => category.products, {
     onDelete: 'SET NULL',
     nullable: true,

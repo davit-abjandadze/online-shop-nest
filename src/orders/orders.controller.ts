@@ -19,8 +19,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 
@@ -28,7 +27,7 @@ import { UserRole } from '../users/entities/user.entity';
 // "admin"-ს :id პარამეტრად აღიქვამს (users.controller.ts-ის იგივე პატერნი).
 @ApiTags('orders')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -58,7 +57,7 @@ export class OrdersController {
   }
 
   @Get('admin/all')
-  @Roles(UserRole.ADMIN)
+  @AdminOnly()
   @ApiOperation({ summary: 'ყველა შეკვეთის სია (ADMIN)' })
   @ApiResponse({ status: 200, description: 'შეკვეთების გვერდიანი სია' })
   findAll(@Query() searchOrderDto: SearchOrderDto) {
@@ -81,7 +80,7 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN)
+  @AdminOnly()
   @ApiOperation({ summary: 'შეკვეთის სტატუსის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'სტატუსი განახლდა' })
   @ApiResponse({ status: 404, description: 'შეკვეთა ვერ მოიძებნა' })

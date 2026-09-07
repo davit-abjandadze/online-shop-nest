@@ -84,36 +84,37 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger-ის კონფიგურაცია
-  const config = new DocumentBuilder()
-    .setTitle('Online Shop API')
-    .setDescription('REST API for the online shop backend')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-
-  // production-ში Swagger UI (/api) საჯაროდ არ იხსნება — API-ის სტრუქტურის
-  // (endpoint-ები, DTO-ები) გამჟღავნება არ გვინდა გარეშე პირისთვის.
-  // swagger.json ფაილი მაინც იწერება ქვემოთ ყოველთვის, რადგან ის ფრონტენდის
-  // `yarn generate:api`-ს სჭირდება (წაკითხვა ხდება ფაილიდან, არა HTTP-ით).
+  // ⚠️ ფიქსი: SwaggerModule.createDocument (მთელი API-ის schema-ს აწყობს
+  // reflection-ით) + writeFileSync ორივე უპირობოდ სრულდებოდა production-შიც,
+  // მიუხედავად იმისა, რომ production-ში Swagger UI არც იხსნება და
+  // production კონტეინერის ეფემერული ფაილსისტემიდან ამ ფაილს ისედაც არავინ
+  // კითხულობს (იხ. კომენტარი ქვემოთ) — ანუ ყოველ production ბუთზე
+  // წმინდა დანაკარგი იყო ბლოკავდა ბუთის ნაკადს document-ის აწყობაზე + sync
+  // disk-write-ზე უსარგებლოდ. ახლა ორივე მხოლოდ non-production-ში სრულდება.
   if (process.env.NODE_ENV !== 'production') {
-    SwaggerModule.setup('api', app, document);
-  }
+    // Swagger-ის კონფიგურაცია
+    const config = new DocumentBuilder()
+      .setTitle('Online Shop API')
+      .setDescription('REST API for the online shop backend')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  // ყოველ სტარტზე ავტომატურად გენერირდება/განახლდება swagger.json,
-  // რომ ფრონტმა ყოველთვის ახალი schema-დან შეძლოს ტიპების/კლიენტის გენერაცია.
-  // production კონტეინერში ფაილსისტემა ეფემერულია და ეს ფაილი არავის სჭირდება იქ,
-  // ამიტომ ჩავარდნაზე მხოლოდ warning-ს ვწერთ და ბუთს არ ვწყვეტთ.
-  try {
-    writeFileSync(
-      join(process.cwd(), 'swagger.json'),
-      JSON.stringify(document, null, 2),
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn('swagger.json ვერ ჩაიწერა:', message);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+
+    // ყოველ non-production სტარტზე ავტომატურად გენერირდება/განახლდება
+    // swagger.json, რომ ფრონტმა ყოველთვის ახალი schema-დან შეძლოს
+    // ტიპების/კლიენტის გენერაცია.
+    try {
+      writeFileSync(
+        join(process.cwd(), 'swagger.json'),
+        JSON.stringify(document, null, 2),
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('swagger.json ვერ ჩაიწერა:', message);
+    }
   }
 
   // PORT-ის არასწორი მნიშვნელობა (მაგ. ცარიელი სტრიქონი, ტექსტი) NaN-ს იძლევა —

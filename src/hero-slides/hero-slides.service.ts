@@ -7,8 +7,8 @@ import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { UpdateHeroSlideDto } from './dto/update-hero-slide.dto';
 import { FindHeroSlidesDto } from './dto/find-hero-slides.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -43,13 +43,7 @@ export class HeroSlidesService {
   async findAllPaginated(
     findHeroSlidesDto: FindHeroSlidesDto,
   ): Promise<PaginatedResponseDto<HeroSlide>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'sortOrder',
-      order = 'ASC',
-      isActive,
-    } = findHeroSlidesDto;
+    const { isActive } = findHeroSlidesDto;
 
     const qb = this.heroSlideRepository
       .createQueryBuilder('heroSlide')
@@ -59,12 +53,14 @@ export class HeroSlidesService {
       qb.andWhere('heroSlide.isActive = :isActive', { isActive });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    qb.orderBy(`heroSlide.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(
+      qb,
+      'heroSlide',
+      findHeroSlidesDto,
+      SORTABLE_COLUMNS,
+      'sortOrder',
+      { defaultOrder: 'ASC' },
+    );
   }
 
   async findOne(id: string): Promise<HeroSlide> {

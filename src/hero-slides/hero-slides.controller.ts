@@ -9,23 +9,14 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { HeroSlidesService } from './hero-slides.service';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { UpdateHeroSlideDto } from './dto/update-hero-slide.dto';
 import { FindHeroSlidesDto } from './dto/find-hero-slides.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -77,9 +68,7 @@ export class HeroSlidesController {
   }
 
   @Get('admin')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'სლაიდების გვერდიანი სია, აქტიური/არააქტიურის ჩათვლით (ADMIN)',
   })
@@ -97,9 +86,7 @@ export class HeroSlidesController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'კონკრეტული სლაიდის მიღება (ADMIN, edit ფორმისთვის)',
   })
@@ -110,9 +97,7 @@ export class HeroSlidesController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი სლაიდის შექმნა (ADMIN)' })
   @ApiResponse({ status: 201, description: 'სლაიდი შეიქმნა' })
@@ -123,9 +108,7 @@ export class HeroSlidesController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'სლაიდის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'სლაიდი განახლდა' })
   @ApiResponse({ status: 404, description: 'სლაიდი ან პროდუქტი ვერ მოიძებნა' })
@@ -137,9 +120,7 @@ export class HeroSlidesController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'სლაიდის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'სლაიდი წაიშალა' })
   @ApiResponse({ status: 404, description: 'სლაიდი ვერ მოიძებნა' })

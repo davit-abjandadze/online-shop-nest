@@ -18,6 +18,7 @@ import { OrderItem } from './entities/order-item.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
 import { ProductBranch } from '../products/entities/product-branch.entity';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -26,6 +27,8 @@ import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { BranchesService } from '../branches/branches.service';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
+import { maskPhoneNumber } from '../common/utils/mask.util';
+import { isAdminRole } from '../common/utils/is-admin.util';
 
 // გადაუხდელი შეკვეთის default ვადა (წუთებში) — ამის შემდეგ cron (Phase 5)
 // EXPIRED-ში გადაჰყავს და მარაგს აბრუნებს.
@@ -58,6 +61,8 @@ export class OrdersService {
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
     @InjectDataSource()
     private dataSource: DataSource,
     private cartService: CartService,
@@ -81,6 +86,17 @@ export class OrdersService {
       deliveryMethod === DeliveryMethod.PICKUP
         ? await this.branchesService.findOne(createOrderDto.branchId!)
         : undefined;
+
+    // findOne() (branchesService-ში) isActive-ს არ ამოწმებს — ის მხოლოდ
+    // findAllActive()-ისთვისაა (checkout-ის ფილიალების სია). აქ ცალკე
+    // ვამოწმებთ, რომ დახურულ/დეაქტივირებულ ფილიალზე pickup ვერ გაფორმდეს
+    // (იგივე პატერნი, რაც ქვემოთ product.isActive-ის ხელახლა შემოწმებაზეა).
+    if (branch && !branch.isActive) {
+      throw new BadRequestException(
+        `ფილიალი "${branch.title}" ამჟამად დახურულია`,
+      );
+    }
+
     const shippingAddress =
       deliveryMethod === DeliveryMethod.PICKUP
         ? branch!.address
@@ -205,7 +221,15 @@ export class OrdersService {
           discountPercent > 0
             ? basePrice * (1 - discountPercent / 100)
             : basePrice;
-        totalAmount += unitPrice * cartItem.quantity;
+        // unitPrice-ს ვამრგვალებთ აქვე, სანამ totalAmount-ს დავამატებთ —
+        // OrderItem.unitPrice ისედაც დამრგვალებული (2 ათწილადი) ინახება,
+        // ხოლო თუ totalAmount დაუმრგვალებელი unitPrice-ებით დაგროვდებოდა
+        // და მხოლოდ ბოლოს დამრგვალდებოდა, ორივე შეიძლებოდა ერთმანეთს
+        // არ დამთხვეოდა (მაგ. 2×13.3933 → item 13.39, ჯამში 26.79, მაგრამ
+        // 2×13.39=26.78) — totalAmount ახლა უკვე დამრგვალებული
+        // per-line თანხების ჯამია, არა დაუმრგვალებელი შუალედური მნიშვნელობებისა.
+        const roundedUnitPrice = Math.round(unitPrice * 100) / 100;
+        totalAmount += roundedUnitPrice * cartItem.quantity;
 
         orderItems.push(
           manager.create(OrderItem, {
@@ -215,7 +239,7 @@ export class OrdersService {
             colorName: productColor
               ? resolveTranslation(productColor.color.translations, 'ka')?.name
               : undefined,
-            unitPrice: unitPrice.toFixed(2),
+            unitPrice: roundedUnitPrice.toFixed(2),
             quantity: cartItem.quantity,
           }),
         );
@@ -268,7 +292,7 @@ export class OrdersService {
     orderId: number,
   ): Promise<Order> {
     const order = await this.findOrderOrThrow(orderId);
-    const isAdmin = role === UserRole.ADMIN;
+    const isAdmin = isAdminRole(role);
     if (!isAdmin && order.user.id !== userId) {
       throw new ForbiddenException('ამ შეკვეთის ნახვის უფლება არ გაქვთ');
     }
@@ -302,10 +326,26 @@ export class OrdersService {
       (status === OrderStatus.CANCELLED || status === OrderStatus.EXPIRED) &&
       !order.stockRestored;
 
+    // PAID → CANCELLED (ADMIN-ის მიერ) მარაგს აბრუნებს, მაგრამ Payment
+    // row-ს აქამდე ხელუხლებელი COMPLETED ტოვებდა — არსად აღარ ჩანდა, რომ
+    // ფაქტობრივად თანხის დაბრუნება ეკუთვნის ამ შეკვეთას. რეალური refund
+    // BOG-თან (ისევე, როგორც REJECTED-ის შემთხვევაში) v1-ში out-of-scope-ია
+    // (იხ. PaymentsService.handleCallback-ის კომენტარი) — აქ მხოლოდ Payment
+    // სტატუსს ვნიშნავთ REFUNDED-ად, რომ ეს ვალდებულება მოჩანდეს/ტრეკვადი
+    // იყოს (ხელით დამუშავებამდე).
+    const wasPaid = order.status === OrderStatus.PAID;
+
     if (needsRestock) {
       await this.dataSource.transaction(async (manager) => {
         await this.restockOrderItems(manager, order);
         await manager.update(Order, orderId, { status, stockRestored: true });
+        if (wasPaid && status === OrderStatus.CANCELLED) {
+          await manager.update(
+            Payment,
+            { order: { id: orderId }, status: PaymentStatus.COMPLETED },
+            { status: PaymentStatus.REFUNDED },
+          );
+        }
       });
       return this.findOrderOrThrow(orderId);
     }
@@ -344,44 +384,105 @@ export class OrdersService {
     return staleOrders.length;
   }
 
+  // ⚠️ ფიქსი: აქამდე თითო order item-ზე თანმიმდევრობით (sequentially
+  // awaited) გადიოდა 1-3 ცალკე UPDATE (Product/ProductColor/ProductBranch) —
+  // @Cron(EVERY_MINUTE)-ით გაშვებულ expireStaleOrders-ში ბევრ item-იან
+  // ვადაგასულ შეკვეთაზე ეს ხდებოდა N ცალკე round-trip ერთმანეთის მიყოლებით.
+  // ახლა თითო ცხრილზე item-ები productId-ით (საჭიროებისას productId+colorId /
+  // productId+branchId-ით) ჯამდება და ერთი bulk UPDATE...FROM (VALUES...)
+  // სრულდება ცხრილზე, სულ მაქსიმუმ 3 query — item-ების რაოდენობის
+  // მიუხედავად.
   private async restockOrderItems(manager: EntityManager, order: Order) {
+    const productQty = new Map<number, number>();
+    const colorQty = new Map<
+      string,
+      { productId: number; colorId: string; qty: number }
+    >();
+    const branchQty = new Map<
+      string,
+      { productId: number; branchId: number; qty: number }
+    >();
+
     for (const item of order.items) {
       if (!item.product) continue; // პროდუქტი უკვე წაშლილია — აღარაფერზე ვაბრუნებთ
-      await manager
-        .createQueryBuilder()
-        .update(Product)
-        .set({ stock: () => `stock + ${item.quantity}` })
-        .where('id = :id', { id: item.product.id })
-        .execute();
+      const productId = item.product.id;
+      productQty.set(
+        productId,
+        (productQty.get(productId) ?? 0) + item.quantity,
+      );
 
       // ფერზე გაფორმებული item-ისთვის კონკრეტული ProductColor.stock-საც
       // ვაბრუნებთ (თუ ეს ფერი შუალედში არ წაშლილა) — createFromCart-ის
       // იგივე დაკლების საპირისპირო მოქმედება.
       if (item.colorId) {
-        await manager
-          .createQueryBuilder()
-          .update(ProductColor)
-          .set({ stock: () => `stock + ${item.quantity}` })
-          .where('productId = :productId AND colorId = :colorId', {
-            productId: item.product.id,
-            colorId: item.colorId,
-          })
-          .execute();
+        const key = `${productId}:${item.colorId}`;
+        const existing = colorQty.get(key);
+        colorQty.set(key, {
+          productId,
+          colorId: item.colorId,
+          qty: (existing?.qty ?? 0) + item.quantity,
+        });
       }
 
       // pickup შეკვეთისთვის — createFromCart-ის ProductBranch.stock დაკლების
       // საპირისპირო მოქმედება (თუ ეს ფილიალი შუალედში არ წაშლილა).
       if (order.deliveryMethod === DeliveryMethod.PICKUP && order.branch) {
-        await manager
-          .createQueryBuilder()
-          .update(ProductBranch)
-          .set({ stock: () => `stock + ${item.quantity}` })
-          .where('productId = :productId AND branchId = :branchId', {
-            productId: item.product.id,
-            branchId: order.branch.id,
-          })
-          .execute();
+        const key = `${productId}:${order.branch.id}`;
+        const existing = branchQty.get(key);
+        branchQty.set(key, {
+          productId,
+          branchId: order.branch.id,
+          qty: (existing?.qty ?? 0) + item.quantity,
+        });
       }
+    }
+
+    if (productQty.size > 0) {
+      const entries = [...productQty.entries()];
+      const values = entries
+        .map((_, i) => `($${i * 2 + 1}::int, $${i * 2 + 2}::int)`)
+        .join(', ');
+      const params = entries.flatMap(([id, qty]) => [id, qty]);
+      await manager.query(
+        `UPDATE "product" AS p SET stock = p.stock + v.qty
+         FROM (VALUES ${values}) AS v(id, qty)
+         WHERE p.id = v.id`,
+        params,
+      );
+    }
+
+    if (colorQty.size > 0) {
+      const entries = [...colorQty.values()];
+      const values = entries
+        .map(
+          (_, i) =>
+            `($${i * 3 + 1}::int, $${i * 3 + 2}::uuid, $${i * 3 + 3}::int)`,
+        )
+        .join(', ');
+      const params = entries.flatMap((e) => [e.productId, e.colorId, e.qty]);
+      await manager.query(
+        `UPDATE "product_color" AS pc SET stock = pc.stock + v.qty
+         FROM (VALUES ${values}) AS v("productId", "colorId", qty)
+         WHERE pc."productId" = v."productId" AND pc."colorId" = v."colorId"`,
+        params,
+      );
+    }
+
+    if (branchQty.size > 0) {
+      const entries = [...branchQty.values()];
+      const values = entries
+        .map(
+          (_, i) =>
+            `($${i * 3 + 1}::int, $${i * 3 + 2}::int, $${i * 3 + 3}::int)`,
+        )
+        .join(', ');
+      const params = entries.flatMap((e) => [e.productId, e.branchId, e.qty]);
+      await manager.query(
+        `UPDATE "product_branch" AS pb SET stock = pb.stock + v.qty
+         FROM (VALUES ${values}) AS v("productId", "branchId", qty)
+         WHERE pb."productId" = v."productId" AND pb."branchId" = v."branchId"`,
+        params,
+      );
     }
   }
 
@@ -442,6 +543,17 @@ export class OrdersService {
     qb.skip((page - 1) * limit).take(limit);
 
     const [data, total] = await qb.getManyAndCount();
+
+    // ⚠️ უსაფრთხოების ფიქსი: user.phoneNumber ზემოთ დეშიფრული სახით ირჩევა
+    // (encryptedColumnTransformer ავტომატურად შიფრავს), მაგრამ ისევე, როგორც
+    // AuthService.generateToken() masking იყენებს login/register პასუხში,
+    // სიაშიც (მათ შორის GET /orders/admin/all) მხოლოდ ნიღბიანი ვერსია უნდა
+    // გავცეთ — სრული ნომერი კონკრეტული შეკვეთის დეტალზეა საჭირო, არა სიაში.
+    for (const order of data) {
+      if (order.user) {
+        order.user.phoneNumber = maskPhoneNumber(order.user.phoneNumber);
+      }
+    }
 
     return new PaginatedResponseDto(data, total, page, limit);
   }

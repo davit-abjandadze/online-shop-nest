@@ -1,7 +1,8 @@
 import { IsOptional, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { toQueryBoolean } from '../../common/transforms/query-boolean.transform';
 
 // GET /product-sliders/admin-ის query პარამეტრები (ADMIN სია) —
 // pagination + სურვილისამებრ isActive-ის მიხედვით გაფილტვრა
@@ -12,7 +13,7 @@ export class FindProductSlidersDto extends PaginationDto {
     example: true,
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(toQueryBoolean)
   @IsBoolean()
   isActive?: boolean;
 }

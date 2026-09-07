@@ -29,6 +29,12 @@ export class AuthService {
   private readonly googleClientId?: string;
   private readonly googleOAuthClient: OAuth2Client;
 
+  // Facebook-ის access token-ების ვერიფიკაციისთვის (facebookLogin) — Graph API-ს
+  // debug_token endpoint-ს ვეკითხებით (app access token = appId|appSecret), რომ
+  // დავრწმუნდეთ token რეალურად ჩვენს აპზეა გაცემული და ვადაგასული არ არის.
+  private readonly facebookAppId?: string;
+  private readonly facebookAppSecret?: string;
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
@@ -38,6 +44,10 @@ export class AuthService {
   ) {
     this.googleClientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     this.googleOAuthClient = new OAuth2Client(this.googleClientId);
+    this.facebookAppId = this.configService.get<string>('FACEBOOK_CLIENT_ID');
+    this.facebookAppSecret = this.configService.get<string>(
+      'FACEBOOK_CLIENT_SECRET',
+    );
   }
 
   async register(registerDto: RegisterDto) {
@@ -221,28 +231,93 @@ export class AuthService {
   }
 
   // ⚠️ დროებით გამორთულია Facebook ავტორიზაცია (Facebook App ჯერ Development/Unpublished რეჟიმშია)
-  // // ⭐ ახალი მეთოდი Facebook ავტორიზაციისთვის
-  // async facebookLogin(profile: { email: string; firstName: string; lastName: string }) {
-  //   // 1. ვეძებთ მომხმარებელს email-ით
-  //   let user = await this.usersService.findByEmail(profile.email);
+  // ⭐ Facebook ავტორიზაცია
+  // ⚠️ 2026-09-07: ეს მეთოდი ადრე client-ის მიერ request body-ში გამოგზავნილ
+  // email/firstName/lastName-ს ნდობით იღებდა (ისევე, როგორც googleLogin ადრე) —
+  // ანუ ნებისმიერს შეეძლო POST /auth/facebook-ზე { email: "victim@site.com", ... }
+  // გაეგზავნა და მიეღო access_token ნებისმიერი არსებული ანგარიშისთვის (account
+  // takeover). ახლა Facebook-ის access token-ს ვღებულობთ და Graph API-ის
+  // debug_token endpoint-ით ვამოწმებთ, რომ token ვალიდურია, ვადაგასული არ არის და
+  // ჩვენს აპზეა გაცემული (app_id claim) — მხოლოდ ამის შემდეგ ვკითხულობთ
+  // დამოწმებულ email/სახელს Graph API-ის /me-დან, არა client-ისგან.
+  async facebookLogin(accessToken: string) {
+    if (!this.facebookAppId || !this.facebookAppSecret) {
+      throw new UnauthorizedException(
+        'Facebook ავტორიზაცია არ არის კონფიგურირებული (FACEBOOK_CLIENT_ID/FACEBOOK_CLIENT_SECRET)',
+      );
+    }
 
-  //   // 2. თუ არ არსებობს, ვქმნით ახალს
-  //   if (!user) {
-  //     const randomPassword = Math.random().toString(36).slice(-8);
-  //     const hashedPassword = await bcrypt.hash(randomPassword, 10);
+    const appAccessToken = `${this.facebookAppId}|${this.facebookAppSecret}`;
 
-  //     user = await this.usersService.create({
-  //       email: profile.email,
-  //       firstName: profile.firstName,
-  //       lastName: profile.lastName,
-  //       password: hashedPassword,
-  //       role: UserRole.USER,
-  //     });
-  //   }
+    let debugData: { app_id?: string; is_valid?: boolean; user_id?: string };
+    try {
+      const debugRes = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(
+          accessToken,
+        )}&access_token=${encodeURIComponent(appAccessToken)}`,
+      );
+      const debugJson = await debugRes.json();
+      debugData = debugJson?.data ?? {};
+    } catch {
+      throw new UnauthorizedException('Facebook token-ის ვერიფიკაცია ვერ მოხერხდა');
+    }
 
-  //   // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
-  //   return this.generateToken(user);
-  // }
+    if (!debugData.is_valid || debugData.app_id !== this.facebookAppId) {
+      throw new UnauthorizedException('არასწორი ან ვადაგასული Facebook token');
+    }
+
+    let profileData: {
+      email?: string;
+      first_name?: string;
+      last_name?: string;
+    };
+    try {
+      const profileRes = await fetch(
+        `https://graph.facebook.com/me?fields=email,first_name,last_name&access_token=${encodeURIComponent(
+          accessToken,
+        )}`,
+      );
+      profileData = await profileRes.json();
+    } catch {
+      throw new UnauthorizedException('Facebook პროფილის წამოღება ვერ მოხერხდა');
+    }
+
+    if (!profileData.email) {
+      throw new UnauthorizedException(
+        'Facebook ანგარიშს არ აქვს დამოწმებული ელფოსტა',
+      );
+    }
+
+    const profile = {
+      email: profileData.email,
+      firstName: profileData.first_name ?? '',
+      lastName: profileData.last_name ?? '',
+    };
+
+    // 1. ვეძებთ მომხმარებელს email-ით (Facebook-ის მიერ დამოწმებული email-ით)
+    let user = await this.usersService.findByEmail(profile.email);
+
+    // 2. თუ არ არსებობს, ვქმნით ახალს
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+      user = await this.usersService.create(
+        {
+          email: profile.email,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          password: hashedPassword,
+          role: UserRole.USER,
+        },
+        // Facebook-ით შემოსული ელფოსტა უკვე დამოწმებულია Facebook-ის მიერ
+        { isEmailVerified: true },
+      );
+    }
+
+    // 3. ვაგენერირებთ ჩვენს JWT ტოკენს
+    return this.generateToken(user);
+  }
 
   // ⭐ ახალი მეთოდი: პაროლის აღდგენის მოთხოვნა
   async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {

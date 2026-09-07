@@ -80,12 +80,24 @@ export class PaymentsController {
   // MockPaymentProvider-ის "checkout გვერდი" — რეალურ BOG checkout-ს ცვლის
   // კომპანიის რეგისტრაციამდე. მხოლოდ PAYMENT_PROVIDER=mock-ზეა ხელმისაწვდომი,
   // რომ production-ში (PAYMENT_PROVIDER=bog) ვინმემ უფასოდ ვერ "გადაიხადოს".
+  //
+  // ⚠️ უსაფრთხოების ფიქსი: ეს route აქამდე მთლიანად guard-ისა და
+  // საკუთრების შემოწმების გარეშე იყო — ნებისმიერს, ვინც externalId-ს (ან
+  // მხოლოდ orderId-ს) გამოიცნობდა/მოიპოვებდა, შეეძლო ნებისმიერი სხვისი
+  // შეკვეთა უფასოდ "გადაეხადა", რადგან handleCallback-ს რეალური გადახდის
+  // დამადასტურებელი აღარაფერი გააჩნია (ეს ხომ mock-ია). ახლა route
+  // მოითხოვს ავტორიზაციას და findOneForUser-ით ვამოწმებთ, რომ orderId
+  // რეალურად ამ მომხმარებელს ეკუთვნის (ან ADMIN-ია) — ისევე, როგორც
+  // initiate()-ზეა უკვე გაკეთებული.
   @Get('mock/:externalId/complete')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'MockPaymentProvider-ის auto-complete (მხოლოდ PAYMENT_PROVIDER=mock)',
   })
   async completeMockPayment(
+    @CurrentUser() user: { userId: number; role: UserRole },
     @Param('externalId') externalId: string,
     @Query('orderId') orderId: string,
     @Res() res: Response,
@@ -94,6 +106,15 @@ export class PaymentsController {
       throw new NotFoundException();
     }
 
+    // საკუთრების/არსებობის შემოწმება — 403/404-ს აგდებს, თუ orderId სხვისია
+    // ან საერთოდ არ არსებობს.
+    const order = await this.paymentsService.assertOrderOwnedByForMockComplete(
+      user.userId,
+      user.role,
+      +orderId,
+      externalId,
+    );
+
     const rawBody = Buffer.from(
       JSON.stringify({ externalId, status: PaymentStatus.COMPLETED }),
       'utf8',
@@ -101,6 +122,6 @@ export class PaymentsController {
     await this.paymentsService.handleCallback(rawBody, {});
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    return res.redirect(`${frontendUrl}/orders/${orderId}?payment=success`);
+    return res.redirect(`${frontendUrl}/orders/${order.id}?payment=success`);
   }
 }

@@ -63,17 +63,27 @@ export class User {
 
   // ტელეფონის ნომერი — სავალდებულო ველია (DTO-დონეზე @IsNotEmpty).
   // სვეტი nullable-ია, რომ synchronize-მა არსებულ ჩანაწერებზე ALTER-ისას არ დაეცეს.
-  // unique: true — ერთი და იგივე ნომრით ორჯერ ვერ დარეგისტრირდები (იხ. UsersService.create).
-  // ბაზაში დაშიფრულად ინახება — transformer დეტერმინისტულია (იხ. encryption.util.ts),
-  // ამიტომ unique-შეზღუდვა და findByPhoneNumber-ის WHERE-ით ტოლობითი ძებნა კვლავ
-  // მუშაობს ciphertext-ზეც, ცვლილების გარეშე UsersService-ში.
+  // ბაზაში დაშიფრულად ინახება (encryptedColumnTransformer, AES-256-GCM,
+  // შემთხვევითი IV — იხ. encryption.util.ts). ⚠️ 2026-09-06: აღარ არის unique
+  // და აღარც WHERE-ით ტოლობითი ძებნისთვის გამოიყენება — non-deterministic
+  // (random-IV) ciphertext-ზე ვერც ერთი ვერც მეორე იმუშავებდა (ერთი და იგივე
+  // ნომერი ყოველ დაშიფვრაზე სხვადასხვა ciphertext-ს იძლევა). ორივესთვის
+  // ქვემოთ phoneNumberHash გამოიყენება.
   @Column({
     type: 'varchar',
     nullable: true,
-    unique: true,
     transformer: encryptedColumnTransformer,
   })
   phoneNumber?: string;
+
+  // ტელეფონის ნომრის blind-index (HMAC-SHA256, დამოუკიდებელი, phoneNumber-ის
+  // AES-გასაღებისგან განსხვავებული, წარმოებული key — იხ. hashForSearch()) —
+  // ტოლობის შესამოწმებლად (unique-შეზღუდვა + findByPhoneNumber-ის WHERE) და
+  // არა თავად დაშიფრული phoneNumber-ის სვეტზე, რომელიც ახლა non-deterministic-ია.
+  // UsersService.create/update ივსება ხელით (transformer მხოლოდ ერთ სვეტს
+  // მართავს, ცალკე სვეტს ვერ შეავსებდა).
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  phoneNumberHash?: string;
 
   // ორივე ველი მხოლოდ სერვერზე იმართება (UsersService.create/update) OTP-ის
   // წარმატებული დამოწმების შემდეგ — არასდროს არ იკითხება პირდაპირ კლიენტის

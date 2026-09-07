@@ -12,8 +12,10 @@ import { resolveSortColumn } from '../common/dto/pagination.dto';
 
 // sortBy პირდაპირ user-ისგან query string-იდან მოდის — SQL injection-ის
 // თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს (category/products
-// მოდულების იგივე pattern).
-const SORTABLE_COLUMNS = new Set(['id', 'name', 'sortOrder', 'createdAt']);
+// მოდულების იგივე pattern). 'name' განზრახ არ არის შიგნით — Branch-ის
+// შესაბამისი სვეტი სინამდვილეში 'title'-ია, orderBy('branch.name', ...)
+// invalid-column 500-ს დააგდებდა.
+const SORTABLE_COLUMNS = new Set(['id', 'title', 'sortOrder', 'createdAt']);
 
 @Injectable()
 export class BranchesService {

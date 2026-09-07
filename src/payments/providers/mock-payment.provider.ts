@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { Order } from '../../orders/entities/order.entity';
-import { PaymentStatus } from '../entities/payment.entity';
+import { PaymentProvider, PaymentStatus } from '../entities/payment.entity';
 import { PaymentProviderClient } from './payment-provider.interface';
 
 // კომპანიის იურიდიულ რეგისტრაციამდე გამოსაყენებელი stub — რეალურ BOG API-ს
@@ -15,6 +15,7 @@ import { PaymentProviderClient } from './payment-provider.interface';
 // PAYMENT_PROVIDER=bog და შესაბამისი BOG_* credentials კმარა.
 @Injectable()
 export class MockPaymentProvider implements PaymentProviderClient {
+  readonly provider = PaymentProvider.MOCK;
   private readonly logger = new Logger(MockPaymentProvider.name);
 
   constructor(private readonly configService: ConfigService) {

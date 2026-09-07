@@ -9,24 +9,15 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ProductSlidersService } from './product-sliders.service';
 import { CreateProductSliderDto } from './dto/create-product-slider.dto';
 import { UpdateProductSliderDto } from './dto/update-product-slider.dto';
 import { FindProductSlidersDto } from './dto/find-product-sliders.dto';
 import { SetProductSliderItemsDto } from './dto/set-product-slider-items.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -109,9 +100,7 @@ export class ProductSlidersController {
   }
 
   @Get('admin')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'ბლოკების გვერდიანი სია, აქტიური/არააქტიურის ჩათვლით (ADMIN)',
   })
@@ -132,9 +121,7 @@ export class ProductSlidersController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'კონკრეტული ბლოკის მიღება (ADMIN, edit ფორმისთვის)',
   })
@@ -145,9 +132,7 @@ export class ProductSlidersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი ბლოკის შექმნა (ADMIN)' })
   @ApiResponse({ status: 201, description: 'ბლოკი შეიქმნა' })
@@ -159,9 +144,7 @@ export class ProductSlidersController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ბლოკის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ბლოკი განახლდა' })
   @ApiResponse({
@@ -177,9 +160,7 @@ export class ProductSlidersController {
   }
 
   @Put(':id/items')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'ბლოკის პროდუქტების სრული ჩანაცვლება, სასურველი რიგით (ADMIN)',
   })
@@ -199,9 +180,7 @@ export class ProductSlidersController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'ბლოკის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ბლოკი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ბლოკი ვერ მოიძებნა' })

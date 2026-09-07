@@ -17,6 +17,13 @@ import {
 import { FavoritesService } from './favorites.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Locale } from '../common/decorators/locale.decorator';
+import type { Locale as LocaleType } from '../common/types/translations.type';
+// ⚠️ ფიქსი: მანამდე product.translations raw JSONB სახით ბრუნდებოდა —
+// ProductsController-ის enrichProduct()-ის იგივე resolution ვიმეორებთ, რომ
+// storefront-ისთვის name/description resolved სახით მოვიდეს, ისევე
+// როგორც ყველა სხვა product endpoint-ზე.
+import { enrichProduct } from '../products/products.controller';
 
 // ფავორიტები ყოველთვის "საკუთარი" ფავორიტებია — RolesGuard/@Roles აქ არ
 // სჭირდება, cart-ის მსგავსად.
@@ -30,8 +37,15 @@ export class FavoritesController {
   @Get()
   @ApiOperation({ summary: 'ჩემი ფავორიტების სია' })
   @ApiResponse({ status: 200, description: 'ფავორიტ პროდუქტების სია' })
-  findAll(@CurrentUser() user: { userId: number }) {
-    return this.favoritesService.findAllForUser(user.userId);
+  async findAll(
+    @CurrentUser() user: { userId: number },
+    @Locale() locale: LocaleType,
+  ) {
+    const favorites = await this.favoritesService.findAllForUser(user.userId);
+    return favorites.map((favorite) => ({
+      ...favorite,
+      product: enrichProduct(favorite.product, locale),
+    }));
   }
 
   @Post(':productId')

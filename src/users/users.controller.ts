@@ -10,15 +10,16 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { UserRole } from './entities/user.entity';
+import { maskPersonalNumber, maskPhoneNumber } from '../common/utils/mask.util';
+import { isAdminUser } from '../common/utils/is-admin.util';
 
 // ⚠️ უსაფრთხოების ფიქსი: აქამდე ეს კონტროლერი მთლიანად guard-ის გარეშე იყო —
 // ნებისმიერს (ტოკენის გარეშეც) შეეძლო GET /users-ით ყველა მომხმარებლის მონაცემის
@@ -26,13 +27,21 @@ import { UserRole } from './entities/user.entity';
 // ანგარიშისთვის role: "admin"-ის მინიჭება, ან DELETE /users/:id-ით ნებისმიერი
 // ანგარიშის წაშლა. ახლა: ყველა route მოითხოვს ავტორიზაციას, self/admin შემოწმებას
 // და role ველის ცვლილება მხოლოდ ADMIN-ს შეუძლია.
+// ⚠️ უსაფრთხოების ფიქსი: sanitizeUser აქამდე მხოლოდ password-ს აშორებდა — personalNumber/
+// phoneNumber დეშიფრული, სრული სახით ბრუნდებოდა GET /users, /users/search, /users/:id-ზე,
+// მიუხედავად იმისა, რომ AuthService.generateToken() ზუსტად ამ ველების დასაფარად mask.util.ts-ს
+// უკვე იყენებდა login/register პასუხში — ეს დაცვა აქ არასდროს გამოყენებულა.
 function sanitizeUser(user: any) {
   if (!user) return user;
   const { password, ...rest } = user;
-  return rest;
+  return {
+    ...rest,
+    personalNumber: maskPersonalNumber(rest.personalNumber),
+    phoneNumber: maskPhoneNumber(rest.phoneNumber),
+  };
 }
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -40,15 +49,25 @@ export class UsersController {
   // მხოლოდ ადმინს შეუძლია ახალი მომხმარებლის პირდაპირ შექმნა (role-ის ჩათვლით).
   // ჩვეულებრივი რეგისტრაცია ხდება /auth/register-ით, სადაც role ვერ იმართება კლიენტიდან.
   @Post()
-  @Roles(UserRole.ADMIN)
+  @AdminOnly()
   async create(@Body() createUserDto: CreateUserDto) {
-    const user = await this.usersService.create(createUserDto);
+    // ⚠️ უსაფრთხოების ფიქსი: UsersService.create() პაროლს არ ჰეშავს (სხვა ყველა
+    // გამომძახებელი — AuthService.register/googleLogin — უკვე ჰეშირებულ პაროლს
+    // გადასცემს), ამიტომ აქ, ერთადერთ ადგილას სადაც პაროლი პირდაპირ კლიენტიდან
+    // მოდის დაუჰეშავად, თავად უნდა დავაჰეშოთ — თორემ ბაზაში plaintext ჩაიწერებოდა
+    // და ამ ანგარიშით ვერასდროს შევძლებდით login-ს (bcrypt.compare ვერასდროს
+    // დაემთხვევა non-hash მნიშვნელობას).
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
+    const user = await this.usersService.create({
+      ...createUserDto,
+      password: hashedPassword,
+    });
     return sanitizeUser(user);
   }
 
   // სრული სია მხოლოდ ადმინისთვის — თორემ ყველას email/მონაცემები ჟონდებოდა.
   @Get()
-  @Roles(UserRole.ADMIN)
+  @AdminOnly()
   async findAll() {
     const users = await this.usersService.findAll();
     return users.map(sanitizeUser);
@@ -59,7 +78,7 @@ export class UsersController {
   // შენიშვნა: route-ი /:id-ზე მაღლა უნდა იდგეს, თორემ Nest "search"-ს
   // :id პარამეტრად აღიქვამს.
   @Get('search')
-  @Roles(UserRole.ADMIN)
+  @AdminOnly()
   async search(@Query() searchUserDto: SearchUserDto) {
     const result = await this.usersService.findAllPaginated(searchUserDto);
     return {
@@ -85,10 +104,7 @@ export class UsersController {
 
     // role-ის შეცვლა მხოლოდ ADMIN-ს შეუძლია — თორემ ნებისმიერს შეეძლო
     // საკუთარი თავისთვის { "role": "admin" } გაეგზავნა და ადმინი გამხდარიყო.
-    if (
-      updateUserDto.role !== undefined &&
-      currentUser?.role !== UserRole.ADMIN
-    ) {
+    if (updateUserDto.role !== undefined && !isAdminUser(currentUser)) {
       throw new ForbiddenException('როლის შეცვლის უფლება არ გაქვთ');
     }
 
@@ -104,7 +120,7 @@ export class UsersController {
   }
 
   private assertSelfOrAdmin(currentUser: any, targetId: number) {
-    const isAdmin = currentUser?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(currentUser);
     const isSelf = currentUser?.userId === targetId;
     if (!isAdmin && !isSelf) {
       throw new ForbiddenException('ამ მოქმედების უფლება არ გაქვთ');

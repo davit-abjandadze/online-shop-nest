@@ -28,12 +28,11 @@ import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { isAdminUser } from '../common/utils/is-admin.util';
 import { Locale } from '../common/decorators/locale.decorator';
 import type { Locale as LocaleType } from '../common/types/translations.type';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -45,7 +44,11 @@ import { ProductColor } from './entities/product-color.entity';
 // emat-დება entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved
 // storefront-ისთვის, translations — admin-ის edit ფორმისთვის). category
 // relation-იც (თუ ჩატვირთულია) იმავე სიღრმეზე enrich-დება.
-function enrichProduct(product: Product, locale: LocaleType) {
+//
+// export-ილია (FavoritesController-იც იყენებს) — favorites მანამდე ამ
+// resolution-ს გამოტოვებდა და raw JSONB translations-ს აბრუნებდა, რაც
+// frontend-ის სხვა product endpoint-ებზე აგებულ კოდს არღვევდა.
+export function enrichProduct(product: Product, locale: LocaleType) {
   const resolved = resolveTranslation(product.translations, locale);
   return {
     ...product,
@@ -140,7 +143,7 @@ export class ProductsController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const result = await this.productsService.findAllPaginated(
       searchProductDto,
       isAdmin,
@@ -166,7 +169,7 @@ export class ProductsController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const product = await this.productsService.findOne(+id, isAdmin);
     return enrichProduct(product, locale);
   }
@@ -193,9 +196,7 @@ export class ProductsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'ახალი პროდუქტის შექმნა (ADMIN)' })
   @ApiResponse({
@@ -209,9 +210,7 @@ export class ProductsController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'პროდუქტის განახლება (ADMIN)' })
   @ApiResponse({
     status: 200,
@@ -224,9 +223,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({ summary: 'პროდუქტის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'პროდუქტი წაიშალა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
@@ -247,7 +244,7 @@ export class ProductsController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const attributeValues = await this.productsService.getAttributeValues(
       +id,
       isAdmin,
@@ -258,9 +255,7 @@ export class ProductsController {
   }
 
   @Put(':id/attribute-values')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary:
       'პროდუქტის attribute value-ების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
@@ -290,14 +285,12 @@ export class ProductsController {
     @Param('id') id: string,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     return this.productsService.getAdditionalInfo(+id, isAdmin);
   }
 
   @Post(':id/additional-info')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'პროდუქტს დამატებითი ინფორმაციის ახალი ბლოკის დამატება (ADMIN)',
@@ -313,9 +306,7 @@ export class ProductsController {
   }
 
   @Put(':id/additional-info/:infoId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკის განახლება (ADMIN)',
   })
@@ -330,9 +321,7 @@ export class ProductsController {
   }
 
   @Delete(':id/additional-info/:infoId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'პროდუქტის დამატებითი ინფორმაციის ბლოკის წაშლა (ADMIN)',
   })
@@ -361,7 +350,7 @@ export class ProductsController {
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     const colors = await this.productsService.getColors(+id, isAdmin);
     return colors.map((productColor) =>
       enrichProductColor(productColor, locale),
@@ -369,9 +358,7 @@ export class ProductsController {
   }
 
   @Put(':id/colors')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary: 'პროდუქტის ფერების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
   })
@@ -400,14 +387,12 @@ export class ProductsController {
     @Param('id') id: string,
     @CurrentUser() user?: { role: UserRole },
   ) {
-    const isAdmin = user?.role === UserRole.ADMIN;
+    const isAdmin = isAdminUser(user);
     return this.productsService.getBranches(+id, isAdmin);
   }
 
   @Put(':id/branches')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @ApiBearerAuth()
+  @AdminOnly()
   @ApiOperation({
     summary:
       'პროდუქტის ფილიალების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',

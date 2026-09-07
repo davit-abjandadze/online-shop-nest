@@ -20,9 +20,9 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FindCategoriesDto } from './dto/find-categories.dto';
 import { AddCategoryAttributeDto } from './dto/add-category-attribute.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
+import { paginate } from '../common/utils/paginate.util';
 import { Locale } from '../common/types/translations.type';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
@@ -34,13 +34,9 @@ const SORTABLE_COLUMNS = new Set(['id', 'slug', 'sortOrder', 'createdAt']);
 
 // `GET /categories/:slug/products`-ზე დაშვებული დალაგების სვეტები — მხოლოდ
 // product-ის საკუთარი სვეტები, attribute value-ით დალაგება scope-ს გარეთაა.
-const PRODUCT_SORTABLE_COLUMNS = new Set([
-  'id',
-  'name',
-  'price',
-  'stock',
-  'createdAt',
-]);
+// 'name' განზრახ არ არის შიგნით — Product.name ცალკე flat სვეტი არაა, JSONB
+// translations-შია, orderBy('product.name', ...) invalid-column 500-ს დააგდებდა.
+const PRODUCT_SORTABLE_COLUMNS = new Set(['id', 'price', 'stock', 'createdAt']);
 
 // ფაზა 5-ის filter/facet endpoint-ებში query params raw სახით მოდის
 // (`ValidationPipe`-ის whitelist-ს ავუვლით — attribute-ის კოდები წინასწარ
@@ -74,14 +70,7 @@ export class CategoryService {
     findCategoriesDto: FindCategoriesDto,
     isAdmin = false,
   ): Promise<PaginatedResponseDto<Category>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'sortOrder',
-      order = 'ASC',
-      parentId,
-      isActive,
-    } = findCategoriesDto;
+    const { parentId, isActive } = findCategoriesDto;
 
     const qb = this.categoryRepository
       .createQueryBuilder('category')
@@ -103,12 +92,14 @@ export class CategoryService {
       });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    qb.orderBy(`category.${sortColumn}`, order === 'DESC' ? 'DESC' : 'ASC');
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(
+      qb,
+      'category',
+      findCategoriesDto,
+      SORTABLE_COLUMNS,
+      'sortOrder',
+      { defaultOrder: 'ASC' },
+    );
   }
 
   // სრული nested ხე — root-ებიდან დაწყებული, ჩაშენებული children[]-ებით.
@@ -581,6 +572,13 @@ export class CategoryService {
     );
     const attributesByCode = new Map(attributes.map((a) => [a.code, a]));
 
+    // ⚠️ ფიქსი: თითოეული attribute-ის facet-count აქამდე for-ის ციკლში
+    // sequentially ელოდებოდა წინას დასრულებას — N attribute-იანი
+    // კატეგორია N ცალკე, ერთმანეთის მიყოლებით round-trip-ს იძლეოდა.
+    // baseQb (და მისი WHERE) attribute-ების მიხედვით სხვადასხვაა (თითო
+    // attribute-ს საკუთარი აქტიური ფილტრი გამორიცხული აქვს), ამიტომ
+    // ერთ საერთო query-ში ერთიანად ვერ ვაერთიანებთ — მაგრამ დამოუკიდებელია
+    // ერთმანეთისგან, ასე რომ Promise.all-ით პარალელურად ვუშვებთ.
     const results: Array<{
       attribute: {
         id: string;
@@ -600,108 +598,108 @@ export class CategoryService {
       min?: number | null;
       max?: number | null;
       counts?: { true: number; false: number };
-    }> = [];
-
-    for (const attribute of attributes) {
-      const attributeSummary = {
-        id: attribute.id,
-        name: resolveTranslation(attribute.translations, locale)?.name,
-        translations: attribute.translations,
-        code: attribute.code,
-        type: attribute.type,
-        unit: attribute.unit,
-      };
-      const baseQb = this.buildFilteredProductsQuery(
-        categoryIds,
-        query,
-        attributesByCode,
-        attribute.code,
-      );
-
-      if (
-        attribute.type === AttributeType.SELECT ||
-        attribute.type === AttributeType.MULTI_SELECT
-      ) {
-        const raw = await baseQb
-          .clone()
-          .innerJoin(
-            ProductAttributeValue,
-            'facet',
-            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
-            { facetAttrId: attribute.id },
-          )
-          .select('facet.attributeOptionId', 'optionId')
-          .addSelect('COUNT(DISTINCT product.id)', 'count')
-          .groupBy('facet.attributeOptionId')
-          .getRawMany<{ optionId: string; count: string }>();
-        const countByOption = new Map(
-          raw.map((r) => [r.optionId, Number(r.count)]),
+    }> = await Promise.all(
+      attributes.map(async (attribute) => {
+        const attributeSummary = {
+          id: attribute.id,
+          name: resolveTranslation(attribute.translations, locale)?.name,
+          translations: attribute.translations,
+          code: attribute.code,
+          type: attribute.type,
+          unit: attribute.unit,
+        };
+        const baseQb = this.buildFilteredProductsQuery(
+          categoryIds,
+          query,
+          attributesByCode,
+          attribute.code,
         );
-        results.push({
-          attribute: attributeSummary,
-          options: (attribute.options ?? [])
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((o) => ({
-              id: o.id,
-              value: resolveTranslation(o.translations, locale)?.value,
-              translations: o.translations,
-              code: o.code,
-              count: countByOption.get(o.id) ?? 0,
-            })),
-        });
-      } else if (
-        attribute.type === AttributeType.NUMBER ||
-        attribute.type === AttributeType.RANGE
-      ) {
-        const stats = await baseQb
-          .clone()
-          .innerJoin(
-            ProductAttributeValue,
-            'facet',
-            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
-            { facetAttrId: attribute.id },
-          )
-          .select('MIN(facet.valueNumber)', 'min')
-          .addSelect('MAX(facet.valueNumber)', 'max')
-          .getRawOne<{ min: string | null; max: string | null }>();
-        results.push({
-          attribute: attributeSummary,
-          min:
-            stats?.min !== null && stats?.min !== undefined
-              ? Number(stats.min)
-              : null,
-          max:
-            stats?.max !== null && stats?.max !== undefined
-              ? Number(stats.max)
-              : null,
-        });
-      } else if (attribute.type === AttributeType.BOOLEAN) {
-        const raw = await baseQb
-          .clone()
-          .innerJoin(
-            ProductAttributeValue,
-            'facet',
-            'facet.productId = product.id AND facet.attributeId = :facetAttrId',
-            { facetAttrId: attribute.id },
-          )
-          .select('facet.valueBoolean', 'value')
-          .addSelect('COUNT(DISTINCT product.id)', 'count')
-          .groupBy('facet.valueBoolean')
-          .getRawMany<{ value: boolean; count: string }>();
-        const trueCount = raw.find((r) => r.value === true)?.count;
-        const falseCount = raw.find((r) => r.value === false)?.count;
-        results.push({
-          attribute: attributeSummary,
-          counts: {
-            true: trueCount !== undefined ? Number(trueCount) : 0,
-            false: falseCount !== undefined ? Number(falseCount) : 0,
-          },
-        });
-      } else {
-        // text — ფილტრის სიაში ჩანს, faceted count-ის გარეშე.
-        results.push({ attribute: attributeSummary });
-      }
-    }
+
+        if (
+          attribute.type === AttributeType.SELECT ||
+          attribute.type === AttributeType.MULTI_SELECT
+        ) {
+          const raw = await baseQb
+            .clone()
+            .innerJoin(
+              ProductAttributeValue,
+              'facet',
+              'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+              { facetAttrId: attribute.id },
+            )
+            .select('facet.attributeOptionId', 'optionId')
+            .addSelect('COUNT(DISTINCT product.id)', 'count')
+            .groupBy('facet.attributeOptionId')
+            .getRawMany<{ optionId: string; count: string }>();
+          const countByOption = new Map(
+            raw.map((r) => [r.optionId, Number(r.count)]),
+          );
+          return {
+            attribute: attributeSummary,
+            options: (attribute.options ?? [])
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((o) => ({
+                id: o.id,
+                value: resolveTranslation(o.translations, locale)?.value,
+                translations: o.translations,
+                code: o.code,
+                count: countByOption.get(o.id) ?? 0,
+              })),
+          };
+        } else if (
+          attribute.type === AttributeType.NUMBER ||
+          attribute.type === AttributeType.RANGE
+        ) {
+          const stats = await baseQb
+            .clone()
+            .innerJoin(
+              ProductAttributeValue,
+              'facet',
+              'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+              { facetAttrId: attribute.id },
+            )
+            .select('MIN(facet.valueNumber)', 'min')
+            .addSelect('MAX(facet.valueNumber)', 'max')
+            .getRawOne<{ min: string | null; max: string | null }>();
+          return {
+            attribute: attributeSummary,
+            min:
+              stats?.min !== null && stats?.min !== undefined
+                ? Number(stats.min)
+                : null,
+            max:
+              stats?.max !== null && stats?.max !== undefined
+                ? Number(stats.max)
+                : null,
+          };
+        } else if (attribute.type === AttributeType.BOOLEAN) {
+          const raw = await baseQb
+            .clone()
+            .innerJoin(
+              ProductAttributeValue,
+              'facet',
+              'facet.productId = product.id AND facet.attributeId = :facetAttrId',
+              { facetAttrId: attribute.id },
+            )
+            .select('facet.valueBoolean', 'value')
+            .addSelect('COUNT(DISTINCT product.id)', 'count')
+            .groupBy('facet.valueBoolean')
+            .getRawMany<{ value: boolean; count: string }>();
+          const trueCount = raw.find((r) => r.value === true)?.count;
+          const falseCount = raw.find((r) => r.value === false)?.count;
+          return {
+            attribute: attributeSummary,
+            counts: {
+              true: trueCount !== undefined ? Number(trueCount) : 0,
+              false: falseCount !== undefined ? Number(falseCount) : 0,
+            },
+          };
+        } else {
+          // text — ფილტრის სიაში ჩანს, faceted count-ის გარეშე.
+          return { attribute: attributeSummary };
+        }
+      }),
+    );
 
     return results;
   }
@@ -728,22 +726,23 @@ export class CategoryService {
       CategoryService.parsePositiveInt(query.limit, 10),
       100,
     );
-    const sortColumn = resolveSortColumn(
-      query.sortBy,
-      PRODUCT_SORTABLE_COLUMNS,
-      'createdAt',
-    );
-    const order = query.order === 'ASC' ? 'ASC' : 'DESC';
 
     const qb = this.buildFilteredProductsQuery(
       categoryIds,
       query,
       attributesByCode,
     );
-    qb.orderBy(`product.${sortColumn}`, order);
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(
+      qb,
+      'product',
+      {
+        page,
+        limit,
+        sortBy: query.sortBy,
+        order: query.order === 'ASC' ? 'ASC' : 'DESC',
+      },
+      PRODUCT_SORTABLE_COLUMNS,
+      'createdAt',
+    );
   }
 }

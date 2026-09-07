@@ -5,6 +5,7 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -33,6 +34,10 @@ export class Order {
   @PrimaryGeneratedColumn()
   id!: number;
 
+  // @Index — "ჩემი შეკვეთები" (GET /orders own-scope) და OrdersService-ის
+  // სხვა userId-ზე გაფილტრული queries-ები ინდექსის გარეშე sequential
+  // scan-ს გაუშვებდა ცხრილის ზრდასთან ერთად.
+  @Index()
   @ManyToOne(() => User)
   @JoinColumn()
   user!: User;
