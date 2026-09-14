@@ -30,6 +30,14 @@ export class SearchProductDto extends PaginationDto {
   @IsUUID()
   categoryId?: string;
 
+  @ApiPropertyOptional({
+    description: 'გაფილტვრა მფლობელი კომპანიის მიხედვით',
+    example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
+  })
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+
   @ApiPropertyOptional({ description: 'მინიმალური ფასი', example: 10 })
   @IsOptional()
   @Type(() => Number)

@@ -81,6 +81,7 @@ export class ProductsService {
     const {
       search,
       categoryId,
+      companyId,
       minPrice,
       maxPrice,
       isActive,
@@ -111,6 +112,10 @@ export class ProductsService {
 
     if (categoryId) {
       qb.andWhere('category.id = :categoryId', { categoryId });
+    }
+
+    if (companyId) {
+      qb.andWhere('company.id = :companyId', { companyId });
     }
 
     if (minPrice !== undefined) {
