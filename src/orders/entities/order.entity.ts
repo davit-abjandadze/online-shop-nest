@@ -12,21 +12,19 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { OrderItem } from './order-item.entity';
 import { Branch } from '../../branches/entities/branch.entity';
+import { OrderStatusHistory } from './order-status-history.entity';
+import { OrderStatus } from './order-status.enum';
+
+// OrderStatus ცალკე ფაილშია (order-status.enum.ts) — იხ. იმ ფაილის კომენტარი
+// წრიული import-ის პრობლემის შესახებ. აქ რე-ექსპორტია, რომ არსებული
+// `import { OrderStatus } from './order.entity'` (payments.service.ts,
+// dto/update-order-status.dto.ts და სხვ.) არ დაგვჭირვებოდა ცვლილება.
+export { OrderStatus };
 
 // მიწოდების ხერხი — საკურიერო მომსახურება ან ფილიალიდან თვითგატანა.
 export enum DeliveryMethod {
   COURIER = 'courier',
   PICKUP = 'pickup',
-}
-
-export enum OrderStatus {
-  PENDING = 'pending', // შეიქმნა, ელოდება გადახდას
-  PAID = 'paid',
-  PROCESSING = 'processing', // მიმდინარეობს დამუშავება/გაგზავნის მომზადება
-  SHIPPED = 'shipped',
-  DELIVERED = 'delivered',
-  CANCELLED = 'cancelled',
-  EXPIRED = 'expired', // ვადა გავიდა (გადაუხდელი), ავტომატურად cron-ის მიერ
 }
 
 @Entity()
@@ -44,6 +42,12 @@ export class Order {
 
   @OneToMany(() => OrderItem, (item) => item.order, { cascade: true })
   items!: OrderItem[];
+
+  // Timeline-ისთვის (GET /orders/:id) — createFromCart/updateStatus/
+  // expireStaleOrders-ის ცენტრალიზებული recordStatusHistory-ით ივსება,
+  // იხ. OrderStatusHistory.
+  @OneToMany(() => OrderStatusHistory, (h) => h.order)
+  statusHistory?: OrderStatusHistory[];
 
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status!: OrderStatus;

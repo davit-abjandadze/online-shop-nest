@@ -39,7 +39,10 @@ import { isAdminUser } from '../common/utils/is-admin.util';
 // 9/11-ციფრიან regex-ს ვერ აკმაყოფილებდა (ველი წითლდებოდა). ნიღბვა მხოლოდ მაშინ არის საჭირო,
 // როცა ვინმე სხვის მონაცემებს ხედავს (ადმინი) — საკუთარი თავისთვის ყოველთვის სრული სახით უნდა
 // დაბრუნდეს.
-function sanitizeUser(user: any, { maskPii = true }: { maskPii?: boolean } = {}) {
+function sanitizeUser(
+  user: any,
+  { maskPii = true }: { maskPii?: boolean } = {},
+) {
   if (!user) return user;
   const { password, ...rest } = user;
   if (!maskPii) return rest;

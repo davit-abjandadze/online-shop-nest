@@ -10,6 +10,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Order } from '../orders/entities/order.entity';
+import { OrderItem } from '../orders/entities/order-item.entity';
 import { PAYMENT_PROVIDER } from './providers/payment-provider.interface';
 import type { PaymentProviderClient } from './providers/payment-provider.interface';
 import { OrdersService } from '../orders/orders.service';
@@ -50,11 +51,15 @@ export class PaymentsService {
     await this.ordersService.findOneForUser(userId, role, orderId);
 
     return this.dataSource.transaction(async (manager) => {
+      // ⚠️ ფიქსი: Postgres-ს FOR UPDATE-ის leftJoinAndSelect('items.product')-თან
+      // ერთად გაშვება არ სჩვევია — "FOR UPDATE cannot be applied to the
+      // nullable side of an outer join" (item.product ნელაბლ-ია, იხ.
+      // OrderItem.product). ლოქი მხოლოდ order-row-ს სჭირდება (ორი პარალელური
+      // initiate-ის სერიალიზაციისთვის) — items/product უბრალო, ლოქის გარეშე
+      // read-ითაა ცალკე ჩატვირთული ქვემოთ.
       const lockedOrder = await manager
         .createQueryBuilder(Order, 'order')
         .setLock('pessimistic_write')
-        .leftJoinAndSelect('order.items', 'items')
-        .leftJoinAndSelect('items.product', 'product')
         .where('order.id = :id', { id: orderId })
         .getOne();
 
@@ -65,6 +70,11 @@ export class PaymentsService {
           'გადახდის დაწყება შესაძლებელია მხოლოდ გადაუხდელი (PENDING) შეკვეთისთვის',
         );
       }
+
+      lockedOrder.items = await manager.find(OrderItem, {
+        where: { order: { id: orderId } },
+        relations: { product: true },
+      });
 
       // Payment.order არის OneToOne + UNIQUE(orderId) — ხელახალი initiate
       // (მაგ. მომხმარებელმა redirect გვერდი დახურა და თავიდან სცადა) არსებულ
@@ -159,27 +169,23 @@ export class PaymentsService {
     // სცადოს გადახდა — refund/cancel-ის ცალკე ნაკადი out-of-scope-ია v1-ში.
   }
 
-  // ⚠️ უსაფრთხოების ფიქსი (PaymentsController.completeMockPayment): მანამდე
-  // ამ route-ს არც ავტორიზაცია და არც საკუთრების შემოწმება არ ჰქონდა — ნებისმიერს
-  // შეეძლო ნებისმიერი orderId/externalId წყვილით შემთხვევით სხვისი შეკვეთის
-  // "გადახდილად" მონიშვნა. აქ ვამოწმებთ ორივეს: (1) findOneForUser-ით, რომ orderId
-  // რეალურად მოთხოვნის ავტორის (ან ADMIN-ის) შეკვეთაა; (2) რომ URL-ის externalId
-  // სინამდვილეშიც ამ კონკრეტული შეკვეთის Payment-ს ეკუთვნის და არა შემთხვევით
-  // სხვა (თუნდაც საკუთარი) შეკვეთის externalId-ია მოსული.
-  async assertOrderOwnedByForMockComplete(
-    userId: number,
-    role: UserRole,
+  // ⚠️ უსაფრთხოების შენიშვნა (PaymentsController.completeMockPayment): ეს
+  // route ბრაუზერის პირდაპირი GET navigation-ით მუშაობს, ანუ JwtAuthGuard-ს
+  // ვერ ვიყენებთ (ბრაუზერს Bearer header-ის დართვა plain navigation-ზე არ
+  // შეუძლია) და, შესაბამისად, findOneForUser-ით მომხმარებლის ვინაობის
+  // გადამოწმებაც შეუძლებელია. ამის მაგივრად externalId (unguessable UUID,
+  // იხ. MockPaymentProvider.createPayment) თავად ფუნქციონირებს capability
+  // ტოკენად — ვამოწმებთ, რომ ის ზუსტად ამ orderId-ის Payment-ს ეკუთვნის და
+  // არა შემთხვევით სხვა შეკვეთის externalId-ია მოსული. ვინც ეს წყვილი არ
+  // იცის (ანუ არ გაუვლია initiate() JwtAuthGuard-ის მიღმა), ვერაფერს
+  // "გადაიხდის".
+  async assertPaymentMatchesOrderForMockComplete(
     orderId: number,
     externalId: string,
   ): Promise<Order> {
-    const order = await this.ordersService.findOneForUser(
-      userId,
-      role,
-      orderId,
-    );
-
     const payment = await this.paymentRepository.findOne({
       where: { order: { id: orderId } },
+      relations: { order: true },
     });
     if (!payment || payment.providerOrderId !== externalId) {
       throw new ForbiddenException(
@@ -187,6 +193,6 @@ export class PaymentsService {
       );
     }
 
-    return order;
+    return payment.order;
   }
 }

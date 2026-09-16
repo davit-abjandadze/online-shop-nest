@@ -85,9 +85,14 @@ export class OrdersController {
   @ApiResponse({ status: 200, description: 'სტატუსი განახლდა' })
   @ApiResponse({ status: 404, description: 'შეკვეთა ვერ მოიძებნა' })
   updateStatus(
+    @CurrentUser() user: { userId: number },
     @Param('id') id: string,
     @Body() updateOrderStatusDto: UpdateOrderStatusDto,
   ) {
-    return this.ordersService.updateStatus(+id, updateOrderStatusDto.status);
+    return this.ordersService.updateStatus(
+      +id,
+      updateOrderStatusDto.status,
+      user.userId,
+    );
   }
 }

@@ -15,6 +15,7 @@ import {
 } from 'typeorm';
 import { Order, OrderStatus, DeliveryMethod } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
 import { ProductBranch } from '../products/entities/product-branch.entity';
@@ -24,7 +25,7 @@ import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { resolveSortColumn } from '../common/dto/pagination.dto';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { BranchesService } from '../branches/branches.service';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { maskPhoneNumber } from '../common/utils/mask.util';
@@ -260,6 +261,11 @@ export class OrdersService {
         expiresAt,
       });
       const savedOrder = await manager.save(order);
+      await this.recordStatusHistory(
+        manager,
+        savedOrder.id,
+        OrderStatus.PENDING,
+      );
       return savedOrder.id;
     });
 
@@ -291,7 +297,9 @@ export class OrdersService {
     role: UserRole,
     orderId: number,
   ): Promise<Order> {
-    const order = await this.findOrderOrThrow(orderId);
+    const order = await this.findOrderOrThrow(orderId, {
+      includeHistory: true,
+    });
     const isAdmin = isAdminRole(role);
     if (!isAdmin && order.user.id !== userId) {
       throw new ForbiddenException('ამ შეკვეთის ნახვის უფლება არ გაქვთ');
@@ -308,7 +316,11 @@ export class OrdersService {
   // შესრულდეს (რეალურად ეს ორმაგი-გამოძახება ახლა state-machine-ითაც
   // დაბლოკილია, ვინაიდან CANCELLED/EXPIRED ტერმინალურია — flag-ი დამატებითი,
   // defense-in-depth შრეა).
-  async updateStatus(orderId: number, status: OrderStatus): Promise<Order> {
+  async updateStatus(
+    orderId: number,
+    status: OrderStatus,
+    changedById?: number,
+  ): Promise<Order> {
     const order = await this.findOrderOrThrow(orderId);
 
     if (order.status === status) {
@@ -335,8 +347,12 @@ export class OrdersService {
     // იყოს (ხელით დამუშავებამდე).
     const wasPaid = order.status === OrderStatus.PAID;
 
-    if (needsRestock) {
-      await this.dataSource.transaction(async (manager) => {
+    // ერთ ტრანზაქციაში ვასრულებთ status-ცვლილებას (+ needsRestock-ის
+    // შემთხვევაში restock/refund-flag) და history-row-ს ჩაწერას ერთდროულად —
+    // history ჩანაწერი არასდროს არ დარჩება Order.status-ის ცვლილებას
+    // მიღმა (ან პირიქით), ერთ atomicity-ის ფარგლებშია ორივე.
+    await this.dataSource.transaction(async (manager) => {
+      if (needsRestock) {
         await this.restockOrderItems(manager, order);
         await manager.update(Order, orderId, { status, stockRestored: true });
         if (wasPaid && status === OrderStatus.CANCELLED) {
@@ -346,12 +362,13 @@ export class OrdersService {
             { status: PaymentStatus.REFUNDED },
           );
         }
-      });
-      return this.findOrderOrThrow(orderId);
-    }
+      } else {
+        await manager.update(Order, orderId, { status });
+      }
+      await this.recordStatusHistory(manager, orderId, status, changedById);
+    });
 
-    order.status = status;
-    return this.orderRepository.save(order);
+    return this.findOrderOrThrow(orderId);
   }
 
   // ყოველ წუთს იძახებს expireStaleOrders-ს — ვადაგასული PENDING შეკვეთების
@@ -378,6 +395,8 @@ export class OrdersService {
           status: OrderStatus.EXPIRED,
           stockRestored: true,
         });
+        // changedBy არაა — cron-ის ავტომატური, სისტემური გადასვლაა.
+        await this.recordStatusHistory(manager, order.id, OrderStatus.EXPIRED);
       });
     }
 
@@ -486,18 +505,67 @@ export class OrdersService {
     }
   }
 
-  private async findOrderOrThrow(orderId: number): Promise<Order> {
+  private async findOrderOrThrow(
+    orderId: number,
+    options?: { includeHistory?: boolean },
+  ): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
-      relations: { items: { product: true }, user: true, branch: true },
+      relations: {
+        items: { product: true },
+        user: true,
+        branch: true,
+        // მხოლოდ GET /orders/:id-ს ერთი შეკვეთის დეტალზეა საჭირო — სიის
+        // endpoint-ები (paginate()) ცალკე query builder-ს იყენებენ და ამ
+        // relation-ს არასდროს ტვირთავენ.
+        ...(options?.includeHistory
+          ? { statusHistory: { changedBy: true } }
+          : {}),
+      },
       // password/etc. აქ არ გვჭირდება — user მხოლოდ owner-ის ID-ის
       // შესამოწმებლადაა საჭირო, არ უნდა გავჟონოთ ჰეშირებული პაროლი კლიენტამდე.
-      select: { user: { id: true } },
+      // იგივე ეხება statusHistory.changedBy-საც — ადმინის ID/სახელი საკმარისია.
+      select: {
+        user: { id: true },
+        ...(options?.includeHistory
+          ? {
+              statusHistory: {
+                id: true,
+                status: true,
+                createdAt: true,
+                changedBy: { id: true, firstName: true, lastName: true },
+              },
+            }
+          : {}),
+      },
+      ...(options?.includeHistory
+        ? { order: { statusHistory: { createdAt: 'ASC' } } }
+        : {}),
     });
     if (!order) {
       throw new NotFoundException(`შეკვეთა ID-ით ${orderId} ვერ მოიძებნა`);
     }
     return order;
+  }
+
+  // ერთადერთი ადგილი, სადაც status-history row ჩაწერის ხდება — ადმინის
+  // ხელით ცვლილება, BOG webhook (pending→paid) და cron-ის ვადაგასულის
+  // expire (pending→expired) ყველა ამ მეთოდის მეშვეობით გადიან, რომ ერთი
+  // ტრანზაქციის ფარგლებში ერთდროულად ჩაიწეროს Order.status-ის ცვლილებასთან
+  // ერთად. changedBy undefined/null სისტემური/ავტომატური გადასვლისას (BOG
+  // callback, cron) — ადმინის ID მხოლოდ OrdersController-ის PATCH :id/status-იდან მოდის.
+  private async recordStatusHistory(
+    manager: EntityManager,
+    orderId: number,
+    status: OrderStatus,
+    changedById?: number,
+  ): Promise<void> {
+    const history = manager.create(OrderStatusHistory, {
+      order: { id: orderId } as Order,
+      status,
+      changedBy: changedById ? ({ id: changedById } as User) : undefined,
+    });
+    await manager.save(history);
   }
 
   private async paginate(

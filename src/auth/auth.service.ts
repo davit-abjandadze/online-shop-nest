@@ -259,7 +259,9 @@ export class AuthService {
       const debugJson = await debugRes.json();
       debugData = debugJson?.data ?? {};
     } catch {
-      throw new UnauthorizedException('Facebook token-ის ვერიფიკაცია ვერ მოხერხდა');
+      throw new UnauthorizedException(
+        'Facebook token-ის ვერიფიკაცია ვერ მოხერხდა',
+      );
     }
 
     if (!debugData.is_valid || debugData.app_id !== this.facebookAppId) {
@@ -279,7 +281,9 @@ export class AuthService {
       );
       profileData = await profileRes.json();
     } catch {
-      throw new UnauthorizedException('Facebook პროფილის წამოღება ვერ მოხერხდა');
+      throw new UnauthorizedException(
+        'Facebook პროფილის წამოღება ვერ მოხერხდა',
+      );
     }
 
     if (!profileData.email) {

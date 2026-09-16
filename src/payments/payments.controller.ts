@@ -81,23 +81,22 @@ export class PaymentsController {
   // კომპანიის რეგისტრაციამდე. მხოლოდ PAYMENT_PROVIDER=mock-ზეა ხელმისაწვდომი,
   // რომ production-ში (PAYMENT_PROVIDER=bog) ვინმემ უფასოდ ვერ "გადაიხადოს".
   //
-  // ⚠️ უსაფრთხოების ფიქსი: ეს route აქამდე მთლიანად guard-ისა და
-  // საკუთრების შემოწმების გარეშე იყო — ნებისმიერს, ვინც externalId-ს (ან
-  // მხოლოდ orderId-ს) გამოიცნობდა/მოიპოვებდა, შეეძლო ნებისმიერი სხვისი
-  // შეკვეთა უფასოდ "გადაეხადა", რადგან handleCallback-ს რეალური გადახდის
-  // დამადასტურებელი აღარაფერი გააჩნია (ეს ხომ mock-ია). ახლა route
-  // მოითხოვს ავტორიზაციას და findOneForUser-ით ვამოწმებთ, რომ orderId
-  // რეალურად ამ მომხმარებელს ეკუთვნის (ან ADMIN-ია) — ისევე, როგორც
-  // initiate()-ზეა უკვე გაკეთებული.
+  // ⚠️ ეს route ბრაუზერის პირდაპირი navigation-ით მუშაობს (მომხმარებელი
+  // redirectUrl-ზე ჩვეულებრივ GET-ით გადადის — იხ. MockPaymentProvider),
+  // ანუ JwtAuthGuard აქ ვერასდროს იმუშავებს: ბრაუზერს არ შეუძლია Bearer
+  // header-ის დართვა plain navigation-ზე ("No auth token" 401 ყოველთვის).
+  // ამის მაგივრად, ისევე როგორც bogCallback-ზეა, დაცვა capability-ტოკენით
+  // ხდება — externalId არის unguessable UUID, რომელიც მხოლოდ ამ ორდერის
+  // მფლობელისთვის დაგენერირდა initiate()-ზე (JwtAuthGuard-ითვე დაცულ
+  // route-ზე) და assertPaymentMatchesOrderForMockComplete ამოწმებს, რომ ეს
+  // კონკრეტული externalId ზუსტად ამ orderId-ის Payment-ს ეკუთვნის — ისე
+  // ვინმეს, ვისაც ეს წყვილი არ გაუჟღერებია, ვერაფერს "გადაიხდის".
   @Get('mock/:externalId/complete')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'MockPaymentProvider-ის auto-complete (მხოლოდ PAYMENT_PROVIDER=mock)',
   })
   async completeMockPayment(
-    @CurrentUser() user: { userId: number; role: UserRole },
     @Param('externalId') externalId: string,
     @Query('orderId') orderId: string,
     @Res() res: Response,
@@ -106,14 +105,13 @@ export class PaymentsController {
       throw new NotFoundException();
     }
 
-    // საკუთრების/არსებობის შემოწმება — 403/404-ს აგდებს, თუ orderId სხვისია
-    // ან საერთოდ არ არსებობს.
-    const order = await this.paymentsService.assertOrderOwnedByForMockComplete(
-      user.userId,
-      user.role,
-      +orderId,
-      externalId,
-    );
+    // externalId↔orderId შესაბამისობის შემოწმება — 403/404-ს აგდებს, თუ
+    // წყვილი არ ემთხვევა ან orderId საერთოდ არ არსებობს.
+    const order =
+      await this.paymentsService.assertPaymentMatchesOrderForMockComplete(
+        +orderId,
+        externalId,
+      );
 
     const rawBody = Buffer.from(
       JSON.stringify({ externalId, status: PaymentStatus.COMPLETED }),
