@@ -25,6 +25,12 @@ export class AddOrderStatusHistory1788020000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX "IDX_order_status_history_orderId" ON "order_status_history" ("orderId")`,
     );
+    // ადმინის მიხედვით ფილტრაციისთვის (მომავალი აუდიტ-ფუნქციონალი — "ამ
+    // ადმინმა რა შეცვალა") — ცალკე ინდექსი, orderId-ის ინდექსისგან
+    // დამოუკიდებელი, ვინაიდან query-ები სხვადასხვა სვეტზე ხდება.
+    await queryRunner.query(
+      `CREATE INDEX "IDX_order_status_history_changedById" ON "order_status_history" ("changedById")`,
+    );
     await queryRunner.query(
       `ALTER TABLE "order_status_history" ADD CONSTRAINT "FK_order_status_history_orderId" FOREIGN KEY ("orderId") REFERENCES "order"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
     );
@@ -39,6 +45,9 @@ export class AddOrderStatusHistory1788020000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "order_status_history" DROP CONSTRAINT "FK_order_status_history_orderId"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX "IDX_order_status_history_changedById"`,
     );
     await queryRunner.query(`DROP INDEX "IDX_order_status_history_orderId"`);
     await queryRunner.query(`DROP TABLE "order_status_history"`);

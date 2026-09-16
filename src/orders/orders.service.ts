@@ -538,8 +538,12 @@ export class OrdersService {
             }
           : {}),
       },
+      // id აქ ტაი-ბრეიკერია createdAt-ის შემდეგ — ორი ცვლილება ერთ
+      // მილიწამში რომ ჩაიწეროს (სწრაფი, თანმიმდევრული status-განახლებები),
+      // ჩაწერის თანმიმდევრობა მაინც გარანტირებულია, timestamp-ის
+      // გარჩევადობაზე დამოკიდებული აღარაა.
       ...(options?.includeHistory
-        ? { order: { statusHistory: { createdAt: 'ASC' } } }
+        ? { order: { statusHistory: { createdAt: 'ASC', id: 'ASC' } } }
         : {}),
     });
     if (!order) {

@@ -34,7 +34,9 @@ export class OrderStatusHistory {
 
   // ვინ შეცვალა ხელით (ADMIN) — null სისტემური/ავტომატური გადასვლისას
   // (BOG callback pending→paid, cron-ის pending→expired). onDelete SET NULL,
-  // რომ ადმინის წაშლა ისტორიულ ჩანაწერებს არ დააზიანოს.
+  // რომ ადმინის წაშლა ისტორიულ ჩანაწერებს არ დააზიანოს. ინდექსი მომავალი
+  // "ამ ადმინმა რა შეცვალა" ტიპის აუდიტ-query-ებისთვის (იხ. მიგრაცია).
+  @Index()
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn()
   changedBy?: User;
