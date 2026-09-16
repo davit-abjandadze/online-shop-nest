@@ -67,6 +67,17 @@ export class BranchesService {
     return new PaginatedResponseDto(data, total, page, limit);
   }
 
+  // საჯარო "ფილიალების გვერდი + რუკა" — ყველა აქტიური ფილიალი ერთბაშად,
+  // pagination გარეშე (რუკაზე ყველა პინი ერთდროულად უნდა ჩანდეს, არა
+  // გვერდობრივად 10-10).
+  async findAllForMap(): Promise<Branch[]> {
+    return this.branchRepository.find({
+      where: { isActive: true },
+      relations: { company: true },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
+  }
+
   async findOne(id: number): Promise<Branch> {
     const branch = await this.branchRepository.findOne({
       where: { id },

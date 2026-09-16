@@ -35,6 +35,16 @@ export class BranchesController {
     return this.branchesService.findAllActive(dto);
   }
 
+  @Get('all')
+  @ApiOperation({
+    summary:
+      'ყველა აქტიური ფილიალი pagination-ის გარეშე (ფილიალების გვერდი + რუკა)',
+  })
+  @ApiResponse({ status: 200, description: 'აქტიური ფილიალების სრული სია' })
+  findAllForMap() {
+    return this.branchesService.findAllForMap();
+  }
+
   @Get('available')
   @ApiOperation({
     summary:
