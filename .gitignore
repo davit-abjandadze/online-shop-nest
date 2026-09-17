@@ -3,6 +3,11 @@
 /node_modules
 /build
 
+# admin notifications-ის ედიტორში ატვირთული სურათები (src/main.ts static-ად
+# ემსახურება) — ლოკალურ დისკზეა, production-ში ეფემერული ფაილსისტემის
+# გამო object storage-ზე გადატანა უნდა მოხდეს (იხ. plans/NOTIFICATIONS_PLAN.md B2.2)
+/uploads
+
 # Logs
 logs
 *.log

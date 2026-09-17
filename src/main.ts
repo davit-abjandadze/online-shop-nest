@@ -3,8 +3,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+import express from 'express';
 import type { Application } from 'express';
 import { AppModule } from './app.module';
+import { NOTIFICATIONS_UPLOAD_DIR } from './notifications/utils/notification-image-storage.util';
 
 const VALID_NODE_ENVS = ['development', 'test', 'production'];
 
@@ -75,6 +77,15 @@ async function bootstrap() {
     origin: allowedOrigins,
     credentials: true,
   });
+
+  // ადმინის notifications ედიტორში embed-ული სურათები (იხ.
+  // NotificationsController.uploadImage) დისკზეა და აქედან static-ად
+  // ემსახურება — URL-ის ფორმა შესაბამისობაშია imageMulterOptions/uploadImage-ის
+  // მიერ დაბრუნებულ `${BACKEND_URL}/uploads/notifications/<ფაილი>`-სთან.
+  (app.getHttpAdapter().getInstance() as Application).use(
+    '/uploads/notifications',
+    express.static(NOTIFICATIONS_UPLOAD_DIR),
+  );
   // ვალიდაციის პაიპი - ავტომატურად შეამოწმებს DTO-ებს
   app.useGlobalPipes(
     new ValidationPipe({

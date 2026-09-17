@@ -20,6 +20,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { HeroSlidesModule } from './hero-slides/hero-slides.module';
 import { ProductSlidersModule } from './product-sliders/product-sliders.module';
 import { StatsModule } from './stats/stats.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -99,6 +100,7 @@ import { EmailService } from './common/email/email.service';
     HeroSlidesModule,
     ProductSlidersModule,
     StatsModule,
+    NotificationsModule,
   ],
   providers: [
     EmailService, // ← დარეგისტრირება
