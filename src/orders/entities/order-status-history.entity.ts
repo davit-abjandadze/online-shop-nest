@@ -17,7 +17,14 @@ import { User } from '../../users/entities/user.entity';
 // (pending → paid), თუ cron-ის მიერ ვადაგასულის expire-ით — ერთი row-ით
 // ფიქსირდება OrdersService-ის ცენტრალიზებული recordStatusHistory-ის მეშვეობით,
 // რომ არც ერთი გადასვლა არ გამოგვრჩეს ცალკეული call site-ების დუბლირებით.
+//
+// კომპოზიტური ინდექსი (orderId, createdAt) — StatsService-ის (Phase 4)
+// transition-times endpoint-ისთვის, სადაც ერთი შეკვეთის ისტორია
+// createdAt-ის მიხედვით დალაგებული (LAG() OVER (PARTITION BY orderId
+// ORDER BY createdAt)) იკითხება — orderId-ის მარტოხელა ინდექსი (ქვემოთ)
+// ამ ორ-სვეტიან წვდომას ისევ სორტირებას აიძულებდა.
 @Entity()
+@Index(['order', 'createdAt'])
 export class OrderStatusHistory {
   @PrimaryGeneratedColumn()
   id!: number;

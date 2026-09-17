@@ -93,6 +93,10 @@ export class Order {
   @Column({ default: false })
   stockRestored!: boolean;
 
+  // @Index — StatsService-ის overview/revenue/status-breakdown ყველა
+  // endpoint-ი createdAt-ზე filter-ავს/date_trunc-ავს (BETWEEN :from AND
+  // :to) — ინდექსის გარეშე ეს sequential scan-ია ცხრილის ზრდასთან ერთად.
+  @Index()
   @CreateDateColumn()
   createdAt!: Date;
 

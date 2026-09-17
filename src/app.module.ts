@@ -19,6 +19,7 @@ import { BranchesModule } from './branches/branches.module';
 import { CompaniesModule } from './companies/companies.module';
 import { HeroSlidesModule } from './hero-slides/hero-slides.module';
 import { ProductSlidersModule } from './product-sliders/product-sliders.module';
+import { StatsModule } from './stats/stats.module';
 import { EmailService } from './common/email/email.service';
 
 @Module({
@@ -97,6 +98,7 @@ import { EmailService } from './common/email/email.service';
     CompaniesModule,
     HeroSlidesModule,
     ProductSlidersModule,
+    StatsModule,
   ],
   providers: [
     EmailService, // ← დარეგისტრირება
