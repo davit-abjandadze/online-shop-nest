@@ -338,14 +338,20 @@ export class OrdersService {
       (status === OrderStatus.CANCELLED || status === OrderStatus.EXPIRED) &&
       !order.stockRestored;
 
-    // PAID → CANCELLED (ADMIN-ის მიერ) მარაგს აბრუნებს, მაგრამ Payment
-    // row-ს აქამდე ხელუხლებელი COMPLETED ტოვებდა — არსად აღარ ჩანდა, რომ
-    // ფაქტობრივად თანხის დაბრუნება ეკუთვნის ამ შეკვეთას. რეალური refund
-    // BOG-თან (ისევე, როგორც REJECTED-ის შემთხვევაში) v1-ში out-of-scope-ია
-    // (იხ. PaymentsService.handleCallback-ის კომენტარი) — აქ მხოლოდ Payment
-    // სტატუსს ვნიშნავთ REFUNDED-ად, რომ ეს ვალდებულება მოჩანდეს/ტრეკვადი
-    // იყოს (ხელით დამუშავებამდე).
-    const wasPaid = order.status === OrderStatus.PAID;
+    // PAID/PROCESSING → CANCELLED (ADMIN-ის მიერ) მარაგს აბრუნებს, მაგრამ
+    // Payment row-ს აქამდე ხელუხლებელი COMPLETED ტოვებდა — არსად აღარ ჩანდა,
+    // რომ ფაქტობრივად თანხის დაბრუნება ეკუთვნის ამ შეკვეთას. მნიშვნელოვანია
+    // შევამოწმოთ *მიმდინარე* order.status ნაცვლად "იყო თუ არა ოდესმე
+    // გადახდილი" — PAID-იდან PROCESSING-ში გადასული შეკვეთის cancel-ისას
+    // order.status უკვე PROCESSING-ია, არა PAID, ამიტომ მხოლოდ
+    // `order.status === PAID` შემოწმება ამ შემთხვევაში REFUND-ის ალამს
+    // ჩუმად კარგავდა. რეალური refund BOG-თან (ისევე, როგორც REJECTED-ის
+    // შემთხვევაში) v1-ში out-of-scope-ია (იხ. PaymentsService.handleCallback-ის
+    // კომენტარი) — აქ მხოლოდ Payment სტატუსს ვნიშნავთ REFUNDED-ად, რომ ეს
+    // ვალდებულება მოჩანდეს/ტრეკვადი იყოს (ხელით დამუშავებამდე).
+    const wasPaid =
+      order.status === OrderStatus.PAID ||
+      order.status === OrderStatus.PROCESSING;
 
     // ერთ ტრანზაქციაში ვასრულებთ status-ცვლილებას (+ needsRestock-ის
     // შემთხვევაში restock/refund-flag) და history-row-ს ჩაწერას ერთდროულად —
