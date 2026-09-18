@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
@@ -167,9 +167,29 @@ export class UsersService {
     // ერთხელ ქვემოთ phoneNumber-ბლოკში) — ერთხელ ვტვირთავთ და ორივე
     // ბლოკი მას იზიარებს.
     const currentUser =
-      userFields.email !== undefined || userFields.phoneNumber !== undefined
+      userFields.email !== undefined ||
+      userFields.phoneNumber !== undefined ||
+      userFields.role !== undefined
         ? await this.findOne(id)
         : undefined;
+
+    // ⚠️ ფიქსი: ბოლო admin-ის დაცვა — თუ ეს user ამჟამად ერთადერთი ADMIN-ია,
+    // საკუთარი (ან ვინმეს) role-ის USER-ზე შეცვლა აკრძალულია, თორემ სისტემას
+    // საერთოდ არ დარჩება ადმინისტრატორი.
+    if (
+      userFields.role !== undefined &&
+      currentUser?.role === UserRole.ADMIN &&
+      userFields.role !== UserRole.ADMIN
+    ) {
+      const adminCount = await this.userRepository.count({
+        where: { role: UserRole.ADMIN },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'ბოლო ადმინისტრატორის როლის შეცვლა შეუძლებელია',
+        );
+      }
+    }
 
     // ელფოსტის შეცვლას სჭირდება წინასწარ დადასტურებული OTP კოდი ახალ ელფოსტაზე
     // (POST /otp/send-email + POST /otp/verify-email) — ისევე, როგორც რეგისტრაციისას
@@ -305,6 +325,20 @@ export class UsersService {
 
   async remove(id: number) {
     const user = await this.findOne(id);
+
+    // ⚠️ ფიქსი: ბოლო admin-ის დაცვა — ერთადერთი დარჩენილი ADMIN-ის ანგარიშის
+    // წაშლა აკრძალულია, თორემ სისტემა ადმინისტრატორის გარეშე დარჩება.
+    if (user.role === UserRole.ADMIN) {
+      const adminCount = await this.userRepository.count({
+        where: { role: UserRole.ADMIN },
+      });
+      if (adminCount <= 1) {
+        throw new ConflictException(
+          'ბოლო ადმინისტრატორის ანგარიშის წაშლა შეუძლებელია',
+        );
+      }
+    }
+
     try {
       return await this.userRepository.remove(user);
     } catch (error: any) {
