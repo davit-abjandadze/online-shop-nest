@@ -15,6 +15,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -78,11 +79,18 @@ export class UsersController {
   }
 
   // სრული სია მხოლოდ ადმინისთვის — თორემ ყველას email/მონაცემები ჟონდებოდა.
+  // ⚠️ ბაგის ფიქსი: findAll() მთლიან ცხრილს სრულად აბრუნებდა (userRepository.find()),
+  // pagination-ის გარეშე — CLAUDE.md-ის კონვენციას (page/limit/PaginatedResponseDto)
+  // არღვევდა და მომხმარებელთა რაოდენობის ზრდასთან ერთად სერიოზული scalability
+  // პრობლემა იქნებოდა. ახლა /users/search-ის იმავე findAllPaginated-ს იყენებს.
   @Get()
   @AdminOnly()
-  async findAll() {
-    const users = await this.usersService.findAll();
-    return users.map((user) => sanitizeUser(user));
+  async findAll(@Query() paginationDto: PaginationDto) {
+    const result = await this.usersService.findAllPaginated(paginationDto);
+    return {
+      ...result,
+      data: result.data.map((user) => sanitizeUser(user)),
+    };
   }
 
   // გაფართოებული ძიება (search/role/gender ფილტრები + პაგინაცია/დალაგება) —

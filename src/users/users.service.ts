@@ -82,10 +82,6 @@ export class UsersService {
     return this.userRepository.save(newUser);
   }
 
-  findAll() {
-    return this.userRepository.find();
-  }
-
   // გაფართოებული ძიება: firstName/lastName/email-ში თავისუფალი ტექსტით
   // (ILike — case-insensitive, ნაწილობრივი დამთხვევა), + role/gender ფილტრები,
   // პაგინაციითა და დალაგებით. სისტემურ (whitelist) სვეტებზეღა ვუშვებთ დალაგებას.
