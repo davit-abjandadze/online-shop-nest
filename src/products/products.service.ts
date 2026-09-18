@@ -207,6 +207,9 @@ export class ProductsService {
     const { categoryId, companyId, price, weight, length, width, ...rest } =
       createProductDto;
     await this.assertCompanyExists(companyId);
+    if (categoryId !== undefined) {
+      await this.categoryService.findOne(categoryId, true); // admin — არსებობის შემოწმება (404 თუ არა)
+    }
     const product = this.productRepository.create({
       ...rest,
       price: price.toString(),
@@ -254,6 +257,7 @@ export class ProductsService {
       product.width = width.toString();
     }
     if (categoryId !== undefined) {
+      await this.categoryService.findOne(categoryId, true); // admin — არსებობის შემოწმება (404 თუ არა)
       product.category = { id: categoryId } as Category;
     }
     if (companyId !== undefined) {
