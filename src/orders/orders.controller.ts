@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  ParseIntPipe,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -74,9 +75,9 @@ export class OrdersController {
   @ApiResponse({ status: 404, description: 'შეკვეთა ვერ მოიძებნა' })
   findOne(
     @CurrentUser() user: { userId: number; role: UserRole },
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
   ) {
-    return this.ordersService.findOneForUser(user.userId, user.role, +id);
+    return this.ordersService.findOneForUser(user.userId, user.role, id);
   }
 
   @Patch(':id/status')
@@ -86,11 +87,11 @@ export class OrdersController {
   @ApiResponse({ status: 404, description: 'შეკვეთა ვერ მოიძებნა' })
   updateStatus(
     @CurrentUser() user: { userId: number },
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateOrderStatusDto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(
-      +id,
+      id,
       updateOrderStatusDto.status,
       user.userId,
     );

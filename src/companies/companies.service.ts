@@ -6,7 +6,7 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FindCompaniesDto } from './dto/find-companies.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პირდაპირ user-ისგან query string-იდან მოდის — SQL injection-ის
 // თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს (category/products
@@ -35,17 +35,18 @@ export class CompaniesService {
   }
 
   private async findAllPaginated(
-    { page = 1, limit = 10, sortBy, order = 'DESC' }: FindCompaniesDto,
+    dto: FindCompaniesDto,
     where: Partial<Pick<Company, 'isActive'>>,
   ): Promise<PaginatedResponseDto<Company>> {
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    const [data, total] = await this.companyRepository.findAndCount({
-      where,
-      order: { [sortColumn]: order, id: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
+    const qb = this.companyRepository.createQueryBuilder('company');
+    if (where.isActive !== undefined) {
+      qb.andWhere('company.isActive = :isActive', {
+        isActive: where.isActive,
+      });
+    }
+    return paginate(qb, 'company', dto, SORTABLE_COLUMNS, 'sortOrder', {
+      secondaryOrderBy: { column: 'company.id', direction: 'ASC' },
     });
-    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   // isAdmin=false (default) — დახურული კომპანია 404-ს აბრუნებს, findAllActive-ის

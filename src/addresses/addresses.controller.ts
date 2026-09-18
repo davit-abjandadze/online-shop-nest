@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  ParseIntPipe,
   Body,
   HttpCode,
   HttpStatus,
@@ -55,17 +56,20 @@ export class AddressesController {
   @ApiResponse({ status: 404, description: 'მისამართი ვერ მოიძებნა' })
   update(
     @CurrentUser() user: { userId: number },
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAddressDto,
   ) {
-    return this.addressesService.update(user.userId, +id, dto);
+    return this.addressesService.update(user.userId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'მისამართის წაშლა' })
   @ApiResponse({ status: 200, description: 'მისამართი წაიშალა' })
   @ApiResponse({ status: 404, description: 'მისამართი ვერ მოიძებნა' })
-  remove(@CurrentUser() user: { userId: number }, @Param('id') id: string) {
-    return this.addressesService.remove(user.userId, +id);
+  remove(
+    @CurrentUser() user: { userId: number },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.addressesService.remove(user.userId, id);
   }
 }

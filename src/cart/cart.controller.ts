@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -58,12 +59,12 @@ export class CartController {
   @ApiResponse({ status: 404, description: 'ჩანაწერი ვერ მოიძებნა' })
   updateItem(
     @CurrentUser() user: { userId: number },
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateCartItemDto: UpdateCartItemDto,
   ) {
     return this.cartService.updateItemQuantity(
       user.userId,
-      +id,
+      id,
       updateCartItemDto.quantity,
     );
   }
@@ -72,8 +73,11 @@ export class CartController {
   @ApiOperation({ summary: 'ჩანაწერის წაშლა კალათიდან' })
   @ApiResponse({ status: 200, description: 'განახლებული კალათა' })
   @ApiResponse({ status: 404, description: 'ჩანაწერი ვერ მოიძებნა' })
-  removeItem(@CurrentUser() user: { userId: number }, @Param('id') id: string) {
-    return this.cartService.removeItem(user.userId, +id);
+  removeItem(
+    @CurrentUser() user: { userId: number },
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.cartService.removeItem(user.userId, id);
   }
 
   @Delete()

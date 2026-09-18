@@ -3,7 +3,6 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Color } from './entities/color.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
-import { Product } from '../products/entities/product.entity';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
@@ -59,8 +58,10 @@ export class ColorsService {
     // ProductColor row-ები setColors-ს არ ავლენს, ანუ Product.stock ამ
     // წაშლის შემდეგ მუდმივად გადაჭარბებულს აჩვენებდა ხელმისაწვდომობას.
     // ტრანზაქციაში წინასწარ ვნიშნავთ, რომელ პროდუქტებზეა ეს ფერი მიბმული,
-    // წაშლის შემდეგ კი თითოეულს Product.stock-ს ხელახლა ვთვლით დარჩენილი
-    // ProductColor row-ების ჯამით.
+    // წაშლის შემდეგ კი ერთი bulk UPDATE...FROM-ით ვითვლით Product.stock-ს
+    // დარჩენილი ProductColor row-ების ჯამით — orders.service.ts-ის
+    // restockOrderItems-ის იგივე პატერნი, თითო პროდუქტზე ცალკე
+    // find+update round-trip-ის მაგივრად.
     return this.dataSource.transaction(async (manager) => {
       const affected = await manager.find(ProductColor, {
         where: { colorId: id },
@@ -69,12 +70,19 @@ export class ColorsService {
 
       await manager.remove(Color, color);
 
-      for (const productId of productIds) {
-        const remaining = await manager.find(ProductColor, {
-          where: { productId },
-        });
-        const stock = remaining.reduce((sum, pc) => sum + pc.stock, 0);
-        await manager.update(Product, productId, { stock });
+      if (productIds.length > 0) {
+        await manager.query(
+          `UPDATE "product" AS p
+           SET stock = COALESCE(agg.total, 0)
+           FROM (
+             SELECT ids.id, SUM(pc.stock) AS total
+             FROM unnest($1::int[]) AS ids(id)
+             LEFT JOIN "product_color" pc ON pc."productId" = ids.id
+             GROUP BY ids.id
+           ) AS agg
+           WHERE p.id = agg.id`,
+          [productIds],
+        );
       }
 
       return color;

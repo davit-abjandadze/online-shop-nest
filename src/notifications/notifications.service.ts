@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { NotificationRecipient } from './entities/notification-recipient.entity';
 import { User } from '../users/entities/user.entity';
@@ -8,8 +12,9 @@ import { sanitizeNotificationHtml } from './utils/sanitize-notification-html.uti
 import { buildNotificationSnippet } from './utils/build-notification-snippet.util';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
-import { PaginationDto, resolveSortColumn } from '../common/dto/pagination.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
+import { paginate } from '../common/utils/paginate.util';
 import { NotificationListItemResponseDto } from './dto/notification-list-item-response.dto';
 import { NotificationDetailResponseDto } from './dto/notification-detail-response.dto';
 import { UnreadCountResponseDto } from './dto/unread-count-response.dto';
@@ -57,24 +62,59 @@ export class NotificationsService {
         }),
       );
 
-      const recipientIds =
-        createNotificationDto.targetUserIds ??
-        (await manager.find(User, { select: { id: true } })).map(
+      let recipientIds: number[];
+      if (createNotificationDto.targetUserIds) {
+        recipientIds = createNotificationDto.targetUserIds;
+        // წინასწარი ვალიდაცია, რომ არარსებულმა user id-მა ტრანზაქციაში
+        // FK constraint violation-ი (500) არ გამოიწვიოს — ნაცვლად მკაფიო
+        // 400-ის დაბრუნებისა, თუ რომელი id ვერ მოიძებნა.
+        const existingUsers = await manager.find(User, {
+          where: { id: In(recipientIds) },
+          select: { id: true },
+        });
+        const existingIds = new Set(existingUsers.map((user) => user.id));
+        const missingIds = recipientIds.filter((id) => !existingIds.has(id));
+        if (missingIds.length) {
+          throw new BadRequestException(
+            `მომხმარებელი ID-ებით [${missingIds.join(', ')}] ვერ მოიძებნა`,
+          );
+        }
+      } else {
+        recipientIds = (await manager.find(User, { select: { id: true } })).map(
           (user) => user.id,
         );
+      }
 
       if (recipientIds.length) {
-        await manager
-          .createQueryBuilder()
-          .insert()
-          .into(NotificationRecipient)
-          .values(
-            recipientIds.map((userId) => ({
-              notificationId: notification.id,
-              userId,
-            })),
-          )
-          .execute();
+        try {
+          await manager
+            .createQueryBuilder()
+            .insert()
+            .into(NotificationRecipient)
+            .values(
+              recipientIds.map((userId) => ({
+                notificationId: notification.id,
+                userId,
+              })),
+            )
+            .execute();
+        } catch (err) {
+          // ⚠️ ფიქსი: ზემოთ existence-შემოწმებასა და ამ insert-ს შორის
+          // (ორივე ერთსა და იმავე ტრანზაქციაშია, მაგრამ ცალკე statement-ებია)
+          // შესაძლოა user წაიშალოს — postgres-ის FK violation (23503) კოდზე
+          // მკაფიო 400-ს ვაბრუნებთ, ნაცვლად დაუჭერელი 500-ისა.
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            'code' in err &&
+            (err as { code?: string }).code === '23503'
+          ) {
+            throw new BadRequestException(
+              'ერთი ან მეტი მითითებული user id აღარ არსებობს',
+            );
+          }
+          throw err;
+        }
       }
 
       return notification;
@@ -86,20 +126,14 @@ export class NotificationsService {
   async findAllPaginated(
     paginationDto: PaginationDto,
   ): Promise<PaginatedResponseDto<Notification>> {
-    const { page = 1, limit = 10, sortBy, order = 'DESC' } = paginationDto;
-    const sortColumn = resolveSortColumn(
-      sortBy,
+    const qb = this.notificationRepository.createQueryBuilder('notification');
+    return paginate(
+      qb,
+      'notification',
+      paginationDto,
       NOTIFICATION_SORTABLE_COLUMNS,
       'createdAt',
     );
-
-    const [data, total] = await this.notificationRepository.findAndCount({
-      order: { [sortColumn]: order },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-
-    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   // შეტყობინების რედაქტირება (ADMIN) — მხოლოდ title/contentHtml/imageUrl,
@@ -157,23 +191,23 @@ export class NotificationsService {
     userId: number,
     paginationDto: PaginationDto,
   ): Promise<PaginatedResponseDto<NotificationListItemResponseDto>> {
-    const { page = 1, limit = 10, sortBy, order = 'DESC' } = paginationDto;
-    const sortColumn = resolveSortColumn(
-      sortBy,
+    const qb = this.notificationRecipientRepository
+      .createQueryBuilder('recipient')
+      .innerJoinAndSelect('recipient.notification', 'notification')
+      .where('recipient.userId = :userId', { userId });
+
+    // paginate()-ის ორდერინგი 'notification' alias-ზეა (recipient-ს კი არა),
+    // რადგან დალაგება notification-ის ველზეა (createdAt/title) — skip/take
+    // ალიასზე დამოკიდებული არაა, ამიტომ ერთსავე qb-ზე უსაფრთხოდ მუშაობს.
+    const result = await paginate(
+      qb,
+      'notification',
+      paginationDto,
       NOTIFICATION_SORTABLE_COLUMNS,
       'createdAt',
     );
 
-    const [recipients, total] = await this.notificationRecipientRepository
-      .createQueryBuilder('recipient')
-      .innerJoinAndSelect('recipient.notification', 'notification')
-      .where('recipient.userId = :userId', { userId })
-      .orderBy(`notification.${sortColumn}`, order)
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
-
-    const data = recipients.map((recipient) => ({
+    const data = result.data.map((recipient) => ({
       id: recipient.notification.id,
       title: recipient.notification.title,
       snippet: buildNotificationSnippet(recipient.notification.contentHtml),
@@ -182,7 +216,12 @@ export class NotificationsService {
       createdAt: recipient.notification.createdAt,
     }));
 
-    return new PaginatedResponseDto(data, total, page, limit);
+    return new PaginatedResponseDto(
+      data,
+      result.meta.total,
+      result.meta.page,
+      result.meta.limit,
+    );
   }
 
   // მოდალის სრული content (USER) + auto mark-as-read — recipient-row-ს

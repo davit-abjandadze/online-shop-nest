@@ -24,7 +24,7 @@ import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
+import { paginate as paginateQuery } from '../common/utils/paginate.util';
 import { User, UserRole } from '../users/entities/user.entity';
 import { BranchesService } from '../branches/branches.service';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -374,6 +374,13 @@ export class OrdersService {
       await this.recordStatusHistory(manager, orderId, status, changedById);
     });
 
+    // ⚠️ ხელახლა ჩატვირთვა (relations-ებით) აქ განზრახ რჩება (და არ
+    // იცვლება in-memory `order`-ის მუტაციით) — needsRestock-ის შემთხვევაში
+    // restockOrderItems() პროდუქტის stock-ს raw SQL-ით ცვლის ცალკე
+    // `product` row-ზე, რაც in-memory `order.items[].product`-ს არ
+    // ეხება; ასევე `updatedAt` (@UpdateDateColumn) მხოლოდ DB-ს მხრიდან
+    // განახლდება. ორივე ველი მომხმარებელს ამ პასუხშივე უნდა ჩანდეს
+    // განახლებული, ამიტომ ცალკე round-trip აქ საჭიროა.
     return this.findOrderOrThrow(orderId);
   }
 
@@ -582,13 +589,7 @@ export class OrdersService {
     searchOrderDto: SearchOrderDto,
     extra?: (qb: SelectQueryBuilder<Order>) => void,
   ): Promise<PaginatedResponseDto<Order>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      order = 'DESC',
-      status,
-    } = searchOrderDto;
+    const { status } = searchOrderDto;
 
     const qb = this.orderRepository
       .createQueryBuilder('order')
@@ -615,24 +616,25 @@ export class OrdersService {
       qb.andWhere('order.status = :status', { status });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
-    qb.orderBy(`order.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
-
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
+    const result = await paginateQuery(
+      qb,
+      'order',
+      searchOrderDto,
+      SORTABLE_COLUMNS,
+      'createdAt',
+    );
 
     // ⚠️ უსაფრთხოების ფიქსი: user.phoneNumber ზემოთ დეშიფრული სახით ირჩევა
     // (encryptedColumnTransformer ავტომატურად შიფრავს), მაგრამ ისევე, როგორც
     // AuthService.generateToken() masking იყენებს login/register პასუხში,
     // სიაშიც (მათ შორის GET /orders/admin/all) მხოლოდ ნიღბიანი ვერსია უნდა
     // გავცეთ — სრული ნომერი კონკრეტული შეკვეთის დეტალზეა საჭირო, არა სიაში.
-    for (const order of data) {
+    for (const order of result.data) {
       if (order.user) {
         order.user.phoneNumber = maskPhoneNumber(order.user.phoneNumber);
       }
     }
 
-    return new PaginatedResponseDto(data, total, page, limit);
+    return result;
   }
 }

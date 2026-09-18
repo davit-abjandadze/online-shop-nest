@@ -5,6 +5,7 @@ import {
   Body,
   Patch,
   Param,
+  ParseIntPipe,
   Delete,
   Query,
   UseGuards,
@@ -108,9 +109,12 @@ export class UsersController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
-    const { isSelf } = this.assertSelfOrAdmin(currentUser, +id);
-    const user = await this.usersService.findOne(+id);
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: any,
+  ) {
+    const { isSelf } = this.assertSelfOrAdmin(currentUser, id);
+    const user = await this.usersService.findOne(id);
     // საკუთარ პროფილს ყოველთვის სრული (არადაფარული) phoneNumber/personalNumber უბრუნდება —
     // ნიღბვა მხოლოდ მაშინაა საჭირო, როცა ადმინი სხვის მონაცემებს ხედავს.
     return sanitizeUser(user, { maskPii: !isSelf });
@@ -118,11 +122,11 @@ export class UsersController {
 
   @Patch(':id')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
     @CurrentUser() currentUser: any,
   ) {
-    const { isSelf } = this.assertSelfOrAdmin(currentUser, +id);
+    const { isSelf } = this.assertSelfOrAdmin(currentUser, id);
 
     // role-ის შეცვლა მხოლოდ ADMIN-ს შეუძლია — თორემ ნებისმიერს შეეძლო
     // საკუთარი თავისთვის { "role": "admin" } გაეგზავნა და ადმინი გამხდარიყო.
@@ -130,14 +134,17 @@ export class UsersController {
       throw new ForbiddenException('როლის შეცვლის უფლება არ გაქვთ');
     }
 
-    const user = await this.usersService.update(+id, updateUserDto);
+    const user = await this.usersService.update(id, updateUserDto);
     return sanitizeUser(user, { maskPii: !isSelf });
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string, @CurrentUser() currentUser: any) {
-    this.assertSelfOrAdmin(currentUser, +id);
-    const user = await this.usersService.remove(+id);
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() currentUser: any,
+  ) {
+    this.assertSelfOrAdmin(currentUser, id);
+    const user = await this.usersService.remove(id);
     return sanitizeUser(user);
   }
 

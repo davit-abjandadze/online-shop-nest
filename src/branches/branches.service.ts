@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Branch } from './entities/branch.entity';
 import { ProductBranch } from '../products/entities/product-branch.entity';
 import { CreateBranchDto } from './dto/create-branch.dto';
@@ -8,7 +8,7 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { FindBranchesDto } from './dto/find-branches.dto';
 import { CompaniesService } from '../companies/companies.service';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
+import { paginate } from '../common/utils/paginate.util';
 
 // sortBy პირდაპირ user-ისგან query string-იდან მოდის — SQL injection-ის
 // თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს (category/products
@@ -43,28 +43,25 @@ export class BranchesService {
   }
 
   private async findAllPaginated(
-    {
-      page = 1,
-      limit = 10,
-      sortBy,
-      order = 'DESC',
-      companyId,
-    }: FindBranchesDto,
+    dto: FindBranchesDto,
     extraWhere: Partial<Pick<Branch, 'isActive'>>,
   ): Promise<PaginatedResponseDto<Branch>> {
-    const where: FindOptionsWhere<Branch> = {
-      ...extraWhere,
-      ...(companyId ? { companyId } : {}),
-    };
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'sortOrder');
-    const [data, total] = await this.branchRepository.findAndCount({
-      where,
-      relations: { company: true },
-      order: { [sortColumn]: order, id: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
+    const qb = this.branchRepository
+      .createQueryBuilder('branch')
+      .leftJoinAndSelect('branch.company', 'company');
+    if (extraWhere.isActive !== undefined) {
+      qb.andWhere('branch.isActive = :isActive', {
+        isActive: extraWhere.isActive,
+      });
+    }
+    if (dto.companyId) {
+      qb.andWhere('branch.companyId = :companyId', {
+        companyId: dto.companyId,
+      });
+    }
+    return paginate(qb, 'branch', dto, SORTABLE_COLUMNS, 'sortOrder', {
+      secondaryOrderBy: { column: 'branch.id', direction: 'ASC' },
     });
-    return new PaginatedResponseDto(data, total, page, limit);
   }
 
   // საჯარო "ფილიალების გვერდი + რუკა" — ყველა აქტიური ფილიალი ერთბაშად,

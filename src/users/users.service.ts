@@ -11,7 +11,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { resolveSortColumn } from '../common/dto/pagination.dto';
+import { paginate } from '../common/utils/paginate.util';
 import { EmailOtpService } from '../otp/email-otp.service';
 import { OtpService } from '../otp/otp.service';
 import { hashForSearch } from '../common/utils/encryption.util';
@@ -88,15 +88,7 @@ export class UsersService {
   async findAllPaginated(
     searchUserDto: SearchUserDto,
   ): Promise<PaginatedResponseDto<User>> {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = 'createdAt',
-      order = 'DESC',
-      search,
-      role,
-      gender,
-    } = searchUserDto;
+    const { search, role, gender } = searchUserDto;
 
     const qb = this.userRepository.createQueryBuilder('user');
 
@@ -115,14 +107,7 @@ export class UsersService {
       qb.andWhere('user.gender = :gender', { gender });
     }
 
-    const sortColumn = resolveSortColumn(sortBy, SORTABLE_COLUMNS, 'createdAt');
-    qb.orderBy(`user.${sortColumn}`, order === 'ASC' ? 'ASC' : 'DESC');
-
-    qb.skip((page - 1) * limit).take(limit);
-
-    const [data, total] = await qb.getManyAndCount();
-
-    return new PaginatedResponseDto(data, total, page, limit);
+    return paginate(qb, 'user', searchUserDto, SORTABLE_COLUMNS, 'createdAt');
   }
 
   async findOne(id: number) {

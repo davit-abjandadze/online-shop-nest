@@ -5,6 +5,7 @@ import {
   Patch,
   Delete,
   Param,
+  ParseIntPipe,
   Body,
   Query,
   HttpCode,
@@ -83,8 +84,8 @@ export class BranchesController {
   @ApiOperation({ summary: 'ფილიალის რედაქტირება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფილიალი განახლდა' })
   @ApiResponse({ status: 404, description: 'ფილიალი ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() dto: UpdateBranchDto) {
-    return this.branchesService.update(+id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBranchDto) {
+    return this.branchesService.update(id, dto);
   }
 
   @Delete(':id')
@@ -92,7 +93,7 @@ export class BranchesController {
   @ApiOperation({ summary: 'ფილიალის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფილიალი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ფილიალი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
-    return this.branchesService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.branchesService.remove(id);
   }
 }

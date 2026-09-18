@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  ParseIntPipe,
   Put,
   Delete,
   Query,
@@ -165,12 +166,12 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'პროდუქტი' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   async findOne(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = isAdminUser(user);
-    const product = await this.productsService.findOne(+id, isAdmin);
+    const product = await this.productsService.findOne(id, isAdmin);
     return enrichProduct(product, locale);
   }
 
@@ -183,13 +184,13 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'მსგავსი პროდუქტები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   async findSimilar(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Query('limit') limit: string | undefined,
     @Locale() locale: LocaleType,
   ) {
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
     const products = await this.productsService.findSimilar(
-      +id,
+      id,
       parsedLimit && parsedLimit > 0 ? parsedLimit : undefined,
     );
     return products.map((product) => enrichProduct(product, locale));
@@ -218,8 +219,11 @@ export class ProductsController {
     type: ProductResponseDto,
   })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(+id, updateProductDto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateProductDto: UpdateProductDto,
+  ) {
+    return this.productsService.update(id, updateProductDto);
   }
 
   @Delete(':id')
@@ -227,8 +231,8 @@ export class ProductsController {
   @ApiOperation({ summary: 'პროდუქტის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'პროდუქტი წაიშალა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.remove(id);
   }
 
   // --- Attribute values (ფაზა 4: Product ↔ Attribute value) -------------
@@ -240,13 +244,13 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'attribute value-ები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   async getAttributeValues(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = isAdminUser(user);
     const attributeValues = await this.productsService.getAttributeValues(
-      +id,
+      id,
       isAdmin,
     );
     return attributeValues.map((attributeValue) =>
@@ -264,11 +268,11 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   setAttributeValues(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() setProductAttributeValuesDto: SetProductAttributeValuesDto,
   ) {
     return this.productsService.setAttributeValues(
-      +id,
+      id,
       setProductAttributeValuesDto,
     );
   }
@@ -282,11 +286,11 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'დამატებითი ინფორმაციის ბლოკები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   getAdditionalInfo(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = isAdminUser(user);
-    return this.productsService.getAdditionalInfo(+id, isAdmin);
+    return this.productsService.getAdditionalInfo(id, isAdmin);
   }
 
   @Post(':id/additional-info')
@@ -299,10 +303,10 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   addAdditionalInfo(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() createDto: CreateProductAdditionalInfoDto,
   ) {
-    return this.productsService.addAdditionalInfo(+id, createDto);
+    return this.productsService.addAdditionalInfo(id, createDto);
   }
 
   @Put(':id/additional-info/:infoId')
@@ -313,11 +317,11 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'ბლოკი განახლდა' })
   @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
   updateAdditionalInfo(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Param('infoId') infoId: string,
     @Body() updateDto: UpdateProductAdditionalInfoDto,
   ) {
-    return this.productsService.updateAdditionalInfo(+id, infoId, updateDto);
+    return this.productsService.updateAdditionalInfo(id, infoId, updateDto);
   }
 
   @Delete(':id/additional-info/:infoId')
@@ -328,10 +332,10 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'ბლოკი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
   removeAdditionalInfo(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Param('infoId') infoId: string,
   ) {
-    return this.productsService.removeAdditionalInfo(+id, infoId);
+    return this.productsService.removeAdditionalInfo(id, infoId);
   }
 
   // --- ფერები (Product ↔ Color, თითოეულზე ცალკე stock) ------------------
@@ -346,12 +350,12 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'ფერები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   async getColors(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = isAdminUser(user);
-    const colors = await this.productsService.getColors(+id, isAdmin);
+    const colors = await this.productsService.getColors(id, isAdmin);
     return colors.map((productColor) =>
       enrichProductColor(productColor, locale),
     );
@@ -366,10 +370,10 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   setColors(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() setProductColorsDto: SetProductColorsDto,
   ) {
-    return this.productsService.setColors(+id, setProductColorsDto);
+    return this.productsService.setColors(id, setProductColorsDto);
   }
 
   // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
@@ -384,11 +388,11 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'ფილიალები' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   getBranches(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user?: { role: UserRole },
   ) {
     const isAdmin = isAdminUser(user);
-    return this.productsService.getBranches(+id, isAdmin);
+    return this.productsService.getBranches(id, isAdmin);
   }
 
   @Put(':id/branches')
@@ -401,9 +405,9 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
   @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
   setBranches(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() setProductBranchesDto: SetProductBranchesDto,
   ) {
-    return this.productsService.setBranches(+id, setProductBranchesDto);
+    return this.productsService.setBranches(id, setProductBranchesDto);
   }
 }

@@ -3,9 +3,15 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Not, Repository } from 'typeorm';
-import type { DeepPartial, FindOptionsWhere, ObjectLiteral } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, In, Not, Repository } from 'typeorm';
+import type {
+  DeepPartial,
+  EntityManager,
+  EntityTarget,
+  FindOptionsWhere,
+  ObjectLiteral,
+} from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
@@ -71,6 +77,8 @@ export class ProductsService {
     private companyRepository: Repository<Company>,
     @InjectRepository(Branch)
     private branchRepository: Repository<Branch>,
+    @InjectDataSource()
+    private dataSource: DataSource,
     private readonly categoryService: CategoryService,
   ) {}
 
@@ -409,14 +417,19 @@ export class ProductsService {
       }
     }
 
-    await this.productAttributeValueRepository.delete({ productId });
-    if (rows.length === 0) {
-      return [];
-    }
-    const entities = rows.map((row) =>
-      this.productAttributeValueRepository.create(row),
-    );
-    return this.productAttributeValueRepository.save(entities);
+    // delete + recreate ერთ ტრანზაქციაშია გახვეული — წინააღმდეგ შემთხვევაში
+    // save()-ის ჩავარდნისას (მაგ. constraint violation) პროდუქტს ცარიელი
+    // attribute-value სია დარჩებოდა ძველების წაშლის შემდეგ.
+    return this.dataSource.transaction(async (manager) => {
+      await manager.delete(ProductAttributeValue, { productId });
+      if (rows.length === 0) {
+        return [];
+      }
+      const entities = rows.map((row) =>
+        manager.create(ProductAttributeValue, row),
+      );
+      return manager.save(entities);
+    });
   }
 
   // --- Additional info ბლოკები (სათაური + აღწერილობა, ულიმიტო რაოდენობა) --
@@ -502,28 +515,40 @@ export class ProductsService {
   ): Promise<ProductColor[]> {
     const product = await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
-    const saved = await this.syncProductRelation<
-      ProductColorItemDto,
-      ProductColor,
-      string,
-      Color
-    >(productId, setProductColorsDto.colors, {
-      relationRepository: this.productColorRepository,
-      lookupRepository: this.colorRepository,
-      getRefId: (item) => item.colorId,
-      duplicateMessage: 'ერთი და იგივე ფერი ვერ განმეორდება ერთ პროდუქტზე',
-      missingLabel: 'ფერი(ები)',
-      buildEntity: (item) => ({
-        productId,
-        colorId: item.colorId,
-        stock: item.stock,
-      }),
+    // delete+recreate (syncProductRelation) და product.stock-ის სინქრონიზაცია
+    // ერთ ტრანზაქციაშია, რომ ორივე ერთდროულად წარმატდეს/ჩავარდეს — წინააღმდეგ
+    // შემთხვევაში save-ის ჩავარდნისას product.stock ძველი (არასწორი)
+    // მნიშვნელობით დარჩებოდა ახლად წაშლილი ProductColor row-ების მიმართ.
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await this.syncProductRelation<
+        ProductColorItemDto,
+        ProductColor,
+        string,
+        Color
+      >(manager, productId, setProductColorsDto.colors, {
+        relationEntity: ProductColor,
+        lookupEntity: Color,
+        getRefId: (item) => item.colorId,
+        duplicateMessage: 'ერთი და იგივე ფერი ვერ განმეორდება ერთ პროდუქტზე',
+        missingLabel: 'ფერი(ები)',
+        buildEntity: (item) => ({
+          productId,
+          colorId: item.colorId,
+          stock: item.stock,
+        }),
+      });
+
+      // ⚠️ ფიქსი: ცარიელი colors მასივის შემთხვევაში (ფერების მოხსნა) `saved`
+      // ცარიელია და reduce() 0-ს დააბრუნებდა — product.stock-ს ჩუმად
+      // ანულებდა, თუმცა ზემოთ კომენტარი პირდაპირ ამბობს, რომ ეს
+      // ველი ასეთ დროს ხელუხლებელი უნდა დარჩეს.
+      if (saved.length > 0) {
+        product.stock = saved.reduce((sum, pc) => sum + pc.stock, 0);
+        await manager.save(product);
+      }
+
+      return saved;
     });
-
-    product.stock = saved.reduce((sum, pc) => sum + pc.stock, 0);
-    await this.productRepository.save(product);
-
-    return saved;
   }
 
   // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
@@ -549,23 +574,25 @@ export class ProductsService {
   ): Promise<ProductBranch[]> {
     await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
 
-    return this.syncProductRelation<
-      ProductBranchItemDto,
-      ProductBranch,
-      number,
-      Branch
-    >(productId, setProductBranchesDto.branches, {
-      relationRepository: this.productBranchRepository,
-      lookupRepository: this.branchRepository,
-      getRefId: (item) => item.branchId,
-      duplicateMessage: 'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
-      missingLabel: 'ფილიალი(ები)',
-      buildEntity: (item) => ({
-        productId,
-        branchId: item.branchId,
-        stock: item.stock,
+    return this.dataSource.transaction((manager) =>
+      this.syncProductRelation<
+        ProductBranchItemDto,
+        ProductBranch,
+        number,
+        Branch
+      >(manager, productId, setProductBranchesDto.branches, {
+        relationEntity: ProductBranch,
+        lookupEntity: Branch,
+        getRefId: (item) => item.branchId,
+        duplicateMessage: 'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
+        missingLabel: 'ფილიალი(ები)',
+        buildEntity: (item) => ({
+          productId,
+          branchId: item.branchId,
+          stock: item.stock,
+        }),
       }),
-    });
+    );
   }
 
   // setColors/setBranches-ის საერთო "bulk set" ლოგიკა — bulk-set DTO
@@ -580,11 +607,12 @@ export class ProductsService {
     TRefId extends string | number,
     TLookup extends ObjectLiteral & { id: TRefId },
   >(
+    manager: EntityManager,
     productId: number,
     items: TItem[],
     options: {
-      relationRepository: Repository<TEntity>;
-      lookupRepository: Repository<TLookup>;
+      relationEntity: EntityTarget<TEntity>;
+      lookupEntity: EntityTarget<TLookup>;
       getRefId: (item: TItem) => TRefId;
       duplicateMessage: string;
       missingLabel: string;
@@ -598,7 +626,7 @@ export class ProductsService {
     }
 
     if (refIds.length > 0) {
-      const existing = await options.lookupRepository.findBy({
+      const existing = await manager.findBy(options.lookupEntity, {
         id: In(refIds),
       } as FindOptionsWhere<TLookup>);
       if (existing.length !== uniqueIds.size) {
@@ -610,16 +638,16 @@ export class ProductsService {
       }
     }
 
-    await options.relationRepository.delete({
+    await manager.delete(options.relationEntity, {
       productId,
-    } as unknown as FindOptionsWhere<TEntity>);
+    });
     if (items.length === 0) {
       return [];
     }
     const entities: TEntity[] = items.map((item) =>
-      options.relationRepository.create(options.buildEntity(item)),
+      manager.create(options.relationEntity, options.buildEntity(item)),
     );
-    return options.relationRepository.save(entities);
+    return manager.save(options.relationEntity, entities);
   }
 
   private async assertCompanyExists(companyId: string): Promise<void> {
