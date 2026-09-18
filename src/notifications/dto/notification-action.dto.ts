@@ -36,7 +36,10 @@ export class NotificationActionDto implements NotificationAction {
   @ApiPropertyOptional({
     description: 'type=link-ის შემთხვევაში სავალდებულო, http(s) URL',
   })
-  @ValidateIf((action: NotificationActionDto) => action.type === NotificationActionType.LINK)
+  @ValidateIf(
+    (action: NotificationActionDto) =>
+      action.type === NotificationActionType.LINK,
+  )
   @IsString()
   @IsNotEmpty()
   @IsUrl({ require_protocol: true, protocols: ['http', 'https'] })

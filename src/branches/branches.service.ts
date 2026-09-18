@@ -90,7 +90,7 @@ export class BranchesService {
   }
 
   async create(dto: CreateBranchDto): Promise<Branch> {
-    await this.companiesService.findOne(dto.companyId); // შეამოწმებს, არსებობს თუ არა
+    await this.companiesService.findOne(dto.companyId, true); // შეამოწმებს, არსებობს თუ არა
     const branch = this.branchRepository.create(dto as Partial<Branch>);
     return this.branchRepository.save(branch);
   }
@@ -98,7 +98,7 @@ export class BranchesService {
   async update(id: number, dto: UpdateBranchDto): Promise<Branch> {
     const branch = await this.findOne(id);
     if (dto.companyId !== undefined) {
-      await this.companiesService.findOne(dto.companyId); // შეამოწმებს, არსებობს თუ არა
+      await this.companiesService.findOne(dto.companyId, true); // შეამოწმებს, არსებობს თუ არა
     }
     Object.assign(branch, dto);
     return this.branchRepository.save(branch);

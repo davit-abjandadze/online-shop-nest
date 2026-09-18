@@ -48,9 +48,13 @@ export class CompaniesService {
     return new PaginatedResponseDto(data, total, page, limit);
   }
 
-  async findOne(id: string): Promise<Company> {
+  // isAdmin=false (default) — დახურული კომპანია 404-ს აბრუნებს, findAllActive-ის
+  // იგივე isActive პატერნი, რომ ID enumeration-ითაც არ გამჟღავნდეს დახურული
+  // კომპანიის არსებობა. შიდა გამომძახებლები (update/remove) ყოველთვის
+  // isAdmin=true-თი იძახებენ, რომ დახურულის მართვაც შესაძლებელი დარჩეს.
+  async findOne(id: string, isAdmin = false): Promise<Company> {
     const company = await this.companyRepository.findOne({ where: { id } });
-    if (!company) {
+    if (!company || (!isAdmin && !company.isActive)) {
       throw new NotFoundException(`კომპანია ID-ით ${id} ვერ მოიძებნა`);
     }
     return company;
@@ -62,13 +66,13 @@ export class CompaniesService {
   }
 
   async update(id: string, dto: UpdateCompanyDto): Promise<Company> {
-    const company = await this.findOne(id);
+    const company = await this.findOne(id, true);
     Object.assign(company, dto);
     return this.companyRepository.save(company);
   }
 
   async remove(id: string): Promise<void> {
-    const company = await this.findOne(id);
+    const company = await this.findOne(id, true);
     await this.companyRepository.remove(company);
   }
 }

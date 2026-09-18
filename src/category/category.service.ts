@@ -132,23 +132,28 @@ export class CategoryService {
       }));
   }
 
-  async findOne(id: string): Promise<Category> {
+  // isAdmin=false (default) — დეაქტივირებული კატეგორია 404-ს აბრუნებს,
+  // findAllPaginated/findTree-ის იგივე isActive პატერნი, რომ ID enumeration-ითაც
+  // არ გამჟღავნდეს isActive=false კატეგორიის არსებობა. შიდა გამომძახებლები
+  // (create/update/remove და სხვა service მეთოდები) ყოველთვის isAdmin=true-თი
+  // იძახებენ, რომ დეაქტივირებულის მართვაც შესაძლებელი დარჩეს.
+  async findOne(id: string, isAdmin = false): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id },
       relations: { parent: true },
     });
-    if (!category) {
+    if (!category || (!isAdmin && !category.isActive)) {
       throw new NotFoundException(`კატეგორია ID-ით ${id} ვერ მოიძებნა`);
     }
     return category;
   }
 
-  async findBySlug(slug: string): Promise<Category> {
+  async findBySlug(slug: string, isAdmin = false): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { slug },
       relations: { parent: true },
     });
-    if (!category) {
+    if (!category || (!isAdmin && !category.isActive)) {
       throw new NotFoundException(`კატეგორია slug-ით "${slug}" ვერ მოიძებნა`);
     }
     return category;
@@ -160,7 +165,7 @@ export class CategoryService {
     const { parentId, ...rest } = createCategoryDto;
     const category = this.categoryRepository.create({
       ...rest,
-      ...(parentId ? { parent: await this.findOne(parentId) } : {}),
+      ...(parentId ? { parent: await this.findOne(parentId, true) } : {}),
     });
     return this.categoryRepository.save(category);
   }
@@ -169,7 +174,7 @@ export class CategoryService {
     id: string,
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<Category> {
-    const category = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
+    const category = await this.findOne(id, true); // შეამოწმებს, არსებობს თუ არა
 
     if (updateCategoryDto.slug && updateCategoryDto.slug !== category.slug) {
       await this.ensureSlugIsFree(updateCategoryDto.slug);
@@ -194,14 +199,14 @@ export class CategoryService {
         );
       }
       await this.assertNotDescendant(id, parentId);
-      category.parent = await this.findOne(parentId);
+      category.parent = await this.findOne(parentId, true);
     }
 
     return this.categoryRepository.save(category);
   }
 
   async remove(id: string): Promise<Category> {
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, true);
 
     // countDescendants თვლის თავად category-საც +1-ად, ამიტომ >1 ნიშნავს,
     // რომ ერთი მაინც შვილი კატეგორია არსებობს.
@@ -264,7 +269,7 @@ export class CategoryService {
     categoryId: string,
     addCategoryAttributeDto: AddCategoryAttributeDto,
   ): Promise<CategoryAttribute> {
-    await this.findOne(categoryId); // შეამოწმებს, არსებობს თუ არა
+    await this.findOne(categoryId, true); // შეამოწმებს, არსებობს თუ არა
 
     const attribute = await this.attributeRepository.findOne({
       where: { id: addCategoryAttributeDto.attributeId },
@@ -324,7 +329,7 @@ export class CategoryService {
     id: string,
     parentId: string,
   ): Promise<void> {
-    const subject = await this.findOne(id);
+    const subject = await this.findOne(id, true);
     const descendants = await this.treeRepository.findDescendants(subject);
     if (descendants.some((d) => d.id === parentId)) {
       throw new BadRequestException(

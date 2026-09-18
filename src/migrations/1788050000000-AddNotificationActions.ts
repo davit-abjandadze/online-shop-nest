@@ -6,9 +6,7 @@ export class AddNotificationActions1788050000000 implements MigrationInterface {
   name = 'AddNotificationActions1788050000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `ALTER TABLE "notification" ADD "actions" jsonb`,
-    );
+    await queryRunner.query(`ALTER TABLE "notification" ADD "actions" jsonb`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

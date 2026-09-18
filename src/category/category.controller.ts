@@ -126,20 +126,32 @@ export class CategoryController {
   }
 
   @Get('by-slug/:slug')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'კატეგორიის მიღება slug-ით' })
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  async findBySlug(@Param('slug') slug: string, @Locale() locale: LocaleType) {
-    const category = await this.categoryService.findBySlug(slug);
+  async findBySlug(
+    @Param('slug') slug: string,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = isAdminUser(user);
+    const category = await this.categoryService.findBySlug(slug, isAdmin);
     return enrichCategory(category, locale);
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'კონკრეტული კატეგორიის მიღება' })
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
-    const category = await this.categoryService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = isAdminUser(user);
+    const category = await this.categoryService.findOne(id, isAdmin);
     return enrichCategory(category, locale);
   }
 
