@@ -8,6 +8,7 @@ import {
 import { Cart } from './cart.entity';
 import { Product } from '../../products/entities/product.entity';
 import { Color } from '../../colors/entities/color.entity';
+import { ProductVariant } from '../../products/entities/product-variant.entity';
 
 @Entity()
 export class CartItem {
@@ -33,6 +34,16 @@ export class CartItem {
 
   @Column({ type: 'uuid', nullable: true })
   colorId?: string | null;
+
+  // თუ პროდუქტს ვარიანტები აქვს (ProductVariant, ფერი+ზომის კომბინაცია) —
+  // აქ ინახება არჩეული ვარიანტი, colorId-ის ანალოგიური მექანიზმით, მაგრამ
+  // ცალკე სისტემაა (ProductColor-ს არ იყენებს) — იხ. product-variant.entity.ts.
+  @ManyToOne(() => ProductVariant, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'variantId' })
+  variant?: ProductVariant;
+
+  @Column({ type: 'uuid', nullable: true })
+  variantId?: string | null;
 
   // ფასს აქ არ ვინახავთ — კალათა "ცოცხალი" კალათაა, საბოლოო ფასი
   // ყოველთვის product.price-დან იკითხება checkout-ის დროს (Order-ში ხდება

@@ -23,9 +23,14 @@ export class CartService {
   // მომხმარებელს ჯერ არ აქვს კალათა? ვქმნით ცარიელს — GET /cart არასდროს
   // 404-ობს, ყოველთვის აბრუნებს (თუნდაც ცარიელ) კალათას.
   async getOrCreateForUser(userId: number): Promise<Cart> {
+    // ⚠️ ფიქსი: order-ის გარეშე items-ის row-ების თანმიმდევრობა DB-ს
+    // შეხედულებისამებრ ეშვება და UPDATE-ის შემდეგ (მაგ. quantity-ის
+    // ცვლილებისას) შეიძლება შეიცვალოს კიდეც — ფრონტზე კალათის items
+    // "ხტებოდა" ადგილიდან ადგილზე. id ASC ინახავს დამატების თანმიმდევრობას.
     let cart = await this.cartRepository.findOne({
       where: { user: { id: userId } },
       relations: { items: { product: { category: true } } },
+      order: { items: { id: 'ASC' } },
     });
 
     if (!cart) {
@@ -42,6 +47,7 @@ export class CartService {
     productId: number,
     quantity: number,
     colorId?: string,
+    variantId?: string,
   ): Promise<Cart> {
     // ⚠️ ფიქსი: findOne(productId) (isAdmin=false) დეაქტივირებულ პროდუქტზე
     // თავად 404-ს აგდებდა — ქვემოთ მდგომი isActive შემოწმება (400) ამის
@@ -62,15 +68,18 @@ export class CartService {
       product.id,
       product.stock,
       colorId,
+      variantId,
     );
     const cart = await this.getOrCreateForUser(userId);
 
-    // იგივე პროდუქტი + იგივე ფერი (ორივე ცარიელია, თუ ფერი არ გამოიყენება)
-    // უკვე კალათაშია? — რაოდენობას ვამატებთ ცალკე row-ის შექმნის ნაცვლად.
+    // იგივე პროდუქტი + იგივე ფერი/ვარიანტი (ორივე ცარიელია, თუ არცერთი არ
+    // გამოიყენება) უკვე კალათაშია? — რაოდენობას ვამატებთ ცალკე row-ის
+    // შექმნის ნაცვლად.
     const existingItem = cart.items?.find(
       (item) =>
         item.product.id === productId &&
-        (item.colorId ?? null) === (colorId ?? null),
+        (item.colorId ?? null) === (colorId ?? null) &&
+        (item.variantId ?? null) === (variantId ?? null),
     );
 
     const desiredQuantity = (existingItem?.quantity ?? 0) + quantity;
@@ -88,6 +97,7 @@ export class CartService {
         cart,
         product,
         colorId: colorId ?? null,
+        variantId: variantId ?? null,
         quantity,
       });
       await this.cartItemRepository.save(newItem);
@@ -111,6 +121,7 @@ export class CartService {
       item.product.id,
       item.product.stock,
       item.colorId ?? undefined,
+      item.variantId ?? undefined,
     );
 
     if (availableStock < quantity) {
@@ -125,20 +136,46 @@ export class CartService {
     return this.getOrCreateForUser(userId);
   }
 
-  // თუ პროდუქტს ფერები მითითებული აქვს (ProductColor-ის ჩანაწერები
-  // არსებობს), colorId სავალდებულოა და მარაგიც კონკრეტული ფერის
-  // stock-იდან იკითხება — ფერების გარეშე პროდუქტზე ჩვეულებრივად
-  // product.stock გამოიყენება.
+  // თუ პროდუქტს ვარიანტები მითითებული აქვს (ProductVariant — ფერი+ზომის
+  // კომბინაცია), variantId სავალდებულოა და მარაგიც კონკრეტული ვარიანტის
+  // stock-იდან იკითხება. წინააღმდეგ შემთხვევაში ProductColor-ის (მხოლოდ
+  // ფერი) იგივე ლოგიკა მოქმედებს — ორივე სისტემა ერთსა და იმავე
+  // პროდუქტზე ერთდროულად არ არის განკუთვნილი.
   private async resolveAvailableStock(
     productId: number,
     productStock: number,
     colorId?: string,
+    variantId?: string,
   ): Promise<number> {
-    // ⚠️ ფიქსი: getColors() ნაგულისხმევად თავად ხელახლა ტვირთავდა/ამოწმებდა
-    // პროდუქტს (findOne) — ორივე callsite-ს (addItem/updateItemQuantity)
-    // უკვე უტვირთავს/ვალიდირებს ამ პროდუქტს ამ გამოძახებამდე იმავე
-    // request-ში, ამიტომ skipExistenceCheck=true-ით ვერიდებით ზედმეტ
-    // round-trip-ს.
+    // ⚠️ ფიქსი: getColors()/getVariants() ნაგულისხმევად თავად ხელახლა
+    // ტვირთავდა/ამოწმებდა პროდუქტს (findOne) — ორივე callsite-ს
+    // (addItem/updateItemQuantity) უკვე უტვირთავს/ვალიდირებს ამ პროდუქტს
+    // ამ გამოძახებამდე იმავე request-ში, ამიტომ skipExistenceCheck=true-ით
+    // ვერიდებით ზედმეტ round-trip-ს.
+    const variants = await this.productsService.getVariants(
+      productId,
+      false,
+      true,
+    );
+
+    if (variants.length > 0) {
+      if (!variantId) {
+        throw new BadRequestException(
+          'ეს პროდუქტი მოითხოვს ვარიანტის მითითებას (variantId)',
+        );
+      }
+      const variant = variants.find((v) => v.id === variantId);
+      if (!variant) {
+        throw new BadRequestException(
+          'ეს ვარიანტი არ არის ხელმისაწვდომი ამ პროდუქტისთვის',
+        );
+      }
+      return variant.stock;
+    }
+    if (variantId) {
+      throw new BadRequestException('ამ პროდუქტს ვარიანტები არ გააჩნია');
+    }
+
     const colors = await this.productsService.getColors(productId, false, true);
 
     if (colors.length === 0) {

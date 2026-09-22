@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CategoryModule } from './category/category.module';
 import { AttributeModule } from './attribute/attribute.module';
 import { ColorsModule } from './colors/colors.module';
+import { SizesModule } from './sizes/sizes.module';
 import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
@@ -89,6 +90,7 @@ import { EmailService } from './common/email/email.service';
     CategoryModule,
     AttributeModule,
     ColorsModule,
+    SizesModule,
     ProductsModule,
     CartModule,
     OrdersModule,

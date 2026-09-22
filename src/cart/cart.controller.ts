@@ -50,6 +50,7 @@ export class CartController {
       addCartItemDto.productId,
       addCartItemDto.quantity,
       addCartItemDto.colorId,
+      addCartItemDto.variantId,
     );
   }
 

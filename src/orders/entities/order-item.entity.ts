@@ -8,6 +8,7 @@ import {
 import { Order } from './order.entity';
 import { Product } from '../../products/entities/product.entity';
 import { Color } from '../../colors/entities/color.entity';
+import { ProductVariant } from '../../products/entities/product-variant.entity';
 
 @Entity()
 export class OrderItem {
@@ -36,6 +37,19 @@ export class OrderItem {
 
   @Column({ nullable: true })
   colorName?: string;
+
+  // ვარიანტზე (ProductVariant — ფერი+ზომა) გაფორმებული შეკვეთისთვის —
+  // colorId-ის იგივე nullable+SET NULL პატერნი, sizeName snapshot-ი
+  // colorName-ის ანალოგიური.
+  @ManyToOne(() => ProductVariant, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'variantId' })
+  variant?: ProductVariant;
+
+  @Column({ type: 'uuid', nullable: true })
+  variantId?: string | null;
+
+  @Column({ nullable: true })
+  sizeName?: string;
 
   // Snapshot შეკვეთის შექმნის მომენტში — არასდროს ვკითხულობთ ცოცხლად
   // product.name/product.price-ს, თორემ მომავალი ფასის ცვლილება ისტორიას გადაწერდა.

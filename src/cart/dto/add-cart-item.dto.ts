@@ -17,6 +17,15 @@ export class AddCartItemDto {
   @IsUUID('4', { message: 'colorId უნდა იყოს ვალიდური UUID' })
   colorId?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'არჩეული ვარიანტის (ფერი+ზომა) ID — სავალდებულოა, თუ პროდუქტს ვარიანტები აქვს მითითებული (იხ. GET /products/:id/variants)',
+    example: '9a1b2c3d-...-uuid',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'variantId უნდა იყოს ვალიდური UUID' })
+  variantId?: string;
+
   @ApiProperty({ description: 'რაოდენობა', example: 1, minimum: 1 })
   @Type(() => Number)
   @IsInt({ message: 'რაოდენობა უნდა იყოს მთელი რიცხვი' })

@@ -5,7 +5,9 @@ import { ProductAttributeValue } from './entities/product-attribute-value.entity
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
 import { ProductColor } from './entities/product-color.entity';
 import { ProductBranch } from './entities/product-branch.entity';
+import { ProductVariant } from './entities/product-variant.entity';
 import { Color } from '../colors/entities/color.entity';
+import { Size } from '../sizes/entities/size.entity';
 import { Company } from '../companies/entities/company.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { ProductsController } from './products.controller';
@@ -27,7 +29,9 @@ import { CategoryModule } from '../category/category.module';
       ProductAdditionalInfo,
       ProductColor,
       ProductBranch,
+      ProductVariant,
       Color,
+      Size,
       Company,
       Branch,
     ]),

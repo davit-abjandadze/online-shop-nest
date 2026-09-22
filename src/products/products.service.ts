@@ -17,6 +17,7 @@ import { ProductAttributeValue } from './entities/product-attribute-value.entity
 import { ProductAdditionalInfo } from './entities/product-additional-info.entity';
 import { ProductColor } from './entities/product-color.entity';
 import { ProductBranch } from './entities/product-branch.entity';
+import { ProductVariant } from './entities/product-variant.entity';
 import { Category } from '../category/entities/category.entity';
 import { Company } from '../companies/entities/company.entity';
 import { Branch } from '../branches/entities/branch.entity';
@@ -25,6 +26,7 @@ import {
   AttributeType,
 } from '../attribute/entities/attribute.entity';
 import { Color } from '../colors/entities/color.entity';
+import { Size } from '../sizes/entities/size.entity';
 import { CategoryService } from '../category/category.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -40,6 +42,7 @@ import {
   SetProductBranchesDto,
   ProductBranchItemDto,
 } from './dto/set-product-branches.dto';
+import { SetProductVariantsDto } from './dto/set-product-variants.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
@@ -71,8 +74,12 @@ export class ProductsService {
     private productColorRepository: Repository<ProductColor>,
     @InjectRepository(ProductBranch)
     private productBranchRepository: Repository<ProductBranch>,
+    @InjectRepository(ProductVariant)
+    private productVariantRepository: Repository<ProductVariant>,
     @InjectRepository(Color)
     private colorRepository: Repository<Color>,
+    @InjectRepository(Size)
+    private sizeRepository: Repository<Size>,
     @InjectRepository(Company)
     private companyRepository: Repository<Company>,
     @InjectRepository(Branch)
@@ -544,6 +551,111 @@ export class ProductsService {
       // ველი ასეთ დროს ხელუხლებელი უნდა დარჩეს.
       if (saved.length > 0) {
         product.stock = saved.reduce((sum, pc) => sum + pc.stock, 0);
+        await manager.save(product);
+      }
+
+      return saved;
+    });
+  }
+
+  // --- ვარიანტები (Product ↔ Color ↔ Size, თითოეულზე ცალკე stock+price) -
+
+  // ვარიანტების ბიბლიოთეკის (ფერები/ზომები) CRUD ცალკე /colors, /sizes
+  // endpoint-შია — აქ მხოლოდ უკვე არსებული ფერი+ზომა კომბინაციების
+  // კონკრეტულ პროდუქტზე მიბმა/მარაგი/ფასი ხდება.
+  async getVariants(
+    productId: number,
+    isAdmin = false,
+    skipExistenceCheck = false,
+  ): Promise<ProductVariant[]> {
+    if (!skipExistenceCheck) {
+      await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
+    }
+    return this.productVariantRepository.find({
+      where: { productId },
+      relations: { color: true, size: true },
+    });
+  }
+
+  // bulk set — setColors-ის იგივე delete+recreate პატერნი, მაგრამ
+  // syncProductRelation-ის ვერ იყენებს (ის მხოლოდ ერთი refId სვეტის
+  // დუბლირებას/არსებობას ამოწმებს — აქ კომბინირებული (colorId, sizeId)
+  // გასაღებია). თითოეულ item-ს მინიმუმ ერთი (colorId ან sizeId) უნდა
+  // ჰქონდეს მითითებული.
+  async setVariants(
+    productId: number,
+    setProductVariantsDto: SetProductVariantsDto,
+  ): Promise<ProductVariant[]> {
+    const product = await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
+    const items = setProductVariantsDto.variants;
+
+    const colorIds = new Set<string>();
+    const sizeIds = new Set<string>();
+    const dedupKeys = new Set<string>();
+    for (const item of items) {
+      if (!item.colorId && !item.sizeId) {
+        throw new BadRequestException(
+          'ვარიანტს უნდა ჰქონდეს მინიმუმ colorId ან sizeId მითითებული',
+        );
+      }
+      const key = `${item.colorId ?? ''}:${item.sizeId ?? ''}`;
+      if (dedupKeys.has(key)) {
+        throw new BadRequestException(
+          'ერთი და იგივე ფერი+ზომა კომბინაცია ვერ განმეორდება ერთ პროდუქტზე',
+        );
+      }
+      dedupKeys.add(key);
+      if (item.colorId) colorIds.add(item.colorId);
+      if (item.sizeId) sizeIds.add(item.sizeId);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      if (colorIds.size > 0) {
+        const existingColors = await manager.findBy(Color, {
+          id: In([...colorIds]),
+        });
+        if (existingColors.length !== colorIds.size) {
+          const foundIds = new Set(existingColors.map((c) => c.id));
+          const missing = [...colorIds].filter((id) => !foundIds.has(id));
+          throw new BadRequestException(
+            `ფერი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+          );
+        }
+      }
+      if (sizeIds.size > 0) {
+        const existingSizes = await manager.findBy(Size, {
+          id: In([...sizeIds]),
+        });
+        if (existingSizes.length !== sizeIds.size) {
+          const foundIds = new Set(existingSizes.map((s) => s.id));
+          const missing = [...sizeIds].filter((id) => !foundIds.has(id));
+          throw new BadRequestException(
+            `ზომა(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+          );
+        }
+      }
+
+      await manager.delete(ProductVariant, { productId });
+      const saved =
+        items.length === 0
+          ? []
+          : await manager.save(
+              ProductVariant,
+              items.map((item) =>
+                manager.create(ProductVariant, {
+                  productId,
+                  colorId: item.colorId ?? null,
+                  sizeId: item.sizeId ?? null,
+                  stock: item.stock,
+                  price: item.price ?? null,
+                }),
+              ),
+            );
+
+      // setColors-ის იგივე ⚠️ ფიქსი — ცარიელი variants მასივის შემთხვევაში
+      // product.stock ხელუხლებელი რჩება, ჩუმად არ ნულდება.
+      if (saved.length > 0) {
+        product.stock = saved.reduce((sum, pv) => sum + pv.stock, 0);
         await manager.save(product);
       }
 

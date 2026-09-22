@@ -19,6 +19,7 @@ import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Product } from '../products/entities/product.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
 import { ProductBranch } from '../products/entities/product-branch.entity';
+import { ProductVariant } from '../products/entities/product-variant.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { CartService } from '../cart/cart.service';
 import { SearchOrderDto } from './dto/search-order.dto';
@@ -155,12 +156,33 @@ export class OrdersService {
           );
         }
 
-        // თუ ეს კალათის item ფერზეა არჩეული — მარაგის შემოწმება/დაკლება
-        // ხდება კონკრეტული ProductColor.stock-ზე (არა product.stock-ზე).
-        // Product-ის row-ლოქი (ზემოთ) უკვე სერიალიზებს ამ პროდუქტის ყველა
-        // ფერის checkout-საც, ამიტომ ProductColor-ზე ცალკე ლოქი საჭირო არ არის.
+        // თუ ეს კალათის item ვარიანტზეა არჩეული (ProductVariant — ფერი+
+        // ზომა) — მარაგის შემოწმება/დაკლება ხდება კონკრეტული
+        // ProductVariant.stock-ზე, ProductColor-ის იგივე ლოგიკით, მაგრამ
+        // ცალკე სისტემაა (ერთსა და იმავე item-ზე ორივე ერთდროულად არ
+        // ვარაუდობს). Product-ის row-ლოქი (ზემოთ) უკვე სერიალიზებს ამ
+        // პროდუქტის ყველა ვარიანტის/ფერის checkout-საც, ამიტომ
+        // ProductVariant/ProductColor-ზე ცალკე ლოქი საჭირო არ არის.
+        let productVariant: ProductVariant | null = null;
         let productColor: ProductColor | null = null;
-        if (cartItem.colorId) {
+        if (cartItem.variantId) {
+          productVariant = await manager.findOne(ProductVariant, {
+            where: { productId: product.id, id: cartItem.variantId },
+            relations: { color: true, size: true },
+          });
+          if (!productVariant) {
+            throw new BadRequestException(
+              `არჩეული ვარიანტი პროდუქტისთვის "${productName}" აღარ არსებობს`,
+            );
+          }
+          if (productVariant.stock < cartItem.quantity) {
+            throw new BadRequestException(
+              `მარაგში საკმარისი რაოდენობა არ არის არჩეული ვარიანტისთვის (ხელმისაწვდომია: ${productVariant.stock})`,
+            );
+          }
+          productVariant.stock -= cartItem.quantity;
+          await manager.save(productVariant);
+        } else if (cartItem.colorId) {
           productColor = await manager.findOne(ProductColor, {
             where: { productId: product.id, colorId: cartItem.colorId },
             relations: { color: true },
@@ -216,7 +238,7 @@ export class OrdersService {
         // დაყენებულია) — იგივე ფორმულა, რასაც ფრონტი იყენებს ჩვენებისას
         // (price - price * discountPercent / 100), რომ checkout-ის summary-ში
         // ნაჩვენები და შეკვეთაში დაფიქსირებული ფასი ერთმანეთს ემთხვეოდეს.
-        const basePrice = parseFloat(product.price);
+        const basePrice = parseFloat(productVariant?.price ?? product.price);
         const discountPercent = product.discountPercent ?? 0;
         const unitPrice =
           discountPercent > 0
@@ -236,9 +258,16 @@ export class OrdersService {
           manager.create(OrderItem, {
             product,
             productName,
-            colorId: productColor?.colorId ?? null,
+            colorId: productColor?.colorId ?? productVariant?.colorId ?? null,
             colorName: productColor
               ? resolveTranslation(productColor.color.translations, 'ka')?.name
+              : productVariant?.color
+                ? resolveTranslation(productVariant.color.translations, 'ka')
+                    ?.name
+                : undefined,
+            variantId: productVariant?.id ?? null,
+            sizeName: productVariant?.size
+              ? resolveTranslation(productVariant.size.translations, 'ka')?.name
               : undefined,
             unitPrice: roundedUnitPrice.toFixed(2),
             quantity: cartItem.quantity,
@@ -430,6 +459,7 @@ export class OrdersService {
       string,
       { productId: number; colorId: string; qty: number }
     >();
+    const variantQty = new Map<string, { variantId: string; qty: number }>();
     const branchQty = new Map<
       string,
       { productId: number; branchId: number; qty: number }
@@ -452,6 +482,17 @@ export class OrdersService {
         colorQty.set(key, {
           productId,
           colorId: item.colorId,
+          qty: (existing?.qty ?? 0) + item.quantity,
+        });
+      }
+
+      // ვარიანტზე (ProductVariant) გაფორმებული item-ისთვის — createFromCart-ის
+      // ProductVariant.stock დაკლების საპირისპირო მოქმედება (თუ ეს
+      // ვარიანტი შუალედში არ წაშლილა).
+      if (item.variantId) {
+        const existing = variantQty.get(item.variantId);
+        variantQty.set(item.variantId, {
+          variantId: item.variantId,
           qty: (existing?.qty ?? 0) + item.quantity,
         });
       }
@@ -496,6 +537,20 @@ export class OrdersService {
         `UPDATE "product_color" AS pc SET stock = pc.stock + v.qty
          FROM (VALUES ${values}) AS v("productId", "colorId", qty)
          WHERE pc."productId" = v."productId" AND pc."colorId" = v."colorId"`,
+        params,
+      );
+    }
+
+    if (variantQty.size > 0) {
+      const entries = [...variantQty.values()];
+      const values = entries
+        .map((_, i) => `($${i * 2 + 1}::uuid, $${i * 2 + 2}::int)`)
+        .join(', ');
+      const params = entries.flatMap((e) => [e.variantId, e.qty]);
+      await manager.query(
+        `UPDATE "product_variant" AS pv SET stock = pv.stock + v.qty
+         FROM (VALUES ${values}) AS v(id, qty)
+         WHERE pv.id = v.id`,
         params,
       );
     }

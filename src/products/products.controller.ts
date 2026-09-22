@@ -29,6 +29,7 @@ import { CreateProductAdditionalInfoDto } from './dto/create-product-additional-
 import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-info.dto';
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
+import { SetProductVariantsDto } from './dto/set-product-variants.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -40,6 +41,7 @@ import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductColor } from './entities/product-color.entity';
+import { ProductVariant } from './entities/product-variant.entity';
 
 // storefront-ისთვის resolveTranslation-ით ამოღებული `name`/`description`
 // emat-დება entity-ს `translations`-ის გვერდით (ორივე საჭიროა — resolved
@@ -111,6 +113,39 @@ function enrichProductColor(productColor: ProductColor, locale: LocaleType) {
           color: {
             ...productColor.color,
             name: resolveTranslation(productColor.color.translations, locale)
+              ?.name,
+          },
+        }
+      : {}),
+  };
+}
+
+// მიბმული color/size-ის translations resolve-დება locale-ის მიხედვით —
+// enrichProductColor-ის იგივე პატერნი. price-ს ვამატებთ resolvedPrice-ად
+// (ვარიანტის საკუთარი price, თუ null-ია — product.price fallback), რომ
+// frontend-მა ცალკე არ დაამრგვალოს fallback-ლოგიკა.
+function enrichProductVariant(
+  productVariant: ProductVariant,
+  locale: LocaleType,
+  productPrice: string,
+) {
+  return {
+    ...productVariant,
+    resolvedPrice: productVariant.price ?? productPrice,
+    ...(productVariant.color
+      ? {
+          color: {
+            ...productVariant.color,
+            name: resolveTranslation(productVariant.color.translations, locale)
+              ?.name,
+          },
+        }
+      : {}),
+    ...(productVariant.size
+      ? {
+          size: {
+            ...productVariant.size,
+            name: resolveTranslation(productVariant.size.translations, locale)
               ?.name,
           },
         }
@@ -374,6 +409,48 @@ export class ProductsController {
     @Body() setProductColorsDto: SetProductColorsDto,
   ) {
     return this.productsService.setColors(id, setProductColorsDto);
+  }
+
+  // --- ვარიანტები (Product ↔ Color ↔ Size, თითოეულზე ცალკე stock+price) -
+  // ფერების/ზომების ბიბლიოთეკის CRUD ცალკე /colors, /sizes endpoint-შია —
+  // აქ მხოლოდ უკვე არსებული ფერი+ზომა კომბინაციების კონკრეტულ პროდუქტზე
+  // მიბმა/მარაგი/ფასი ხდება.
+
+  @Get(':id/variants')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'პროდუქტზე მიბმული ვარიანტების სია (stock/price-ითურთ)',
+  })
+  @ApiResponse({ status: 200, description: 'ვარიანტები' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  async getVariants(
+    @Param('id', ParseIntPipe) id: number,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = isAdminUser(user);
+    const product = await this.productsService.findOne(id, isAdmin);
+    const variants = await this.productsService.getVariants(id, isAdmin, true);
+    return variants.map((variant) =>
+      enrichProductVariant(variant, locale, product.price),
+    );
+  }
+
+  @Put(':id/variants')
+  @AdminOnly()
+  @ApiOperation({
+    summary:
+      'პროდუქტის ვარიანტების bulk set (ADMIN) — მთლიანად ანაცვლებს არსებულს',
+  })
+  @ApiResponse({ status: 200, description: 'ვარიანტები განახლდა' })
+  @ApiResponse({ status: 400, description: 'ვალიდაციის შეცდომა' })
+  @ApiResponse({ status: 404, description: 'პროდუქტი ვერ მოიძებნა' })
+  setVariants(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() setProductVariantsDto: SetProductVariantsDto,
+  ) {
+    return this.productsService.setVariants(id, setProductVariantsDto);
   }
 
   // --- ფილიალები (Product ↔ Branch, თითოეულზე ცალკე stock) --------------
