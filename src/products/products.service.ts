@@ -38,10 +38,7 @@ import {
   SetProductColorsDto,
   ProductColorItemDto,
 } from './dto/set-product-colors.dto';
-import {
-  SetProductBranchesDto,
-  ProductBranchItemDto,
-} from './dto/set-product-branches.dto';
+import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { SetProductVariantsDto } from './dto/set-product-variants.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
@@ -672,39 +669,125 @@ export class ProductsService {
     await this.findOne(productId, isAdmin); // შეამოწმებს, არსებობს თუ არა
     return this.productBranchRepository.find({
       where: { productId },
-      relations: { branch: { company: true } },
+      relations: {
+        branch: { company: true },
+        variant: { color: true, size: true },
+        color: true,
+      },
     });
   }
 
-  // bulk set — setColors-ის ზუსტი ანალოგი (delete + recreate). product.stock-ს
+  // bulk set — setColors-ის იგივე delete+recreate პატერნი, მაგრამ
+  // syncProductRelation-ს ვერ იყენებს — refId აქ (branchId, variantId,
+  // colorId) კომბინაციაა (setVariants-ის იგივე მიზეზი). product.stock-ს
   // აქ არ ვასინქრონებთ ფერების stock-ის მსგავსად — ფილიალის მარაგი
   // დამოუკიდებელი დამატებითი განზომილებაა (იხ. ProductBranch entity-ის
-  // კომენტარი), product.stock ისევ ადმინის ხელით/ფერების ჯამით იმართება.
+  // კომენტარი), product.stock ისევ ადმინის ხელით/ფერების ან ვარიანტების
+  // ჯამით იმართება.
   async setBranches(
     productId: number,
     setProductBranchesDto: SetProductBranchesDto,
   ): Promise<ProductBranch[]> {
     await this.findOne(productId, true); // ADMIN — შეამოწმებს, არსებობს თუ არა
+    const items = setProductBranchesDto.branches;
 
-    return this.dataSource.transaction((manager) =>
-      this.syncProductRelation<
-        ProductBranchItemDto,
-        ProductBranch,
-        number,
-        Branch
-      >(manager, productId, setProductBranchesDto.branches, {
-        relationEntity: ProductBranch,
-        lookupEntity: Branch,
-        getRefId: (item) => item.branchId,
-        duplicateMessage: 'ერთი და იგივე ფილიალი ვერ განმეორდება ერთ პროდუქტზე',
-        missingLabel: 'ფილიალი(ები)',
-        buildEntity: (item) => ({
+    const dedupKeys = new Set<string>();
+    const variantIds = new Set<string>();
+    const colorIds = new Set<string>();
+    const stockByVariant = new Map<string, number>();
+    for (const item of items) {
+      if (item.variantId && item.colorId) {
+        throw new BadRequestException(
+          'ფილიალის ჩანაწერს ერთდროულად ვერ ექნება variantId და colorId მითითებული',
+        );
+      }
+      const key = `${item.branchId}:${item.variantId ?? ''}:${item.colorId ?? ''}`;
+      if (dedupKeys.has(key)) {
+        throw new BadRequestException(
+          'ერთი და იგივე ფილიალი+ვარიანტი/ფერი კომბინაცია ვერ განმეორდება',
+        );
+      }
+      dedupKeys.add(key);
+
+      if (item.variantId) {
+        variantIds.add(item.variantId);
+        stockByVariant.set(
+          item.variantId,
+          (stockByVariant.get(item.variantId) ?? 0) + item.stock,
+        );
+      } else if (item.colorId) {
+        colorIds.add(item.colorId);
+      }
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const branchIds = [...new Set(items.map((item) => item.branchId))];
+      if (branchIds.length > 0) {
+        const existingBranches = await manager.findBy(Branch, {
+          id: In(branchIds),
+        });
+        if (existingBranches.length !== branchIds.length) {
+          const foundIds = new Set(existingBranches.map((b) => b.id));
+          const missing = branchIds.filter((id) => !foundIds.has(id));
+          throw new BadRequestException(
+            `ფილიალი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+          );
+        }
+      }
+
+      if (variantIds.size > 0) {
+        const existingVariants = await manager.findBy(ProductVariant, {
+          id: In([...variantIds]),
+          productId,
+        });
+        if (existingVariants.length !== variantIds.size) {
+          const foundIds = new Set(existingVariants.map((v) => v.id));
+          const missing = [...variantIds].filter((id) => !foundIds.has(id));
+          throw new BadRequestException(
+            `ვარიანტი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა ამ პროდუქტისთვის`,
+          );
+        }
+        // ფილიალების ჯამური stock კონკრეტულ ვარიანტზე ვერ აღემატება
+        // ProductVariant.stock-ს — pickup-მარაგი ვერ იქნება საწყობის
+        // საერთო მარაგზე მეტი.
+        for (const variant of existingVariants) {
+          const branchSum = stockByVariant.get(variant.id) ?? 0;
+          if (branchSum > variant.stock) {
+            throw new BadRequestException(
+              `ვარიანტისთვის (ID: ${variant.id}) ფილიალების ჯამური მარაგი (${branchSum}) აღემატება ვარიანტის საერთო მარაგს (${variant.stock})`,
+            );
+          }
+        }
+      }
+
+      if (colorIds.size > 0) {
+        const existingColors = await manager.findBy(Color, {
+          id: In([...colorIds]),
+        });
+        if (existingColors.length !== colorIds.size) {
+          const foundIds = new Set(existingColors.map((c) => c.id));
+          const missing = [...colorIds].filter((id) => !foundIds.has(id));
+          throw new BadRequestException(
+            `ფერი(ები) ID-ით ${missing.join(', ')} ვერ მოიძებნა`,
+          );
+        }
+      }
+
+      await manager.delete(ProductBranch, { productId });
+      if (items.length === 0) {
+        return [];
+      }
+      const entities = items.map((item) =>
+        manager.create(ProductBranch, {
           productId,
           branchId: item.branchId,
+          variantId: item.variantId ?? null,
+          colorId: item.colorId ?? null,
           stock: item.stock,
         }),
-      }),
-    );
+      );
+      return manager.save(ProductBranch, entities);
+    });
   }
 
   // setColors/setBranches-ის საერთო "bulk set" ლოგიკა — bulk-set DTO

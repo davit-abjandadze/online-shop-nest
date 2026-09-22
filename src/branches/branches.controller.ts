@@ -10,9 +10,10 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { BranchesService } from './branches.service';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { BranchesService, BranchAvailabilityItem } from './branches.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { FindBranchesDto } from './dto/find-branches.dto';
@@ -46,18 +47,72 @@ export class BranchesController {
     return this.branchesService.findAllForMap();
   }
 
+  // `items` JSON მასივის ველების ნაკრები კალათის row-ების მიხედვით
+  // დინამიკურია (variantId/colorId ორივე optional, ურთიერთგამომრიცხავი) —
+  // ვერ დაიწერება როგორც სტატიკური DTO/query-param ტიპი, ამიტომ ვალიდაცია
+  // ხელით ხდება (CategoryController-ის CategoryFiltersQuery-ის იგივე
+  // accepted exception, იხ. CLAUDE.md).
   @Get('available')
   @ApiOperation({
     summary:
-      'checkout-ისთვის — აქტიური ფილიალები, სადაც მოცემული ყველა პროდუქტი ერთდროულად ხელმისაწვდომია',
+      'checkout-ისთვის — აქტიური ფილიალები, სადაც მოცემული ყველა კალათის item ერთდროულად ხელმისაწვდომია',
+  })
+  @ApiQuery({
+    name: 'items',
+    required: false,
+    description:
+      'JSON მასივი: [{"productId":1,"variantId":"uuid"},{"productId":2,"colorId":"uuid"},{"productId":3}]',
   })
   @ApiResponse({ status: 200, description: 'ხელმისაწვდომი ფილიალების სია' })
-  findAvailable(@Query('productIds') productIds?: string) {
-    const ids = (productIds ?? '')
-      .split(',')
-      .map((id) => Number(id.trim()))
-      .filter((id) => Number.isInteger(id) && id > 0);
-    return this.branchesService.findAvailableForProducts(ids);
+  findAvailable(@Query('items') itemsJson?: string) {
+    return this.branchesService.findAvailableForProducts(
+      this.parseAvailabilityItems(itemsJson),
+    );
+  }
+
+  private parseAvailabilityItems(itemsJson?: string): BranchAvailabilityItem[] {
+    if (!itemsJson) {
+      return [];
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(itemsJson);
+    } catch {
+      throw new BadRequestException(
+        'items ვერ დაიპარსა — მოსალოდნელია JSON მასივი',
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      throw new BadRequestException('items უნდა იყოს მასივი');
+    }
+
+    return parsed.map((raw): BranchAvailabilityItem => {
+      const productId = Number((raw as Record<string, unknown>)?.productId);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        throw new BadRequestException(
+          'items[].productId უნდა იყოს დადებითი მთელი რიცხვი',
+        );
+      }
+      const variantId = (raw as Record<string, unknown>)?.variantId;
+      const colorId = (raw as Record<string, unknown>)?.colorId;
+      if (variantId !== undefined && typeof variantId !== 'string') {
+        throw new BadRequestException('items[].variantId უნდა იყოს string');
+      }
+      if (colorId !== undefined && typeof colorId !== 'string') {
+        throw new BadRequestException('items[].colorId უნდა იყოს string');
+      }
+      if (variantId && colorId) {
+        throw new BadRequestException(
+          'items[]-ს ერთდროულად ვერ ექნება variantId და colorId',
+        );
+      }
+      return {
+        productId,
+        variantId: variantId,
+        colorId: colorId,
+      };
+    });
   }
 
   @Get('admin/all')

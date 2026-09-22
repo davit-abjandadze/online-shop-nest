@@ -12,6 +12,7 @@ import {
   Repository,
   SelectQueryBuilder,
   LessThan,
+  IsNull,
 } from 'typeorm';
 import { Order, OrderStatus, DeliveryMethod } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -215,14 +216,27 @@ export class OrdersService {
         // pickup-ის შემთხვევაში მარაგის შემოწმება/დაკლება ხდება არჩეული
         // ფილიალის ProductBranch.stock-ზეც (product.stock-ისგან და
         // ProductColor.stock-ისგან დამოუკიდებელი დამატებითი განზომილება) —
-        // Product-ის row-ლოქი ზემოთ ამასაც სერიალიზებს.
+        // Product-ის row-ლოქი ზემოთ ამასაც სერიალიზებს. ProductBranch
+        // ახლა variantId/colorId-ითაც არის დაყოფილი (იხ. entity-ის
+        // კომენტარი) — ვარიანტიან/ფერიან item-ისთვის ვეძებთ ზუსტად იმ
+        // variantId/colorId-ის row-ს, ხოლო მარტივი პროდუქტისთვის — "flat"
+        // (ორივე null) row-ს. ერთი productId+branchId-ის ქვეშ სხვადასხვა
+        // variantId-ის row-ები შეიძლება არსებობდეს ერთდროულად.
         if (deliveryMethod === DeliveryMethod.PICKUP) {
           const productBranch = await manager.findOne(ProductBranch, {
-            where: { productId: product.id, branchId: branch!.id },
+            where: {
+              productId: product.id,
+              branchId: branch!.id,
+              variantId: productVariant ? productVariant.id : IsNull(),
+              colorId:
+                !productVariant && productColor
+                  ? productColor.colorId
+                  : IsNull(),
+            },
           });
           if (!productBranch) {
             throw new BadRequestException(
-              `პროდუქტი "${productName}" ფილიალში "${branch!.title}" არ იყიდება`,
+              `პროდუქტი "${productName}" ${productVariant ? 'ამ ვარიანტით ' : productColor ? 'ამ ფერით ' : ''}ფილიალში "${branch!.title}" არ იყიდება`,
             );
           }
           if (productBranch.stock < cartItem.quantity) {
@@ -462,7 +476,13 @@ export class OrdersService {
     const variantQty = new Map<string, { variantId: string; qty: number }>();
     const branchQty = new Map<
       string,
-      { productId: number; branchId: number; qty: number }
+      {
+        productId: number;
+        branchId: number;
+        variantId: string | null;
+        colorId: string | null;
+        qty: number;
+      }
     >();
 
     for (const item of order.items) {
@@ -499,12 +519,20 @@ export class OrdersService {
 
       // pickup შეკვეთისთვის — createFromCart-ის ProductBranch.stock დაკლების
       // საპირისპირო მოქმედება (თუ ეს ფილიალი შუალედში არ წაშლილა).
+      // ProductBranch ახლა variantId/colorId-ითაც არის დაყოფილი, ამიტომ
+      // აქაც იმავე variantId/colorId-ის row-ს ვეძებთ, რასაც createFromCart-მა
+      // დააკლო — წინააღმდეგ შემთხვევაში (მხოლოდ productId+branchId-ით)
+      // შეცდომით შესაძლოა სხვა variantId-ის row-ს დაემატოს მარაგი.
       if (order.deliveryMethod === DeliveryMethod.PICKUP && order.branch) {
-        const key = `${productId}:${order.branch.id}`;
+        const variantId = item.variantId ?? null;
+        const colorId = !item.variantId ? (item.colorId ?? null) : null;
+        const key = `${productId}:${order.branch.id}:${variantId ?? ''}:${colorId ?? ''}`;
         const existing = branchQty.get(key);
         branchQty.set(key, {
           productId,
           branchId: order.branch.id,
+          variantId,
+          colorId,
           qty: (existing?.qty ?? 0) + item.quantity,
         });
       }
@@ -560,14 +588,22 @@ export class OrdersService {
       const values = entries
         .map(
           (_, i) =>
-            `($${i * 3 + 1}::int, $${i * 3 + 2}::int, $${i * 3 + 3}::int)`,
+            `($${i * 5 + 1}::int, $${i * 5 + 2}::int, $${i * 5 + 3}::uuid, $${i * 5 + 4}::uuid, $${i * 5 + 5}::int)`,
         )
         .join(', ');
-      const params = entries.flatMap((e) => [e.productId, e.branchId, e.qty]);
+      const params = entries.flatMap((e) => [
+        e.productId,
+        e.branchId,
+        e.variantId,
+        e.colorId,
+        e.qty,
+      ]);
       await manager.query(
         `UPDATE "product_branch" AS pb SET stock = pb.stock + v.qty
-         FROM (VALUES ${values}) AS v("productId", "branchId", qty)
-         WHERE pb."productId" = v."productId" AND pb."branchId" = v."branchId"`,
+         FROM (VALUES ${values}) AS v("productId", "branchId", "variantId", "colorId", qty)
+         WHERE pb."productId" = v."productId" AND pb."branchId" = v."branchId"
+           AND pb."variantId" IS NOT DISTINCT FROM v."variantId"
+           AND pb."colorId" IS NOT DISTINCT FROM v."colorId"`,
         params,
       );
     }

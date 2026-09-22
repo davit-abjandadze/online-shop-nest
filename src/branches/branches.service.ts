@@ -17,6 +17,16 @@ import { paginate } from '../common/utils/paginate.util';
 // invalid-column 500-ს დააგდებდა.
 const SORTABLE_COLUMNS = new Set(['id', 'title', 'sortOrder', 'createdAt']);
 
+// findAvailableForProducts-ის შესატანი ერთი კალათის item — variantId/colorId
+// ორივე optional-ია (ProductBranch entity-ის იგივე flat/variant/color
+// დაყოფა), მაგრამ ერთდროულად ორივე არასდროს არ მოდის ერთი კალათის item-იდან
+// (CartItem.variantId/colorId-იც ურთიერთგამომრიცხავია).
+export interface BranchAvailabilityItem {
+  productId: number;
+  variantId?: string;
+  colorId?: string;
+}
+
 @Injectable()
 export class BranchesService {
   constructor(
@@ -107,24 +117,54 @@ export class BranchesService {
   }
 
   // checkout-ის "ფილიალიდან გატანა" არჩევანი — აქტიური ფილიალები, სადაც
-  // **ყველა** მოცემული პროდუქტისთვის არსებობს ProductBranch row stock > 0-ით
-  // (კალათის ყველა item-ის ერთდროული ხელმისაწვდომობა). company relation-ი
-  // ლოგოს საჩვენებლადაა ჩართული.
-  async findAvailableForProducts(productIds: number[]): Promise<Branch[]> {
-    if (productIds.length === 0) {
+  // **ყველა** მოცემული კალათის item-ისთვის (productId + სურვილისამებრ
+  // კონკრეტული variantId/colorId) არსებობს ProductBranch row stock > 0-ით
+  // (კალათის ყველა item-ის ერთდროული ხელმისაწვდომობა ერთსა და იმავე
+  // ფილიალში). item-ს variantId/colorId რომ არ ჰქონდეს მითითებული, "flat"
+  // (variantId IS NULL AND colorId IS NULL) row ეძებნება — ProductBranch
+  // entity-ის იგივე სამნაწილიანი დაყოფა (flat/variant/color). company
+  // relation-ი ლოგოს საჩვენებლადაა ჩართული.
+  //
+  // items-ის რაოდენობა (და არა DISTINCT productId) ცალკეულ item-ებად
+  // ითვლება ერთ UNION ALL query-ში — ერთსა და იმავე productId-ს კალათაში
+  // შეიძლება ჰქონდეს რამდენიმე item სხვადასხვა ვარიანტით/ფერით, თითოეული
+  // ცალკე უნდა დაკმაყოფილდეს იმავე ფილიალში.
+  async findAvailableForProducts(
+    items: BranchAvailabilityItem[],
+  ): Promise<Branch[]> {
+    if (items.length === 0) {
       return [];
     }
 
-    const rows = await this.productBranchRepository
-      .createQueryBuilder('pb')
-      .select('pb.branchId', 'branchId')
-      .where('pb.productId IN (:...productIds)', { productIds })
-      .andWhere('pb.stock > 0')
-      .groupBy('pb.branchId')
-      .having('COUNT(DISTINCT pb.productId) = :count', {
-        count: productIds.length,
-      })
-      .getRawMany<{ branchId: number }>();
+    const unionParts: string[] = [];
+    const params: (number | string)[] = [];
+    items.forEach((item, index) => {
+      const conditions = [`pb."productId" = $${params.length + 1}`];
+      params.push(item.productId);
+      if (item.variantId) {
+        conditions.push(`pb."variantId" = $${params.length + 1}`);
+        params.push(item.variantId);
+      } else if (item.colorId) {
+        conditions.push(`pb."colorId" = $${params.length + 1}`);
+        params.push(item.colorId);
+      } else {
+        conditions.push(`pb."variantId" IS NULL AND pb."colorId" IS NULL`);
+      }
+      unionParts.push(
+        `SELECT pb."branchId" AS "branchId", ${index} AS "itemIndex" FROM product_branch pb WHERE ${conditions.join(' AND ')} AND pb.stock > 0`,
+      );
+    });
+
+    const countParamIndex = params.length + 1;
+    params.push(items.length);
+    const sql = `
+      SELECT "branchId" FROM (${unionParts.join(' UNION ALL ')}) matches
+      GROUP BY "branchId"
+      HAVING COUNT(DISTINCT "itemIndex") = $${countParamIndex}
+    `;
+
+    const rows: { branchId: number }[] =
+      await this.productBranchRepository.query(sql, params);
 
     const branchIds = rows.map((r) => r.branchId);
     if (branchIds.length === 0) {
