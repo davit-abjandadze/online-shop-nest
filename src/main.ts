@@ -1,3 +1,4 @@
+import './common/utils/pg-utc-timestamps.util';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import './common/utils/pg-utc-timestamps.util';
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 
