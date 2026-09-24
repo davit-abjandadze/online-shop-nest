@@ -15,7 +15,7 @@ export class DashboardOverviewDto {
 
   @ApiProperty({
     example: 12,
-    description: 'აქტიური შეკვეთების რაოდენობა (PENDING + PROCESSING)',
+    description: 'აქტიური შეკვეთების რაოდენობა (PENDING + PAID + PROCESSING)',
   })
   activeOrdersCount!: number;
 
@@ -27,7 +27,8 @@ export class DashboardOverviewDto {
 
   @ApiProperty({
     example: 7,
-    description: 'დაბალი მარაგის მქონე აქტიური პროდუქტების რაოდენობა',
+    description:
+      'დაბალი მარაგის მქონე აქტიური პროდუქტების რაოდენობა (ჯამური, ფერის ან ვარიანტის მარაგით)',
   })
   lowStockCount!: number;
 }

@@ -6,6 +6,8 @@ import { Product } from '../products/entities/product.entity';
 import { User } from '../users/entities/user.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Branch } from '../branches/entities/branch.entity';
+import { ProductColor } from '../products/entities/product-color.entity';
+import { ProductVariant } from '../products/entities/product-variant.entity';
 import { StatsController } from './stats.controller';
 import { StatsService } from './stats.service';
 
@@ -22,6 +24,8 @@ import { StatsService } from './stats.service';
       User,
       Payment,
       Branch,
+      ProductColor,
+      ProductVariant,
     ]),
   ],
   controllers: [StatsController],

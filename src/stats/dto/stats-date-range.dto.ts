@@ -1,4 +1,4 @@
-import { IsOptional, IsDateString, IsIn } from 'class-validator';
+import { IsOptional, IsDateString, IsIn, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export type StatsGroupBy = 'day' | 'week' | 'month';
@@ -24,6 +24,21 @@ export class StatsDateRangeDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+}
+
+// StatsDateRangeDto + კომპანიის ფილტრი — ყველა შეკვეთა/პროდუქტზე
+// დაფუძნებული endpoint-ისთვის (შემოსავალი, სტატუსები, ტოპ-პროდუქტები,
+// ლოიალობა, გადახდები, ფილიალები). შეკვეთა კომპანიას "ეკუთვნის", თუ მასში
+// ამ კომპანიის სულ ცოტა ერთი OrderItem-ია (OrderItem.companyId snapshot).
+export class CompanyStatsRangeDto extends StatsDateRangeDto {
+  @ApiPropertyOptional({
+    description:
+      'გაფილტვრა კონკრეტული კომპანიის მიხედვით (Company.id) — თუ არ არის ' +
+      'მითითებული, ყველა კომპანიის მონაცემები ჯამდება',
+  })
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
 }
 
 // bucketing-ის ინტერვალის დამატება StatsDateRangeDto-ს თავზე — რევენიუს

@@ -4,8 +4,10 @@ import { StatsService } from './stats.service';
 import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { Product } from '../products/entities/product.entity';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
-import { GroupByDto, StatsDateRangeDto } from './dto/stats-date-range.dto';
+import { CompanyStatsRangeDto, GroupByDto } from './dto/stats-date-range.dto';
+import { RevenueQueryDto } from './dto/revenue-query.dto';
 import { DashboardOverviewDto } from './dto/dashboard-overview.dto';
+import { OverviewQueryDto } from './dto/overview-query.dto';
 import { RevenueOverTimeDto } from './dto/revenue-over-time.dto';
 import { OrderStatusBreakdownDto } from './dto/order-status-breakdown.dto';
 import { TopProductsQueryDto } from './dto/top-products-query.dto';
@@ -27,18 +29,24 @@ export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
   @Get('overview')
-  @ApiOperation({ summary: 'ადმინის დეშბორდის მთავარი მაჩვენებლები' })
+  @ApiOperation({
+    summary:
+      'ადმინის დეშბორდის მთავარი მაჩვენებლები — ' +
+      'ოფციონალურად companyId-ით კონკრეტული კომპანიის მიხედვით',
+  })
   @ApiResponse({ status: 200, type: DashboardOverviewDto })
-  getOverview(): Promise<DashboardOverviewDto> {
-    return this.statsService.getOverview();
+  getOverview(@Query() query: OverviewQueryDto): Promise<DashboardOverviewDto> {
+    return this.statsService.getOverview(query);
   }
 
   @Get('revenue')
   @ApiOperation({
-    summary: 'შემოსავალი დროში (bucketed), წინა პერიოდთან შედარებით',
+    summary:
+      'შემოსავალი დროში (bucketed), წინა პერიოდთან შედარებით — ' +
+      'ოფციონალურად companyId-ით კონკრეტული კომპანიის მიხედვით',
   })
   @ApiResponse({ status: 200, type: RevenueOverTimeDto })
-  getRevenue(@Query() query: GroupByDto): Promise<RevenueOverTimeDto> {
+  getRevenue(@Query() query: RevenueQueryDto): Promise<RevenueOverTimeDto> {
     return this.statsService.getRevenueOverTime(query);
   }
 
@@ -46,7 +54,7 @@ export class StatsController {
   @ApiOperation({ summary: 'შეკვეთების განაწილება სტატუსების მიხედვით' })
   @ApiResponse({ status: 200, type: OrderStatusBreakdownDto })
   getOrderStatusBreakdown(
-    @Query() query: StatsDateRangeDto,
+    @Query() query: CompanyStatsRangeDto,
   ): Promise<OrderStatusBreakdownDto> {
     return this.statsService.getOrderStatusBreakdown(query);
   }
@@ -86,7 +94,7 @@ export class StatsController {
   })
   @ApiResponse({ status: 200, type: CustomerLoyaltyDto })
   getCustomerLoyalty(
-    @Query() query: StatsDateRangeDto,
+    @Query() query: CompanyStatsRangeDto,
   ): Promise<CustomerLoyaltyDto> {
     return this.statsService.getCustomerLoyalty(query);
   }
@@ -96,7 +104,9 @@ export class StatsController {
     summary: 'გადახდების განაწილება სტატუსების მიხედვით + success rate',
   })
   @ApiResponse({ status: 200, type: PaymentStatsDto })
-  getPaymentStats(@Query() query: StatsDateRangeDto): Promise<PaymentStatsDto> {
+  getPaymentStats(
+    @Query() query: CompanyStatsRangeDto,
+  ): Promise<PaymentStatsDto> {
     return this.statsService.getPaymentStats(query);
   }
 
@@ -106,7 +116,9 @@ export class StatsController {
       'ფილიალების გაყიდვები (მხოლოდ ფილიალიდან თვითგატანით შესრულებული შეკვეთები)',
   })
   @ApiResponse({ status: 200, type: BranchSalesDto })
-  getBranchSales(@Query() query: StatsDateRangeDto): Promise<BranchSalesDto> {
+  getBranchSales(
+    @Query() query: CompanyStatsRangeDto,
+  ): Promise<BranchSalesDto> {
     return this.statsService.getBranchSales(query);
   }
 
@@ -120,7 +132,7 @@ export class StatsController {
   })
   @ApiResponse({ status: 200, type: StatusTransitionAvgDto })
   getStatusTransitionTimes(
-    @Query() query: StatsDateRangeDto,
+    @Query() query: CompanyStatsRangeDto,
   ): Promise<StatusTransitionAvgDto> {
     return this.statsService.getStatusTransitionTimes(query);
   }

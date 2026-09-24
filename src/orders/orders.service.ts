@@ -140,6 +140,16 @@ export class OrdersService {
           );
         }
 
+        // company მხოლოდ companyId snapshot-ისთვისაა საჭირო — ცალკე,
+        // ლოქის გარეშე ვკითხულობთ, რადგან Postgres-ს არ შეუძლია FOR UPDATE
+        // nullable outer join-ზე (product.company nullable-ია).
+        const productCompany = await manager
+          .createQueryBuilder(Product, 'product')
+          .leftJoin('product.company', 'company')
+          .select('company.id', 'companyId')
+          .where('product.id = :id', { id: product.id })
+          .getRawOne<{ companyId: string | null }>();
+
         // ეს ka-ზე ცალსახად დაფიქსირებული internal error message-ებია
         // (checkout-ის ვალიდაცია), არა მომხმარებლის locale-ზე დამოკიდებული
         // storefront ტექსტი — resolveTranslation(..., 'ka') განზრახ hardcoded-ია.
@@ -272,6 +282,7 @@ export class OrdersService {
           manager.create(OrderItem, {
             product,
             productName,
+            companyId: productCompany?.companyId ?? null,
             colorId: productColor?.colorId ?? productVariant?.colorId ?? null,
             colorName: productColor
               ? resolveTranslation(productColor.color.translations, 'ka')?.name

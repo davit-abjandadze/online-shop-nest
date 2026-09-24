@@ -38,6 +38,14 @@ export class OrderItem {
   @Column({ nullable: true })
   colorName?: string;
 
+  // Snapshot — product.companyId შეკვეთის შექმნის მომენტში (product FK
+  // ისევე SET NULL-ია, colorId/variantId-ის იგივე მიზეზით: კომპანიის ან
+  // პროდუქტის წაშლა/გადანიშვნა არ უნდა ანგრევდეს სტატისტიკაში კომპანიის
+  // მიხედვით ისტორიულ ფილტრაციას). ცალკე relation არ სჭირდება — მხოლოდ
+  // filter/group-by-ისთვის გამოიყენება (იხ. StatsService).
+  @Column({ type: 'uuid', nullable: true })
+  companyId?: string | null;
+
   // ვარიანტზე (ProductVariant — ფერი+ზომა) გაფორმებული შეკვეთისთვის —
   // colorId-ის იგივე nullable+SET NULL პატერნი, sizeName snapshot-ი
   // colorName-ის ანალოგიური.

@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -10,7 +10,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 export class LowStockQueryDto extends PaginationDto {
   @ApiPropertyOptional({
     description:
-      'stock-ის ზღვარი — ამაზე ან ტოლი/დაბალი მარაგის მქონე აქტიური პროდუქტები ჩაითვლება (default იგივეა, რაც /stats/overview-ის lowStockCount-ს იყენებს — 5)',
+      'stock-ის ზღვარი — აქტიური პროდუქტი ჩაითვლება, თუ მისი ჯამური მარაგი, ან რომელიმე ფერის/ვარიანტის (ფერი+ზომა) მარაგი ამაზე ნაკლები ან ტოლია (default იგივეა, რაც /stats/overview-ის lowStockCount-ს იყენებს — 5)',
     minimum: 0,
   })
   @IsOptional()
@@ -38,4 +38,13 @@ export class LowStockQueryDto extends PaginationDto {
   )
   @IsIn(['ASC', 'DESC'])
   order?: 'ASC' | 'DESC' = 'ASC';
+
+  @ApiPropertyOptional({
+    description:
+      'გაფილტვრა კონკრეტული კომპანიის პროდუქტებით (Company.id) — თუ არ არის ' +
+      'მითითებული, ყველა კომპანიის პროდუქტი ჩანს',
+  })
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
 }

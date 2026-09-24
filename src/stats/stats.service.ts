@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, LessThanOrEqual, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import {
   Order,
   OrderStatus,
@@ -11,10 +11,19 @@ import { Product } from '../products/entities/product.entity';
 import { User } from '../users/entities/user.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { Branch } from '../branches/entities/branch.entity';
+import { ProductColor } from '../products/entities/product-color.entity';
+import { ProductVariant } from '../products/entities/product-variant.entity';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { paginate } from '../common/utils/paginate.util';
-import { GroupByDto, StatsDateRangeDto } from './dto/stats-date-range.dto';
+import {
+  CompanyStatsRangeDto,
+  GroupByDto,
+  StatsDateRangeDto,
+  StatsGroupBy,
+} from './dto/stats-date-range.dto';
+import { RevenueQueryDto } from './dto/revenue-query.dto';
 import { DashboardOverviewDto } from './dto/dashboard-overview.dto';
+import { OverviewQueryDto } from './dto/overview-query.dto';
 import { RevenueOverTimeDto } from './dto/revenue-over-time.dto';
 import {
   OrderStatusBreakdownDto,
@@ -23,6 +32,7 @@ import {
 import { TopProductsQueryDto } from './dto/top-products-query.dto';
 import { ProductStatDto } from './dto/product-stat.dto';
 import { LowStockQueryDto } from './dto/low-stock-query.dto';
+import { LowStockItemDto } from './dto/low-stock-product.dto';
 import { UserSignupsDto } from './dto/user-signups.dto';
 import { CustomerLoyaltyDto } from './dto/customer-loyalty.dto';
 import {
@@ -50,8 +60,10 @@ const REVENUE_STATUSES: OrderStatus[] = [
   OrderStatus.DELIVERED,
 ];
 
+// PAID — გადახდილია და ადმინის დამუშავებას ელოდება, ამიტომ აქტიურადაც ითვლება.
 const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.PENDING,
+  OrderStatus.PAID,
   OrderStatus.PROCESSING,
 ];
 
@@ -65,6 +77,9 @@ const LOW_STOCK_DEFAULT_THRESHOLD = 5;
 const LOW_STOCK_ALLOWED_SORT_COLUMNS = ['stock', 'price', 'createdAt'] as const;
 
 const DEFAULT_RANGE_DAYS = 30;
+
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const TBILISI_UTC_OFFSET = '+04:00';
 
 @Injectable()
 export class StatsService {
@@ -81,11 +96,16 @@ export class StatsService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
+    @InjectRepository(ProductColor)
+    private readonly productColorRepository: Repository<ProductColor>,
+    @InjectRepository(ProductVariant)
+    private readonly productVariantRepository: Repository<ProductVariant>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
 
-  async getOverview(): Promise<DashboardOverviewDto> {
+  async getOverview(dto?: OverviewQueryDto): Promise<DashboardOverviewDto> {
+    const { companyId } = dto ?? {};
     const [
       todayRevenue,
       monthRevenue,
@@ -93,23 +113,19 @@ export class StatsService {
       newUsersToday,
       lowStockCount,
     ] = await Promise.all([
-      this.sumRevenueForCurrentBucket('day'),
-      this.sumRevenueForCurrentBucket('month'),
-      this.orderRepository.count({
-        where: { status: In(ACTIVE_ORDER_STATUSES) },
-      }),
+      this.sumRevenueForCurrentBucket('day', companyId),
+      this.sumRevenueForCurrentBucket('month', companyId),
+      this.countActiveOrders(companyId),
       this.userRepository
         .createQueryBuilder('user')
         .where(
           `date_trunc('day', ${this.tbilisiFromNaiveUtc('"user"."createdAt"')}) = date_trunc('day', ${this.tbilisiFromInstant('NOW()')})`,
         )
         .getCount(),
-      this.productRepository.count({
-        where: {
-          isActive: true,
-          stock: LessThanOrEqual(LOW_STOCK_DEFAULT_THRESHOLD),
-        },
-      }),
+      this.lowStockProductsQuery(
+        LOW_STOCK_DEFAULT_THRESHOLD,
+        companyId,
+      ).getCount(),
     ]);
 
     return {
@@ -121,38 +137,67 @@ export class StatsService {
     };
   }
 
-  async getRevenueOverTime(dto: GroupByDto): Promise<RevenueOverTimeDto> {
+  async getRevenueOverTime(dto: RevenueQueryDto): Promise<RevenueOverTimeDto> {
     const groupBy = dto.groupBy ?? 'day';
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
-    const rows = await this.orderRepository
-      .createQueryBuilder('order')
+    // company-ით ფილტრი order.totalAmount-ზე შეუძლებელია — company მხოლოდ
+    // Product-ზეა მიბმული, ერთ order-ში სხვადასხვა კომპანიის პროდუქტი
+    // შეიძლება იყოს. ამიტომ ეს ყოველთვის OrderItem.companyId snapshot-ზე
+    // (და unitPrice*quantity-ის ჯამზე) აგრეგირდება, არა order.totalAmount-ზე
+    // — company-ფილტრის გარეშეც იგივე ჯამს იძლევა, რადგან totalAmount თავად
+    // per-line დამრგვალებული თანხების ჯამია (იხ. OrdersService).
+    const qb = this.orderItemRepository
+      .createQueryBuilder('oi')
+      .innerJoin('oi.order', 'order')
       .select(
         `date_trunc(:groupBy, ${this.tbilisiFromNaiveUtc('"order"."createdAt"')})`,
         'bucket',
       )
-      .addSelect('COALESCE(SUM(order.totalAmount), 0)', 'revenue')
+      .addSelect('COALESCE(SUM(oi.quantity * oi.unitPrice), 0)', 'revenue')
       .where('order.status IN (:...statuses)', { statuses: REVENUE_STATUSES })
-      .andWhere('order.createdAt BETWEEN :from AND :to', { from, to })
+      .andWhere(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
       .groupBy('bucket')
       .orderBy('bucket', 'ASC')
-      .setParameter('groupBy', groupBy)
-      .getRawMany<{ bucket: Date; revenue: string }>();
+      .setParameter('groupBy', groupBy);
 
-    const buckets = rows.map((row) => ({
-      date: row.bucket.toISOString(),
-      revenue: this.roundDecimal(row.revenue),
+    if (companyId) {
+      qb.andWhere('oi.companyId = :companyId', { companyId });
+    }
+
+    const [rows, series] = await Promise.all([
+      qb.getRawMany<{ bucket: Date; revenue: string }>(),
+      this.getBucketSeries(groupBy, from, to),
+    ]);
+
+    // ცარიელი (შეკვეთის არმქონე) bucket-ები 0-ით ივსება — წინააღმდეგ
+    // შემთხვევაში გრაფიკი მათ უბრალოდ გამოტოვებდა და ფრონტზე bucket-ზე
+    // საშუალოს დათვლა (totalRevenue / buckets.length) არასწორი იქნებოდა.
+    const revenueByBucket = new Map(
+      rows.map((row) => [row.bucket.getTime(), this.roundDecimal(row.revenue)]),
+    );
+    const buckets = series.map((bucket) => ({
+      date: bucket.toISOString(),
+      revenue: revenueByBucket.get(bucket.getTime()) ?? 0,
     }));
-    const totalRevenue = buckets.reduce((sum, b) => sum + b.revenue, 0);
+    const totalRevenue =
+      Math.round(buckets.reduce((sum, b) => sum + b.revenue, 0) * 100) / 100;
 
     // წინა, იგივე ხანგრძლივობის პერიოდი — [from - (to-from), from) —
     // changePercent-ის შედარებისთვის.
     const durationMs = to.getTime() - from.getTime();
+    // BETWEEN ორივე მხრიდან ჩათვლითია — previousTo = from - 1ms, რომ
+    // საზღვარზე მდგარი შეკვეთა ორივე პერიოდში არ ჩაითვალოს.
     const previousFrom = new Date(from.getTime() - durationMs);
-    const previousTo = from;
+    const previousTo = new Date(from.getTime() - 1);
     const previousPeriodRevenue = await this.sumRevenueBetween(
       previousFrom,
       previousTo,
+      companyId,
     );
 
     const changePercent =
@@ -167,17 +212,26 @@ export class StatsService {
   }
 
   async getOrderStatusBreakdown(
-    dto: StatsDateRangeDto,
+    dto: CompanyStatsRangeDto,
   ): Promise<OrderStatusBreakdownDto> {
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
-    const rows = await this.orderRepository
+    const qb = this.orderRepository
       .createQueryBuilder('order')
       .select('order.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .where('order.createdAt BETWEEN :from AND :to', { from, to })
-      .groupBy('order.status')
-      .getRawMany<{ status: OrderStatus; count: string }>();
+      .where(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
+      .groupBy('order.status');
+
+    if (companyId) {
+      qb.andWhere(this.orderHasCompanyItemSql('"order"."id"'), { companyId });
+    }
+
+    const rows = await qb.getRawMany<{ status: OrderStatus; count: string }>();
 
     const counts = new Map(rows.map((r) => [r.status, parseInt(r.count, 10)]));
 
@@ -200,30 +254,45 @@ export class StatsService {
     const order = dto.order ?? 'DESC';
     const limit = dto.limit ?? 10;
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
     // productId-ზე group-ი (არა oi.product join-ით) — წაშლილი პროდუქტების
     // (product FK SET NULL) ისტორიულ order_item-ებსაც უნდა ჩანდეს, productName
     // snapshot-იდანვე გვაქვს. "productId" raw-სვეტს ვიღებთ (არა oi.product),
     // რადგან OrderItem entity-ს productId ცალკე @Column-ად არ აქვს განსაზღვრული.
-    const rows = await this.orderItemRepository
+    // productName-ით მხოლოდ წაშლილ (productId NULL) პროდუქტებს ვყოფთ — არსებულ
+    // პროდუქტს სახელის შეცვლის შემდეგ ორ ხაზად რომ არ დაეშალოს. სახელად ყველაზე
+    // ბოლო შეკვეთის snapshot-ს ვიღებთ (ცოცხალი სახელი translations-შია).
+    const qb = this.orderItemRepository
       .createQueryBuilder('oi')
       .innerJoin('oi.order', 'order')
       .select('oi."productId"', 'productId')
-      .addSelect('oi.productName', 'productName')
+      .addSelect(
+        '(ARRAY_AGG(oi.productName ORDER BY order.createdAt DESC, oi.id DESC))[1]',
+        'productName',
+      )
       .addSelect('COALESCE(SUM(oi.quantity), 0)', 'quantitySold')
       .addSelect('COALESCE(SUM(oi.quantity * oi.unitPrice), 0)', 'revenue')
       .where('order.status IN (:...statuses)', { statuses: REVENUE_STATUSES })
-      .andWhere('order.createdAt BETWEEN :from AND :to', { from, to })
+      .andWhere(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
       .groupBy('oi."productId"')
-      .addGroupBy('oi.productName')
+      .addGroupBy('CASE WHEN oi."productId" IS NULL THEN oi.productName END')
       .orderBy(sortBy === 'quantity' ? 'quantitySold' : 'revenue', order)
-      .limit(limit)
-      .getRawMany<{
-        productId: number | string | null;
-        productName: string;
-        quantitySold: string;
-        revenue: string;
-      }>();
+      .limit(limit);
+
+    if (companyId) {
+      qb.andWhere('oi.companyId = :companyId', { companyId });
+    }
+
+    const rows = await qb.getRawMany<{
+      productId: number | string | null;
+      productName: string;
+      quantitySold: string;
+      revenue: string;
+    }>();
 
     return rows.map((row) => ({
       productId: row.productId === null ? null : Number(row.productId),
@@ -235,43 +304,129 @@ export class StatsService {
 
   async getLowStockProducts(
     dto: LowStockQueryDto,
-  ): Promise<PaginatedResponseDto<Product>> {
+  ): Promise<
+    PaginatedResponseDto<Product & { lowStockItems: LowStockItemDto[] }>
+  > {
     const threshold = dto.threshold ?? LOW_STOCK_DEFAULT_THRESHOLD;
 
-    const qb = this.productRepository
-      .createQueryBuilder('product')
-      .where('product.isActive = true')
-      .andWhere('product.stock <= :threshold', { threshold });
-
-    return paginate(
-      qb,
+    const result = await paginate(
+      this.lowStockProductsQuery(threshold, dto.companyId),
       'product',
       dto,
       LOW_STOCK_ALLOWED_SORT_COLUMNS,
       'stock',
     );
+
+    // მიმდინარე გვერდის პროდუქტების კონკრეტული დაბალი მარაგის ფერები/ზომები —
+    // ფრონტზე ჩანდეს, კონკრეტულად რომელი ფერი/ზომა იწურება.
+    const productIds = result.data.map((product) => product.id);
+    const [colors, variants] = productIds.length
+      ? await Promise.all([
+          this.productColorRepository.find({
+            where: { productId: In(productIds) },
+            relations: { color: true },
+          }),
+          this.productVariantRepository.find({
+            where: { productId: In(productIds) },
+            relations: { color: true, size: true },
+          }),
+        ])
+      : [[], []];
+
+    const itemsByProductId = new Map<number, LowStockItemDto[]>();
+    const pushItem = (productId: number, item: LowStockItemDto) => {
+      const items = itemsByProductId.get(productId) ?? [];
+      items.push(item);
+      itemsByProductId.set(productId, items);
+    };
+    for (const pc of colors) {
+      if (pc.stock > threshold) continue;
+      pushItem(pc.productId, {
+        type: 'color',
+        id: pc.id,
+        color: pc.color ?? null,
+        size: null,
+        stock: pc.stock,
+      });
+    }
+    for (const pv of variants) {
+      if (pv.stock > threshold) continue;
+      pushItem(pv.productId, {
+        type: 'variant',
+        id: pv.id,
+        color: pv.color ?? null,
+        size: pv.size ?? null,
+        stock: pv.stock,
+      });
+    }
+
+    return {
+      ...result,
+      data: result.data.map((product) =>
+        Object.assign(product, {
+          lowStockItems: (itemsByProductId.get(product.id) ?? []).sort(
+            (a, b) => a.stock - b.stock,
+          ),
+        }),
+      ),
+    };
+  }
+
+  // აქტიური პროდუქტი "დაბალი მარაგისაა", თუ მისი ჯამური stock, ან ნებისმიერი
+  // ცალკეული ფერის (ProductColor) / ვარიანტის (ProductVariant — ფერი+ზომა)
+  // stock threshold-ზე ნაკლები ან ტოლია — product.stock ფერების/ვარიანტების
+  // ჯამია, ამიტომ მხოლოდ მასზე შემოწმება ამოწურულ ცალკეულ ფერს/ზომას მალავდა.
+  // overview-ის lowStockCount და /stats/products/low-stock ერთსა და იმავე
+  // პირობას იზიარებენ.
+  private lowStockProductsQuery(threshold: number, companyId?: string) {
+    const qb = this.productRepository
+      .createQueryBuilder('product')
+      .where('product.isActive = true')
+      .andWhere(
+        `(product.stock <= :threshold
+          OR EXISTS (SELECT 1 FROM product_color pc_l WHERE pc_l."productId" = product.id AND pc_l.stock <= :threshold)
+          OR EXISTS (SELECT 1 FROM product_variant pv_l WHERE pv_l."productId" = product.id AND pv_l.stock <= :threshold))`,
+        { threshold },
+      );
+
+    if (companyId) {
+      qb.andWhere('product."companyId" = :companyId', { companyId });
+    }
+
+    return qb;
   }
 
   async getUserSignups(dto: GroupByDto): Promise<UserSignupsDto> {
     const groupBy = dto.groupBy ?? 'day';
     const { from, to } = this.resolveRange(dto);
 
-    const rows = await this.userRepository
+    const rowsQuery = this.userRepository
       .createQueryBuilder('user')
       .select(
         `date_trunc(:groupBy, ${this.tbilisiFromNaiveUtc('"user"."createdAt"')})`,
         'bucket',
       )
       .addSelect('COUNT(*)', 'count')
-      .where('user.createdAt BETWEEN :from AND :to', { from, to })
+      .where('user.createdAt BETWEEN :from AND :to', this.rangeParams(from, to))
       .groupBy('bucket')
       .orderBy('bucket', 'ASC')
       .setParameter('groupBy', groupBy)
       .getRawMany<{ bucket: Date; count: string }>();
 
-    const buckets = rows.map((row) => ({
-      date: row.bucket.toISOString(),
-      count: parseInt(row.count, 10),
+    const [rows, series] = await Promise.all([
+      rowsQuery,
+      this.getBucketSeries(groupBy, from, to),
+    ]);
+
+    // getRevenueOverTime-ის იგივე მიდგომა — რეგისტრაციის არმქონე bucket-ები
+    // 0-ით ივსება, რომ გრაფიკი ცარიელ დღეებს არ "აწებებდეს" და ღერძი
+    // შემოსავლის გრაფიკს ემთხვეოდეს.
+    const countByBucket = new Map(
+      rows.map((row) => [row.bucket.getTime(), parseInt(row.count, 10)]),
+    );
+    const buckets = series.map((bucket) => ({
+      date: bucket.toISOString(),
+      count: countByBucket.get(bucket.getTime()) ?? 0,
     }));
     const totalSignups = buckets.reduce((sum, b) => sum + b.count, 0);
 
@@ -279,22 +434,31 @@ export class StatsService {
   }
 
   async getCustomerLoyalty(
-    dto: StatsDateRangeDto,
+    dto: CompanyStatsRangeDto,
   ): Promise<CustomerLoyaltyDto> {
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
     // მხოლოდ რეალურად გადახდილი (REVENUE_STATUSES) შეკვეთები ითვლება
     // "შესყიდვად" — ჯერ არ დამთავრებული/გაუქმებული შეკვეთა მომხმარებელს
     // "მყიდველად" არ აქცევს.
-    const rows = await this.orderRepository
+    const qb = this.orderRepository
       .createQueryBuilder('order')
       .innerJoin('order.user', 'user')
       .select('user.id', 'userId')
       .addSelect('COUNT(*)', 'orderCount')
       .where('order.status IN (:...statuses)', { statuses: REVENUE_STATUSES })
-      .andWhere('order.createdAt BETWEEN :from AND :to', { from, to })
-      .groupBy('user.id')
-      .getRawMany<{ userId: number; orderCount: string }>();
+      .andWhere(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
+      .groupBy('user.id');
+
+    if (companyId) {
+      qb.andWhere(this.orderHasCompanyItemSql('"order"."id"'), { companyId });
+    }
+
+    const rows = await qb.getRawMany<{ userId: number; orderCount: string }>();
 
     let repeatCustomers = 0;
     let oneTimeCustomers = 0;
@@ -315,16 +479,30 @@ export class StatsService {
     return { repeatCustomers, oneTimeCustomers, repeatRatePercent };
   }
 
-  async getPaymentStats(dto: StatsDateRangeDto): Promise<PaymentStatsDto> {
+  async getPaymentStats(dto: CompanyStatsRangeDto): Promise<PaymentStatsDto> {
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
-    const rows = await this.paymentRepository
+    const qb = this.paymentRepository
       .createQueryBuilder('payment')
       .select('payment.status', 'status')
       .addSelect('COUNT(*)', 'count')
-      .where('payment.createdAt BETWEEN :from AND :to', { from, to })
-      .groupBy('payment.status')
-      .getRawMany<{ status: PaymentStatus; count: string }>();
+      .where(
+        'payment.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
+      .groupBy('payment.status');
+
+    if (companyId) {
+      qb.andWhere(this.orderHasCompanyItemSql('"payment"."orderId"'), {
+        companyId,
+      });
+    }
+
+    const rows = await qb.getRawMany<{
+      status: PaymentStatus;
+      count: string;
+    }>();
 
     const counts = new Map(rows.map((r) => [r.status, parseInt(r.count, 10)]));
 
@@ -342,12 +520,14 @@ export class StatsService {
     return { breakdown, total, successRatePercent };
   }
 
-  async getBranchSales(dto: StatsDateRangeDto): Promise<BranchSalesDto> {
+  async getBranchSales(dto: CompanyStatsRangeDto): Promise<BranchSalesDto> {
     const { from, to } = this.resolveRange(dto);
+    const { companyId } = dto;
 
     // მხოლოდ PICKUP შეკვეთები — courier შეკვეთებს branch საერთოდ არ აქვთ
     // მინიჭებული (იხ. Order.branch).
-    const rows = await this.orderRepository
+    // companyId-ით — მხოლოდ ამ კომპანიის ფილიალები (Branch.companyId).
+    const qb = this.orderRepository
       .createQueryBuilder('order')
       .innerJoin('order.branch', 'branch')
       .select('branch.id', 'branchId')
@@ -358,15 +538,23 @@ export class StatsService {
       .andWhere('order.deliveryMethod = :deliveryMethod', {
         deliveryMethod: DeliveryMethod.PICKUP,
       })
-      .andWhere('order.createdAt BETWEEN :from AND :to', { from, to })
+      .andWhere(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      )
       .groupBy('branch.id')
-      .addGroupBy('branch.title')
-      .getRawMany<{
-        branchId: number;
-        branchTitle: string;
-        orderCount: string;
-        revenue: string;
-      }>();
+      .addGroupBy('branch.title');
+
+    if (companyId) {
+      qb.andWhere('branch.companyId = :companyId', { companyId });
+    }
+
+    const rows = await qb.getRawMany<{
+      branchId: number;
+      branchTitle: string;
+      orderCount: string;
+      revenue: string;
+    }>();
 
     const salesByBranchId = new Map(
       rows.map((row) => [
@@ -381,6 +569,7 @@ export class StatsService {
     // ყველა (მათ შორის გაყიდვის არმქონე) ფილიალი ყოველთვის ჩნდება 0-ებით —
     // OrderStatusBreakdown-ის იგივე მიდგომა, sortOrder-ის მიხედვით.
     const allBranches = await this.branchRepository.find({
+      where: companyId ? { companyId } : {},
       order: { sortOrder: 'ASC' },
     });
 
@@ -406,9 +595,10 @@ export class StatsService {
   // ის კონკრეტული გადასვლა დათვლიდან ამოვარდებოდა. ეს ნიშნავს, რომ
   // "პერიოდი" ეხება მხოლოდ გადასვლის დასრულების მომენტს — არა მის დასაწყისს.
   async getStatusTransitionTimes(
-    dto: StatsDateRangeDto,
+    dto: CompanyStatsRangeDto,
   ): Promise<StatusTransitionAvgDto> {
     const { from, to } = this.resolveRange(dto);
+    const { from: fromParam, to: toParam } = this.rangeParams(from, to);
 
     const rows = await this.dataSource.query<
       {
@@ -435,9 +625,16 @@ export class StatsService {
       FROM ordered
       WHERE "prevStatus" IS NOT NULL
         AND "createdAt" BETWEEN $1 AND $2
+        AND (
+          $3::uuid IS NULL
+          OR EXISTS (
+            SELECT 1 FROM order_item oi_c
+            WHERE oi_c."orderId" = ordered."orderId" AND oi_c."companyId" = $3::uuid
+          )
+        )
       GROUP BY "prevStatus", status
       ORDER BY "prevStatus", status`,
-      [from, to],
+      [fromParam, toParam, dto.companyId ?? null],
     );
 
     const transitions: StatusTransitionAvgItemDto[] = rows.map((row) => {
@@ -474,7 +671,28 @@ export class StatsService {
 
   private async sumRevenueForCurrentBucket(
     period: 'day' | 'month',
+    companyId?: string,
   ): Promise<number> {
+    // companyId მოცემისას order.totalAmount-ს ვერ ვფილტრავთ (იხ.
+    // getRevenueOverTime-ის კომენტარი) — OrderItem.companyId snapshot-ზე
+    // დაფუძნებულ აგრეგაციაზე გადავდივართ, ისევე როგორც sumRevenueBetween-ში.
+    if (companyId) {
+      const result = await this.orderItemRepository
+        .createQueryBuilder('oi')
+        .innerJoin('oi.order', 'order')
+        .select('COALESCE(SUM(oi.quantity * oi.unitPrice), 0)', 'sum')
+        .where('order.status IN (:...statuses)', {
+          statuses: REVENUE_STATUSES,
+        })
+        .andWhere(
+          `date_trunc(:period, ${this.tbilisiFromNaiveUtc('"order"."createdAt"')}) = date_trunc(:period, ${this.tbilisiFromInstant('NOW()')})`,
+          { period },
+        )
+        .andWhere('oi.companyId = :companyId', { companyId })
+        .getRawOne<{ sum: string }>();
+      return this.roundDecimal(result?.sum);
+    }
+
     const result = await this.orderRepository
       .createQueryBuilder('order')
       .select('COALESCE(SUM(order.totalAmount), 0)', 'sum')
@@ -487,22 +705,109 @@ export class StatsService {
     return this.roundDecimal(result?.sum);
   }
 
-  private async sumRevenueBetween(from: Date, to: Date): Promise<number> {
+  // activeOrdersCount companyId-ით — შეკვეთა ითვლება, თუ მასში მოცემული
+  // კომპანიის სულ ცოტა ერთი პროდუქტია (DISTINCT order.id, რადგან ერთ
+  // შეკვეთაში ერთი კომპანიის რამდენიმე line-item შეიძლება იყოს).
+  private async countActiveOrders(companyId?: string): Promise<number> {
+    if (!companyId) {
+      return this.orderRepository.count({
+        where: { status: In(ACTIVE_ORDER_STATUSES) },
+      });
+    }
+
     const result = await this.orderRepository
       .createQueryBuilder('order')
-      .select('COALESCE(SUM(order.totalAmount), 0)', 'sum')
+      .innerJoin('order.items', 'oi')
+      .where('order.status IN (:...statuses)', {
+        statuses: ACTIVE_ORDER_STATUSES,
+      })
+      .andWhere('oi.companyId = :companyId', { companyId })
+      .select('COUNT(DISTINCT order.id)', 'count')
+      .getRawOne<{ count: string }>();
+    return parseInt(result?.count ?? '0', 10);
+  }
+
+  private async sumRevenueBetween(
+    from: Date,
+    to: Date,
+    companyId?: string,
+  ): Promise<number> {
+    // getRevenueOverTime-ის იგივე OrderItem-ზე დაფუძნებული აგრეგაცია —
+    // companyId-ის ფილტრისთვის საჭირო, order.totalAmount-ს ვერ ვფილტრავთ
+    // კომპანიის მიხედვით (იხ. getRevenueOverTime-ის კომენტარი).
+    const qb = this.orderItemRepository
+      .createQueryBuilder('oi')
+      .innerJoin('oi.order', 'order')
+      .select('COALESCE(SUM(oi.quantity * oi.unitPrice), 0)', 'sum')
       .where('order.status IN (:...statuses)', { statuses: REVENUE_STATUSES })
-      .andWhere('order.createdAt BETWEEN :from AND :to', { from, to })
-      .getRawOne<{ sum: string }>();
+      .andWhere(
+        'order.createdAt BETWEEN :from AND :to',
+        this.rangeParams(from, to),
+      );
+
+    if (companyId) {
+      qb.andWhere('oi.companyId = :companyId', { companyId });
+    }
+
+    const result = await qb.getRawOne<{ sum: string }>();
     return this.roundDecimal(result?.sum);
   }
 
+  // [from, to] პერიოდის ყველა bucket-ის დასაწყისი (თბილისის დროით) —
+  // date_trunc-ის იგივე ფორმატში, რასაც აგრეგაციის query-ები აბრუნებს,
+  // რომ getTime()-ით შედარება (merge) სერვერის დროის ზონისგან დამოუკიდებელი იყოს.
+  private async getBucketSeries(
+    groupBy: StatsGroupBy,
+    from: Date,
+    to: Date,
+  ): Promise<Date[]> {
+    const rows = await this.dataSource.query<{ bucket: Date }[]>(
+      `SELECT generate_series(
+        date_trunc($1, ${this.tbilisiFromInstant('$2::timestamptz')}),
+        date_trunc($1, ${this.tbilisiFromInstant('$3::timestamptz')}),
+        ('1 ' || $1)::interval
+      ) AS bucket`,
+      [groupBy, from.toISOString(), to.toISOString()],
+    );
+    return rows.map((row) => row.bucket);
+  }
+
+  // ფრონტი თარიღებს "YYYY-MM-DD" ფორმატში აგზავნის (input type="date") —
+  // `new Date('2026-09-24')` UTC შუაღამეა, რაც (1) თბილისის შუაღამეს 4
+  // საათით აცდება და (2) `to`-ს შემთხვევაში მთელ ბოლო დღეს გამორიცხავს. ამიტომ
+  // date-only მნიშვნელობა თბილისის კალენდარულ დღედ იკითხება: `from` — დღის
+  // დასაწყისი, `to` — დღის ბოლო (ჩათვლით). სრული ISO datetime უცვლელად გადის.
   private resolveRange(dto: StatsDateRangeDto): { from: Date; to: Date } {
-    const to = dto.to ? new Date(dto.to) : new Date();
+    const to = dto.to ? this.parseRangeBoundary(dto.to, 'end') : new Date();
     const from = dto.from
-      ? new Date(dto.from)
+      ? this.parseRangeBoundary(dto.from, 'start')
       : new Date(to.getTime() - DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000);
     return { from, to };
+  }
+
+  private parseRangeBoundary(value: string, edge: 'start' | 'end'): Date {
+    if (!DATE_ONLY_REGEX.test(value)) return new Date(value);
+    // საქართველოში DST 2005 წლიდან აღარ მოქმედებს — ოფსეტი მუდმივად +04:00.
+    const startOfDay = new Date(`${value}T00:00:00${TBILISI_UTC_OFFSET}`);
+    return edge === 'start'
+      ? startOfDay
+      : new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+  }
+
+  // createdAt სვეტები naive UTC-ია (იხ. tbilisiFromNaiveUtc). JS Date-ს
+  // პირდაპირ პარამეტრად გადაცემისას `pg` მას სერვერის ლოკალურ დროდ
+  // (მაგ. +04:00) სერიალიზებს, Postgres კი `timestamp without time zone`-თან
+  // შედარებისას ოფსეტს უგულებელყოფს — ფილტრი 4 საათით იწევს. toISOString()
+  // ყოველთვის UTC wall-clock-ს აძლევს, რაც სვეტის შენახვის ფორმატს ემთხვევა.
+  private rangeParams(from: Date, to: Date): { from: string; to: string } {
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+
+  // შეკვეთა კომპანიას "ეკუთვნის", თუ მასში ამ კომპანიის სულ ცოტა ერთი
+  // OrderItem-ია — EXISTS subquery (არა JOIN), რომ COUNT(*)/SUM-ები
+  // line-item-ების რაოდენობით არ გამრავლდეს.
+  private orderHasCompanyItemSql(orderIdExpr: string): string {
+    return `EXISTS (SELECT 1 FROM order_item oi_c WHERE oi_c."orderId" = ${orderIdExpr} AND oi_c."companyId" = :companyId)`;
   }
 
   // order."createdAt"/user."createdAt" ბაზაში "timestamp without time zone"

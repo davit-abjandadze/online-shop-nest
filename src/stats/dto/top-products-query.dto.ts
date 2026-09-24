@@ -1,13 +1,13 @@
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { StatsDateRangeDto } from './stats-date-range.dto';
+import { CompanyStatsRangeDto } from './stats-date-range.dto';
 
 export type TopProductsSortBy = 'revenue' | 'quantity';
 
 // ტოპ-გაყიდვადი პროდუქტების query — flat სია + limit (არა paginated),
 // იხ. STATS_PLAN.md Phase 2 დაზუსტებული გადაწყვეტილება.
-export class TopProductsQueryDto extends StatsDateRangeDto {
+export class TopProductsQueryDto extends CompanyStatsRangeDto {
   @ApiPropertyOptional({
     description: 'დალაგების საზომი',
     enum: ['revenue', 'quantity'],
