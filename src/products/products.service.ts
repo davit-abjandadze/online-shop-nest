@@ -632,22 +632,59 @@ export class ProductsService {
         }
       }
 
-      await manager.delete(ProductVariant, { productId });
+      // product row-ის ლოქი — checkout-იც (OrdersService.createFromCart) ამავე
+      // row-ს ბლოკავს ვარიანტის stock-ის დაკლებამდე, ანუ ადმინის ცვლილება და
+      // checkout ერთმანეთის შედეგს ვეღარ გადაწერენ.
+      await manager
+        .createQueryBuilder(Product, 'product')
+        .setLock('pessimistic_write')
+        .where('product.id = :id', { id: productId })
+        .getOne();
+
+      // upsert (colorId, sizeId) გასაღებით, არა delete+recreate: ადრე ყოველი
+      // შენახვა ყველა ვარიანტს ახალ ID-ს აძლევდა, CASCADE კი შლიდა ამ
+      // პროდუქტის ყველა cart item-ს (მომხმარებლებს კალათა ჩუმად ეცლებოდათ)
+      // და ფილიალების ვარიანტულ მარაგს, ღია შეკვეთების OrderItem.variantId
+      // კი NULL-დებოდა (გაუქმებისას მარაგი ვარიანტს ვეღარ უბრუნდებოდა).
+      // ახლა წაიშლება მხოლოდ ის ვარიანტი, რომელიც payload-იდან ამოიღეს.
+      const existing = await manager.find(ProductVariant, {
+        where: { productId },
+      });
+      const variantKey = (colorId?: string | null, sizeId?: string | null) =>
+        `${colorId ?? ''}:${sizeId ?? ''}`;
+      const existingByKey = new Map(
+        existing.map((v) => [variantKey(v.colorId, v.sizeId), v]),
+      );
+
+      const toSave = items.map((item) => {
+        const current = existingByKey.get(
+          variantKey(item.colorId, item.sizeId),
+        );
+        if (current) {
+          current.stock = item.stock;
+          current.price = item.price ?? null;
+          return current;
+        }
+        return manager.create(ProductVariant, {
+          productId,
+          colorId: item.colorId ?? null,
+          sizeId: item.sizeId ?? null,
+          stock: item.stock,
+          price: item.price ?? null,
+        });
+      });
+
+      const removed = existing.filter(
+        (v) => !dedupKeys.has(variantKey(v.colorId, v.sizeId)),
+      );
+      if (removed.length > 0) {
+        await manager.delete(
+          ProductVariant,
+          removed.map((v) => v.id),
+        );
+      }
       const saved =
-        items.length === 0
-          ? []
-          : await manager.save(
-              ProductVariant,
-              items.map((item) =>
-                manager.create(ProductVariant, {
-                  productId,
-                  colorId: item.colorId ?? null,
-                  sizeId: item.sizeId ?? null,
-                  stock: item.stock,
-                  price: item.price ?? null,
-                }),
-              ),
-            );
+        toSave.length === 0 ? [] : await manager.save(ProductVariant, toSave);
 
       // setColors-ის იგივე ⚠️ ფიქსი — ცარიელი variants მასივის შემთხვევაში
       // product.stock ხელუხლებელი რჩება, ჩუმად არ ნულდება.

@@ -23,6 +23,8 @@ import { ProductBranch } from '../products/entities/product-branch.entity';
 import { ProductVariant } from '../products/entities/product-variant.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { CartService } from '../cart/cart.service';
+import { Cart } from '../cart/entities/cart.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 import { SearchOrderDto } from './dto/search-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
@@ -36,6 +38,9 @@ import { isAdminRole } from '../common/utils/is-admin.util';
 // გადაუხდელი შეკვეთის default ვადა (წუთებში) — ამის შემდეგ cron (Phase 5)
 // EXPIRED-ში გადაჰყავს და მარაგს აბრუნებს.
 const DEFAULT_ORDER_TTL_MINUTES = 15;
+
+// ერთ მომხმარებელზე ერთდროულად გადაუხდელი (PENDING) შეკვეთების მაქსიმუმი.
+const MAX_PENDING_ORDERS_PER_USER = 3;
 
 const SORTABLE_COLUMNS = new Set(['id', 'status', 'totalAmount', 'createdAt']);
 
@@ -106,21 +111,50 @@ export class OrdersService {
         : createOrderDto.shippingAddress!;
 
     const cart = await this.cartService.getOrCreateForUser(userId);
-    if (!cart.items?.length) {
-      throw new BadRequestException('კალათა ცარიელია');
-    }
-
-    // row-ლოქები product.id-ის ასაკენდელი მიხედვით ვღებულობთ — არა cart.items-ის
-    // ბუნებრივი (ჩამატების) რიგით. ორი პარალელური checkout, რომლებიც იმავე
-    // პროდუქტებს საწინააღმდეგო თანმიმდევრობით ამატებდნენ კალათაში (ან
-    // სხვადასხვა დროს), ლოქებს ერთნაირი, კანონიკური თანმიმდევრობით იღებენ —
-    // Postgres-ის deadlock aborts (ერთ-ერთი ტრანზაქცია raw, unhandled
-    // შეცდომით) ამით აღარ ხდება.
-    const sortedCartItems = [...cart.items].sort(
-      (a, b) => a.product.id - b.product.id,
-    );
 
     const orderId = await this.dataSource.transaction(async (manager) => {
+      // კალათის row-ს ვბლოკავთ და მის items-ს ლოქის ქვეშ ვკითხულობთ — აქამდე
+      // კალათა ტრანზაქციის გარეთ იკითხებოდა და მხოლოდ commit-ის შემდეგ
+      // სუფთავდებოდა, ამიტომ ორმაგი დაწკაპუნება ერთი კალათიდან ორ შეკვეთას
+      // ქმნიდა (და მარაგს ორჯერ აკლებდა). მეორე checkout ახლა პირველის
+      // commit-ს ელოდება და უკვე ცარიელ კალათას ხედავს.
+      await manager
+        .createQueryBuilder(Cart, 'cart')
+        .setLock('pessimistic_write')
+        .where('cart.id = :id', { id: cart.id })
+        .getOne();
+
+      const cartItems = await manager.find(CartItem, {
+        where: { cart: { id: cart.id } },
+        relations: { product: true },
+      });
+      if (!cartItems.length) {
+        throw new BadRequestException('კალათა ცარიელია');
+      }
+
+      // ყოველი PENDING შეკვეთა მარაგს 15 წუთით იკავებს — ლიმიტის გარეშე
+      // ერთ მომხმარებელს შეეძლო მთელი მარაგის დაბლოკვა განმეორებითი
+      // checkout-ებით (გადახდის გარეშე). კალათის ლოქი ამ შემოწმებას ერთი
+      // მომხმარებლისთვის სერიალიზებს.
+      const pendingCount = await manager.count(Order, {
+        where: { user: { id: userId }, status: OrderStatus.PENDING },
+      });
+      if (pendingCount >= MAX_PENDING_ORDERS_PER_USER) {
+        throw new BadRequestException(
+          'გაქვთ გადაუხდელი შეკვეთები — ჯერ გადაიხადეთ ან დაელოდეთ მათ ვადის გასვლას',
+        );
+      }
+
+      // row-ლოქები product.id-ის ასაკენდელი მიხედვით ვღებულობთ — არა cart.items-ის
+      // ბუნებრივი (ჩამატების) რიგით. ორი პარალელური checkout, რომლებიც იმავე
+      // პროდუქტებს საწინააღმდეგო თანმიმდევრობით ამატებდნენ კალათაში (ან
+      // სხვადასხვა დროს), ლოქებს ერთნაირი, კანონიკური თანმიმდევრობით იღებენ —
+      // Postgres-ის deadlock aborts (ერთ-ერთი ტრანზაქცია raw, unhandled
+      // შეცდომით) ამით აღარ ხდება.
+      const sortedCartItems = [...cartItems].sort(
+        (a, b) => a.product.id - b.product.id,
+      );
+
       const orderItems: OrderItem[] = [];
       let totalAmount = 0;
 
@@ -174,6 +208,27 @@ export class OrdersService {
         // ვარაუდობს). Product-ის row-ლოქი (ზემოთ) უკვე სერიალიზებს ამ
         // პროდუქტის ყველა ვარიანტის/ფერის checkout-საც, ამიტომ
         // ProductVariant/ProductColor-ზე ცალკე ლოქი საჭირო არ არის.
+        // "ვარიანტი/ფერი სავალდებულოა" წესს CartService მხოლოდ კალათაში
+        // დამატებისას ამოწმებს. თუ ადმინმა ვარიანტები/ფერები მოგვიანებით
+        // დაამატა, ძველი item აქ "მარტივ პროდუქტად" გაივლიდა: base ფასით და
+        // product.stock-ის (ახლა ვარიანტების ჯამის) დაკლებით, კონკრეტული
+        // ვარიანტის მარაგის შეუმცირებლად → ვარიანტების overselling.
+        if (!cartItem.variantId) {
+          const hasVariants = await manager.exists(ProductVariant, {
+            where: { productId: product.id },
+          });
+          const hasColors =
+            !cartItem.colorId &&
+            (await manager.exists(ProductColor, {
+              where: { productId: product.id },
+            }));
+          if (hasVariants || hasColors) {
+            throw new BadRequestException(
+              `პროდუქტს "${productName}" ${hasVariants ? 'ვარიანტის' : 'ფერის'} არჩევა სჭირდება — წაშალეთ კალათიდან და დაამატეთ ხელახლა`,
+            );
+          }
+        }
+
         let productVariant: ProductVariant | null = null;
         let productColor: ProductColor | null = null;
         if (cartItem.variantId) {
@@ -320,13 +375,16 @@ export class OrdersService {
         savedOrder.id,
         OrderStatus.PENDING,
       );
+
+      // კალათიდან ზუსტად შეკვეთილ item-ებს ვშლით, იმავე ტრანზაქციაში —
+      // ადრე commit-ის შემდეგ მთელი კალათა სუფთავდებოდა, მათ შორის შუალედში
+      // დამატებული (შეუკვეთავი) item-ებიც.
+      await manager.delete(
+        CartItem,
+        cartItems.map((item) => item.id),
+      );
       return savedOrder.id;
     });
-
-    // ტრანზაქციის წარმატებით დასრულების შემდეგ ვასუფთავებთ კალათას —
-    // ცალკე, ორდერის ტრანზაქციის გარეთ, რადგან CartService საკუთარ
-    // repository-ებს იყენებს და ორდერის ლოქებთან შერევა ზედმეტია.
-    await this.cartService.clear(userId);
 
     return this.findOrderOrThrow(orderId);
   }
@@ -361,30 +419,78 @@ export class OrdersService {
     return order;
   }
 
-  // ადმინის მიერ სტატუსის ცვლილება (ან მომავალში — Payments callback-იდან).
-  // ტრანზაქცია მხოლოდ ALLOWED_STATUS_TRANSITIONS-ით დაშვებულ გადასვლებზე
-  // სრულდება (DELIVERED → PENDING და მისთ. ახლა 400-ს აბრუნებს). CANCELLED-
-  // ან EXPIRED-ზე გადასვლისას (ორივეზე, არა მხოლოდ CANCELLED-ზე) ვაბრუნებთ
-  // მარაგს — order.stockRestored flag-ით დაცული, არა მხოლოდ მიმდინარე
-  // status-ის შემოწმებით, რომ ერთსა და იმავე შეკვეთაზე restock ორჯერ ვერ
-  // შესრულდეს (რეალურად ეს ორმაგი-გამოძახება ახლა state-machine-ითაც
-  // დაბლოკილია, ვინაიდან CANCELLED/EXPIRED ტერმინალურია — flag-ი დამატებითი,
-  // defense-in-depth შრეა).
+  // ადმინის მიერ სტატუსის ცვლილება. ტრანზაქცია მხოლოდ
+  // ALLOWED_STATUS_TRANSITIONS-ით დაშვებულ გადასვლებზე სრულდება (DELIVERED →
+  // PENDING და მისთ. 400-ს აბრუნებს). CANCELLED/EXPIRED-ზე გადასვლისას
+  // მარაგი ბრუნდება — order.stockRestored flag-ით დაცული. ყველა შემოწმება
+  // transitionStatusInTransaction-შია, order row-ის ლოქის ქვეშ.
   async updateStatus(
     orderId: number,
     status: OrderStatus,
     changedById?: number,
   ): Promise<Order> {
-    const order = await this.findOrderOrThrow(orderId);
+    await this.dataSource.transaction((manager) =>
+      this.transitionStatusInTransaction(manager, orderId, status, {
+        changedById,
+      }),
+    );
 
-    if (order.status === status) {
-      return order;
+    // ⚠️ ხელახლა ჩატვირთვა (relations-ებით) აქ განზრახ რჩება — restock
+    // პროდუქტის stock-ს raw SQL-ით ცვლის, `updatedAt` კი მხოლოდ DB-ს მხრიდან
+    // განახლდება; ორივე ამ პასუხშივე უნდა ჩანდეს განახლებული.
+    return this.findOrderOrThrow(orderId);
+  }
+
+  // სტატუსის ცვლილების ერთადერთი ადგილი (ადმინი, BOG callback, cron) —
+  // გამომძახებლის ტრანზაქციაში სრულდება. order row-ს FOR UPDATE-ით ვბლოკავთ
+  // და status/stockRestored-ს ლოქის ქვეშ ვკითხულობთ: აქამდე ორივე ტრანზაქციის
+  // გარეთ, ძველი ასლიდან იკითხებოდა, ამიტომ
+  //   - ადმინის cancel და cron-ის expire ერთდროულად ორივე აბრუნებდა მარაგს
+  //     (stockRestored ორივეს false ეჩვენებოდა) → ორმაგი restock/overselling;
+  //   - cron-ი ახლახან გადახდილ (PAID) შეკვეთასაც EXPIRED-ად ხდიდა.
+  // მეორე ტრანზაქცია ახლა პირველის commit-ს ელოდება და უკვე ახალ სტატუსს ხედავს.
+  //
+  // options.onlyFrom — სისტემური გადასვლებისთვის (cron/callback): თუ სტატუსი
+  // ლოქის ქვეშ უკვე სხვაა, 400-ის ნაცვლად ჩუმად გამოვტოვებთ.
+  // options.onlyIfExpired — cron-ისთვის: expiresAt ლოქის ქვეშ ხელახლა
+  // მოწმდება (გადახდის დაწყება მას აგრძელებს, იხ. PaymentsService.initiate).
+  async transitionStatusInTransaction(
+    manager: EntityManager,
+    orderId: number,
+    status: OrderStatus,
+    options: {
+      changedById?: number;
+      onlyFrom?: OrderStatus[];
+      onlyIfExpired?: boolean;
+    } = {},
+  ): Promise<{ changed: boolean; previousStatus: OrderStatus }> {
+    const order = await manager
+      .createQueryBuilder(Order, 'order')
+      .setLock('pessimistic_write')
+      .where('order.id = :id', { id: orderId })
+      .getOne();
+    if (!order) {
+      throw new NotFoundException(`შეკვეთა ID-ით ${orderId} ვერ მოიძებნა`);
     }
 
-    const allowedNext = ALLOWED_STATUS_TRANSITIONS[order.status] ?? [];
+    const previousStatus = order.status;
+    if (previousStatus === status) {
+      return { changed: false, previousStatus };
+    }
+    if (options.onlyFrom && !options.onlyFrom.includes(previousStatus)) {
+      return { changed: false, previousStatus };
+    }
+    if (
+      options.onlyIfExpired &&
+      !(order.expiresAt && order.expiresAt.getTime() < Date.now())
+    ) {
+      return { changed: false, previousStatus };
+    }
+
+    const allowedNext = ALLOWED_STATUS_TRANSITIONS[previousStatus] ?? [];
     if (!allowedNext.includes(status)) {
       throw new BadRequestException(
-        `სტატუსის ცვლილება "${order.status}" → "${status}" დაუშვებელია`,
+        `სტატუსის ცვლილება "${previousStatus}" → "${status}" დაუშვებელია`,
       );
     }
 
@@ -392,50 +498,40 @@ export class OrdersService {
       (status === OrderStatus.CANCELLED || status === OrderStatus.EXPIRED) &&
       !order.stockRestored;
 
-    // PAID/PROCESSING → CANCELLED (ADMIN-ის მიერ) მარაგს აბრუნებს, მაგრამ
-    // Payment row-ს აქამდე ხელუხლებელი COMPLETED ტოვებდა — არსად აღარ ჩანდა,
-    // რომ ფაქტობრივად თანხის დაბრუნება ეკუთვნის ამ შეკვეთას. მნიშვნელოვანია
-    // შევამოწმოთ *მიმდინარე* order.status ნაცვლად "იყო თუ არა ოდესმე
-    // გადახდილი" — PAID-იდან PROCESSING-ში გადასული შეკვეთის cancel-ისას
-    // order.status უკვე PROCESSING-ია, არა PAID, ამიტომ მხოლოდ
-    // `order.status === PAID` შემოწმება ამ შემთხვევაში REFUND-ის ალამს
-    // ჩუმად კარგავდა. რეალური refund BOG-თან (ისევე, როგორც REJECTED-ის
-    // შემთხვევაში) v1-ში out-of-scope-ია (იხ. PaymentsService.handleCallback-ის
-    // კომენტარი) — აქ მხოლოდ Payment სტატუსს ვნიშნავთ REFUNDED-ად, რომ ეს
-    // ვალდებულება მოჩანდეს/ტრეკვადი იყოს (ხელით დამუშავებამდე).
+    // PAID/PROCESSING → CANCELLED: Payment-ს ვნიშნავთ REFUNDED-ად, რომ
+    // თანხის დაბრუნების ვალდებულება ჩანდეს (რეალური refund BOG-თან
+    // ინტეგრაციასთან ერთად გაკეთდება). *მიმდინარე* სტატუსს ვამოწმებთ —
+    // PROCESSING-იც გადახდილია.
     const wasPaid =
-      order.status === OrderStatus.PAID ||
-      order.status === OrderStatus.PROCESSING;
+      previousStatus === OrderStatus.PAID ||
+      previousStatus === OrderStatus.PROCESSING;
 
-    // ერთ ტრანზაქციაში ვასრულებთ status-ცვლილებას (+ needsRestock-ის
-    // შემთხვევაში restock/refund-flag) და history-row-ს ჩაწერას ერთდროულად —
-    // history ჩანაწერი არასდროს არ დარჩება Order.status-ის ცვლილებას
-    // მიღმა (ან პირიქით), ერთ atomicity-ის ფარგლებშია ორივე.
-    await this.dataSource.transaction(async (manager) => {
-      if (needsRestock) {
-        await this.restockOrderItems(manager, order);
-        await manager.update(Order, orderId, { status, stockRestored: true });
-        if (wasPaid && status === OrderStatus.CANCELLED) {
-          await manager.update(
-            Payment,
-            { order: { id: orderId }, status: PaymentStatus.COMPLETED },
-            { status: PaymentStatus.REFUNDED },
-          );
-        }
-      } else {
-        await manager.update(Order, orderId, { status });
+    if (needsRestock) {
+      // items/branch ლოქის შემდეგ, იმავე ტრანზაქციაში — FOR UPDATE-ს
+      // nullable outer join-თან (items.product, branch) Postgres არ უშვებს.
+      const withRelations = await manager.findOne(Order, {
+        where: { id: orderId },
+        relations: { items: { product: true }, branch: true },
+      });
+      await this.restockOrderItems(manager, withRelations ?? order);
+      await manager.update(Order, orderId, { status, stockRestored: true });
+      if (wasPaid && status === OrderStatus.CANCELLED) {
+        await manager.update(
+          Payment,
+          { order: { id: orderId }, status: PaymentStatus.COMPLETED },
+          { status: PaymentStatus.REFUNDED },
+        );
       }
-      await this.recordStatusHistory(manager, orderId, status, changedById);
-    });
-
-    // ⚠️ ხელახლა ჩატვირთვა (relations-ებით) აქ განზრახ რჩება (და არ
-    // იცვლება in-memory `order`-ის მუტაციით) — needsRestock-ის შემთხვევაში
-    // restockOrderItems() პროდუქტის stock-ს raw SQL-ით ცვლის ცალკე
-    // `product` row-ზე, რაც in-memory `order.items[].product`-ს არ
-    // ეხება; ასევე `updatedAt` (@UpdateDateColumn) მხოლოდ DB-ს მხრიდან
-    // განახლდება. ორივე ველი მომხმარებელს ამ პასუხშივე უნდა ჩანდეს
-    // განახლებული, ამიტომ ცალკე round-trip აქ საჭიროა.
-    return this.findOrderOrThrow(orderId);
+    } else {
+      await manager.update(Order, orderId, { status });
+    }
+    await this.recordStatusHistory(
+      manager,
+      orderId,
+      status,
+      options.changedById,
+    );
+    return { changed: true, previousStatus };
   }
 
   // ყოველ წუთს იძახებს expireStaleOrders-ს — ვადაგასული PENDING შეკვეთების
@@ -446,28 +542,28 @@ export class OrdersService {
   }
 
   // PENDING შეკვეთები, რომელთა ვადაც (expiresAt) გავიდა — EXPIRED-ში
-  // გადაჰყავს და მარაგს უბრუნებს. Cron-ის მიერ გამოძახებული (Phase 5).
+  // გადაჰყავს და მარაგს უბრუნებს. აქ მხოლოდ კანდიდატების ID-ებს ვკითხულობთ —
+  // სტატუსი/ვადა თითოეულისთვის ლოქის ქვეშ ხელახლა მოწმდება
+  // (transitionStatusInTransaction), რადგან სიის წაკითხვასა და ცვლილებას
+  // შორის შეკვეთა შეიძლება გადაიხადონ ან ადმინმა გააუქმოს.
   async expireStaleOrders(): Promise<number> {
     const staleOrders = await this.orderRepository.find({
+      select: { id: true },
       where: { status: OrderStatus.PENDING, expiresAt: LessThan(new Date()) },
-      relations: { items: { product: true }, branch: true },
     });
 
-    for (const order of staleOrders) {
-      await this.dataSource.transaction(async (manager) => {
-        if (!order.stockRestored) {
-          await this.restockOrderItems(manager, order);
-        }
-        await manager.update(Order, order.id, {
-          status: OrderStatus.EXPIRED,
-          stockRestored: true,
-        });
-        // changedBy არაა — cron-ის ავტომატური, სისტემური გადასვლაა.
-        await this.recordStatusHistory(manager, order.id, OrderStatus.EXPIRED);
-      });
+    let expired = 0;
+    for (const { id } of staleOrders) {
+      const { changed } = await this.dataSource.transaction((manager) =>
+        this.transitionStatusInTransaction(manager, id, OrderStatus.EXPIRED, {
+          onlyFrom: [OrderStatus.PENDING],
+          onlyIfExpired: true,
+        }),
+      );
+      if (changed) expired += 1;
     }
 
-    return staleOrders.length;
+    return expired;
   }
 
   // ⚠️ ფიქსი: აქამდე თითო order item-ზე თანმიმდევრობით (sequentially

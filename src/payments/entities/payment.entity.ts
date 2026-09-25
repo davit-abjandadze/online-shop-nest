@@ -66,6 +66,16 @@ export class Payment {
   })
   status!: PaymentStatus;
 
+  // ბოლო შექმნილი checkout-ის ბმული და მისი ვადა (BOG-ის ttl). ხელახალი
+  // initiate ცოცხალ checkout-ს ხელახლა იყენებს, ახალს არ ქმნის — თორემ
+  // providerOrderId გადაიწერებოდა და ძველ (ჯერ კიდევ გადახდად) გვერდზე
+  // გადახდილი თანხის callback ვეღარ დაუკავშირდებოდა Payment-ს (404).
+  @Column({ type: 'varchar', nullable: true })
+  redirectUrl?: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  checkoutExpiresAt?: Date | null;
+
   // ბოლო callback-ის ნედლი სხეული — აუდიტისთვის/დებაგისთვის ვინახავთ.
   @Column('jsonb', { nullable: true })
   rawCallbackPayload?: Record<string, any>;

@@ -17,6 +17,19 @@ import { OrdersService } from '../orders/orders.service';
 import { OrderStatus } from '../orders/entities/order.entity';
 import { UserRole } from '../users/entities/user.entity';
 
+// checkout-ის სიცოცხლე — BogPaymentProvider.createPayment-ის `ttl: 15`-ს
+// უნდა ემთხვეოდეს.
+const CHECKOUT_TTL_MS = 15 * 60 * 1000;
+// არსებული checkout-ის ხელახლა გამოყენება მხოლოდ თუ ამდენზე მეტი დრო რჩება —
+// თორემ მომხმარებელი ბანკის გვერდზე გადახდის დასრულებას ვერ მოასწრებს.
+const CHECKOUT_REUSE_MIN_MS = 2 * 60 * 1000;
+// შეკვეთა checkout-ის დასრულების შემდეგ კიდევ ამდენ ხანს ცოცხლობს, რომ
+// ბოლო წამზე შესრულებული გადახდის callback-მა მოასწროს.
+const ORDER_EXPIRY_GRACE_MS = 2 * 60 * 1000;
+// შეკვეთის მაქსიმალური სიცოცხლე შექმნიდან — ამის შემდეგ ახალი checkout
+// აღარ იქმნება (მარაგის უსასრულოდ დაკავებისგან დაცვა).
+const MAX_ORDER_LIFETIME_MS = 60 * 60 * 1000;
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -87,6 +100,42 @@ export class PaymentsService {
         where: { order: { id: lockedOrder.id } },
       });
 
+      const now = Date.now();
+
+      // ჯერ კიდევ ცოცხალი checkout (ორი ტაბი, "უკან" და ხელახლა ცდა) —
+      // იმავე ბმულს ვაბრუნებთ. ახლის შექმნა providerOrderId-ს გადაწერდა და
+      // ძველ გვერდზე გადახდილი თანხის callback 404-ს მიიღებდა: ფული
+      // ჩამოჭრილია, შეკვეთა კი გადაუხდელი რჩება.
+      if (
+        payment?.redirectUrl &&
+        payment.checkoutExpiresAt &&
+        (payment.status === PaymentStatus.CREATED ||
+          payment.status === PaymentStatus.PROCESSING) &&
+        payment.checkoutExpiresAt.getTime() - now > CHECKOUT_REUSE_MIN_MS
+      ) {
+        return { redirectUrl: payment.redirectUrl };
+      }
+
+      // შეკვეთა checkout-ის ვადის (BOG ttl) ბოლომდე + მცირე მარაგით უნდა
+      // იცოცხლოს — აქამდე expiresAt შექმნიდან 15 წუთს ითვლიდა, BOG-ის ttl კი
+      // initiate-იდან, ანუ მე-14 წუთზე დაწყებული და მე-16-ზე დასრულებული
+      // გადახდა უკვე ვადაგასულ (მარაგდაბრუნებულ) შეკვეთაზე მოდიოდა.
+      // მაქსიმალური სიცოცხლე შეზღუდულია, რომ განმეორებითი initiate-ით
+      // მარაგი უსასრულოდ ვერ დაიკავონ.
+      const checkoutExpiresAt = new Date(now + CHECKOUT_TTL_MS);
+      const requiredOrderExpiry = new Date(
+        checkoutExpiresAt.getTime() + ORDER_EXPIRY_GRACE_MS,
+      );
+      if (
+        (lockedOrder.expiresAt && lockedOrder.expiresAt.getTime() <= now) ||
+        requiredOrderExpiry.getTime() >
+          lockedOrder.createdAt.getTime() + MAX_ORDER_LIFETIME_MS
+      ) {
+        throw new BadRequestException(
+          'შეკვეთის ვადა იწურება — გთხოვთ, გააფორმოთ შეკვეთა ხელახლა',
+        );
+      }
+
       const { externalId, redirectUrl } =
         await this.provider.createPayment(lockedOrder);
 
@@ -103,7 +152,18 @@ export class PaymentsService {
           status: PaymentStatus.CREATED,
         });
       }
+      payment.redirectUrl = redirectUrl;
+      payment.checkoutExpiresAt = checkoutExpiresAt;
       await paymentRepo.save(payment);
+
+      if (
+        !lockedOrder.expiresAt ||
+        lockedOrder.expiresAt.getTime() < requiredOrderExpiry.getTime()
+      ) {
+        await manager.update(Order, lockedOrder.id, {
+          expiresAt: requiredOrderExpiry,
+        });
+      }
 
       return { redirectUrl };
     });
@@ -122,51 +182,83 @@ export class PaymentsService {
     }
 
     const { externalId, status } = this.provider.parseCallback(rawBody);
+    const rawPayload = JSON.parse(rawBody.toString('utf8')) as Record<
+      string,
+      unknown
+    >;
 
-    const payment = await this.paymentRepository.findOne({
+    const found = await this.paymentRepository.findOne({
       where: { providerOrderId: externalId },
       relations: { order: true },
     });
-    if (!payment) {
+    if (!found) {
       throw new NotFoundException(
         `Payment providerOrderId-ით ${externalId} ვერ მოიძებნა`,
       );
     }
+    const orderId = found.order.id;
 
-    if (payment.status === PaymentStatus.COMPLETED) {
-      this.logger.log(
-        `Payment ${payment.id}: დუბლირებული callback COMPLETED სტატუსზე — იგნორირებულია`,
-      );
-      return;
-    }
+    // Payment-ის სტატუსი და შეკვეთის PAID-ზე გადასვლა ერთ ტრანზაქციაშია.
+    // აქამდე Payment ჯერ COMPLETED-ად ინახებოდა, შეკვეთა კი ცალკე იცვლებოდა
+    // — თუ მეორე ნაბიჯი ჩავარდებოდა, BOG-ის retry "უკვე COMPLETED"-ს ხედავდა
+    // და აღარაფერს აკეთებდა: ფული ჩამოჭრილია, შეკვეთა გადაუხდელი რჩება
+    // (და cron-ი მას EXPIRED-ად აქცევდა). ახლა ჩავარდნისას ორივე უკან
+    // ბრუნდება და retry თავიდან ცდის.
+    //
+    // ლოქების თანმიმდევრობა: ჯერ order, მერე payment — იგივე, რაც
+    // initiate/updateStatus-ში, რომ deadlock არ მოხდეს.
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder(Order, 'order')
+        .setLock('pessimistic_write')
+        .where('order.id = :id', { id: orderId })
+        .getOne();
+      const payment = await manager
+        .createQueryBuilder(Payment, 'payment')
+        .setLock('pessimistic_write')
+        .where('payment.id = :id', { id: found.id })
+        .getOne();
+      if (!payment) {
+        throw new NotFoundException(`Payment ${found.id} ვერ მოიძებნა`);
+      }
 
-    payment.status = status;
-    payment.rawCallbackPayload = JSON.parse(rawBody.toString('utf8')) as Record<
-      string,
-      unknown
-    >;
-    await this.paymentRepository.save(payment);
-
-    if (status === PaymentStatus.COMPLETED) {
-      // თუ callback-მდე უკვე გავიდა 15წთ და cron-მა შეკვეთა EXPIRED-ში
-      // გადაიყვანა (ან ადმინმა CANCELLED გახადა) — მარაგი უკვე დაბრუნებულია
-      // და შესაძლოა სხვა შეკვეთამ უკვე დაიკავა. ასეთ შემთხვევაში PAID-ზე
-      // ბრმად გადაყვანა overselling-ს გამოიწვევდა — ამის ნაცვლად ვტოვებთ
-      // შეკვეთის სტატუსს და ვაფიქსირებთ, რომ საჭიროა ხელით
-      // შემოწმება/თანხის დაბრუნება.
-      if (
-        payment.order.status === OrderStatus.EXPIRED ||
-        payment.order.status === OrderStatus.CANCELLED
-      ) {
-        this.logger.error(
-          `Payment ${payment.id}: COMPLETED callback შემოვიდა შეკვეთაზე #${payment.order.id}, რომელიც უკვე ${payment.order.status}-ია (მარაგი უკვე დაბრუნებულია) — საჭიროა ხელით შემოწმება/თანხის დაბრუნება`,
+      if (payment.status === PaymentStatus.COMPLETED) {
+        this.logger.log(
+          `Payment ${payment.id}: დუბლირებული callback COMPLETED სტატუსზე — იგნორირებულია`,
         );
         return;
       }
-      await this.ordersService.updateStatus(payment.order.id, OrderStatus.PAID);
-    }
-    // REJECTED-ზე შეკვეთას PENDING-ად ვტოვებთ, რომ მომხმარებელმა ხელახლა
-    // სცადოს გადახდა — refund/cancel-ის ცალკე ნაკადი out-of-scope-ია v1-ში.
+
+      payment.status = status;
+      payment.rawCallbackPayload = rawPayload;
+
+      if (status === PaymentStatus.COMPLETED) {
+        // onlyFrom: PENDING — თუ შეკვეთა ლოქის ქვეშ უკვე EXPIRED/CANCELLED-ია,
+        // მარაგი დაბრუნებულია და შესაძლოა სხვამ დაიკავა; PAID-ზე ბრმად
+        // გადაყვანა overselling იქნებოდა. Payment მაინც COMPLETED ინახება
+        // (თანხა მიღებულია) და ხელით შემოწმებისთვის ვაფიქსირებთ.
+        const { changed, previousStatus } =
+          await this.ordersService.transitionStatusInTransaction(
+            manager,
+            orderId,
+            OrderStatus.PAID,
+            { onlyFrom: [OrderStatus.PENDING] },
+          );
+        if (
+          !changed &&
+          (previousStatus === OrderStatus.EXPIRED ||
+            previousStatus === OrderStatus.CANCELLED)
+        ) {
+          this.logger.error(
+            `Payment ${payment.id}: COMPLETED callback შემოვიდა შეკვეთაზე #${orderId}, რომელიც უკვე ${previousStatus}-ია (მარაგი უკვე დაბრუნებულია) — საჭიროა ხელით შემოწმება/თანხის დაბრუნება`,
+          );
+        }
+      }
+      // REJECTED-ზე შეკვეთას PENDING-ად ვტოვებთ, რომ მომხმარებელმა ხელახლა
+      // სცადოს გადახდა — refund/cancel-ის ცალკე ნაკადი BOG-თან ინტეგრაციისას.
+
+      await manager.save(payment);
+    });
   }
 
   // ⚠️ უსაფრთხოების შენიშვნა (PaymentsController.completeMockPayment): ეს
