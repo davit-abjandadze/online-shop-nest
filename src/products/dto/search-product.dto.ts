@@ -5,6 +5,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  MaxLength,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ export class SearchProductDto extends PaginationDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(100) // 6-ჯერადი ILIKE '%…%' JSONB-ზე — ინდექსს ვერ იყენებს
   search?: string;
 
   @ApiPropertyOptional({

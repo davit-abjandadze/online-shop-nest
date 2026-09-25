@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Company } from './entities/company.entity';
+import { Order } from '../orders/entities/order.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { FindCompaniesDto } from './dto/find-companies.dto';
@@ -74,6 +79,21 @@ export class CompaniesService {
 
   async remove(id: string): Promise<void> {
     const company = await this.findOne(id, true);
+
+    // Branch.company CASCADE-ია, Order.branch კი SET NULL — კომპანიის წაშლა
+    // მის ყველა ფილიალს შლიდა, ძველ pickup შეკვეთებს ფილიალი ეკარგებოდათ და
+    // ფილიალების გაყიდვები სტატისტიკიდან (innerJoin order.branch) ქრებოდა.
+    // ისტორიის მქონე კომპანია isActive=false-ით უნდა დაიმალოს.
+    const ordersViaBranches = await this.companyRepository.manager.count(
+      Order,
+      { where: { branch: { company: { id } } } },
+    );
+    if (ordersViaBranches > 0) {
+      throw new ConflictException(
+        `კომპანიის წაშლა შეუძლებელია — მის ფილიალებზე ${ordersViaBranches} შეკვეთაა გაფორმებული. გამორთეთ კომპანია (isActive: false)`,
+      );
+    }
+
     await this.companyRepository.remove(company);
   }
 }

@@ -12,6 +12,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductSliderTranslationsDto } from '../../common/dto/translations.dto';
+import { IsSafeLink } from '../../common/decorators/is-safe-link.decorator';
 
 export class CreateProductSliderDto {
   @ApiProperty({
@@ -43,6 +44,7 @@ export class CreateProductSliderDto {
   })
   @IsOptional()
   @IsString()
+  @IsSafeLink()
   viewAllLink?: string;
 
   @ApiPropertyOptional({ description: 'აქტიურია თუ არა ბლოკი', default: true })

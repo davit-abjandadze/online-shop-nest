@@ -62,26 +62,35 @@ export class NotificationsService {
         }),
       );
 
-      let recipientIds: number[];
-      if (createNotificationDto.targetUserIds) {
-        recipientIds = createNotificationDto.targetUserIds;
-        // წინასწარი ვალიდაცია, რომ არარსებულმა user id-მა ტრანზაქციაში
-        // FK constraint violation-ი (500) არ გამოიწვიოს — ნაცვლად მკაფიო
-        // 400-ის დაბრუნებისა, თუ რომელი id ვერ მოიძებნა.
-        const existingUsers = await manager.find(User, {
-          where: { id: In(recipientIds) },
-          select: { id: true },
-        });
-        const existingIds = new Set(existingUsers.map((user) => user.id));
-        const missingIds = recipientIds.filter((id) => !existingIds.has(id));
-        if (missingIds.length) {
-          throw new BadRequestException(
-            `მომხმარებელი ID-ებით [${missingIds.join(', ')}] ვერ მოიძებნა`,
-          );
-        }
-      } else {
-        recipientIds = (await manager.find(User, { select: { id: true } })).map(
-          (user) => user.id,
+      if (!createNotificationDto.targetUserIds) {
+        // ყველა user-ს — ერთი INSERT ... SELECT-ით, DB-ის შიგნით. აქამდე ყველა
+        // id Node-ში იტვირთებოდა და ერთ multi-row INSERT-ად (2 bind
+        // პარამეტრი თითო row-ზე) იგზავნებოდა: ~32 000 user-ის ზემოთ
+        // Postgres-ის 65 535 პარამეტრის ლიმიტს სცდებოდა და broadcast მთლიანად
+        // 500-ით ვარდებოდა.
+        await manager.query(
+          `INSERT INTO "notification_recipient" ("notificationId", "userId")
+           SELECT $1, "id" FROM "user"`,
+          [notification.id],
+        );
+        return notification;
+      }
+
+      // დუბლიკატები ([5, 5]) unique (notificationId, userId) ინდექსს არღვევდა → 500.
+      const recipientIds = [...new Set(createNotificationDto.targetUserIds)];
+
+      // წინასწარი ვალიდაცია, რომ არარსებულმა user id-მა ტრანზაქციაში
+      // FK constraint violation-ი (500) არ გამოიწვიოს — ნაცვლად მკაფიო
+      // 400-ის დაბრუნებისა, თუ რომელი id ვერ მოიძებნა.
+      const existingUsers = await manager.find(User, {
+        where: { id: In(recipientIds) },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingUsers.map((user) => user.id));
+      const missingIds = recipientIds.filter((id) => !existingIds.has(id));
+      if (missingIds.length) {
+        throw new BadRequestException(
+          `მომხმარებელი ID-ებით [${missingIds.join(', ')}] ვერ მოიძებნა`,
         );
       }
 

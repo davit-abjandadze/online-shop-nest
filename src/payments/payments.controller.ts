@@ -9,6 +9,7 @@ import {
   Res,
   HttpCode,
   NotFoundException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -48,9 +49,9 @@ export class PaymentsController {
   @ApiResponse({ status: 403, description: 'სხვისი შეკვეთაა' })
   initiate(
     @CurrentUser() user: { userId: number; role: UserRole },
-    @Param('orderId') orderId: string,
+    @Param('orderId', ParseIntPipe) orderId: number,
   ) {
-    return this.paymentsService.initiate(user.userId, user.role, +orderId);
+    return this.paymentsService.initiate(user.userId, user.role, orderId);
   }
 
   // BOG არაა ავტორიზებული მომხმარებელი — ამ route-ზე JwtAuthGuard არ დგას,

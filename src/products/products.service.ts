@@ -44,6 +44,7 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 import { paginate } from '../common/utils/paginate.util';
+import { escapeLike } from '../common/utils/escape-like.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -57,6 +58,9 @@ const SORTABLE_COLUMNS = new Set([
   'isActive',
   'createdAt',
 ]);
+
+// GET /products/:id/similar-ის limit-ის ზედა ზღვარი.
+const MAX_SIMILAR_LIMIT = 50;
 
 @Injectable()
 export class ProductsService {
@@ -118,7 +122,7 @@ export class ProductsService {
           OR product.translations -> 'en' ->> 'description' ILIKE :search
           OR product.translations -> 'ru' ->> 'description' ILIKE :search
         )`,
-        { search: `%${search}%` },
+        { search: `%${escapeLike(search)}%` },
       );
     }
 
@@ -197,7 +201,10 @@ export class ProductsService {
   // აქტიური პროდუქტები, საწყისის გამოკლებით. კატეგორიის გარეშე პროდუქტს
   // მსგავსი არ ეყოლება (ცარიელი მასივი) — attribute-ზე დაფუძნებული
   // "სიახლოვის" გამოთვლა v1-ისთვის ზედმეტია, category საკმარისი სიგნალია.
+  // limit-ს ზედა ზღვარი აქვს — public, rate limit-ის გარეშე endpoint-ია და
+  // `?limit=10000000` მთელ კატეგორიას (category+company join-ით) ტვირთავდა.
   async findSimilar(id: number, limit = 10): Promise<Product[]> {
+    const take = Math.min(limit, MAX_SIMILAR_LIMIT);
     const product = await this.findOne(id); // შეამოწმებს, არსებობს თუ არა (isActive=false → 404)
     if (!product.category) {
       return [];
@@ -211,7 +218,7 @@ export class ProductsService {
       },
       relations: { category: true, company: true },
       order: { createdAt: 'DESC' },
-      take: limit,
+      take,
     });
   }
 

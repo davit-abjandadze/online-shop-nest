@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -53,7 +54,10 @@ export class ColorsController {
   @ApiOperation({ summary: 'კონკრეტული ფერის მიღება' })
   @ApiResponse({ status: 200, description: 'ფერი' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })
-  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Locale() locale: LocaleType,
+  ) {
     const color = await this.colorsService.findOne(id);
     return enrichColor(color, locale);
   }
@@ -73,7 +77,10 @@ export class ColorsController {
   @ApiOperation({ summary: 'ფერის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფერი განახლდა' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() updateColorDto: UpdateColorDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateColorDto: UpdateColorDto,
+  ) {
     return this.colorsService.update(id, updateColorDto);
   }
 
@@ -82,7 +89,7 @@ export class ColorsController {
   @ApiOperation({ summary: 'ფერის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ფერი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ფერი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.colorsService.remove(id);
   }
 }

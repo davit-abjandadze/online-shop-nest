@@ -24,6 +24,7 @@ import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
 import { paginate } from '../common/utils/paginate.util';
 import { Locale } from '../common/types/translations.type';
+import { escapeLike } from '../common/utils/escape-like.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — SQL
 // injection-ის თავიდან ასაცილებლად ვუშვებთ მხოლოდ ცნობილ სვეტებს
@@ -42,6 +43,44 @@ const PRODUCT_SORTABLE_COLUMNS = new Set(['id', 'price', 'stock', 'createdAt']);
 // (`ValidationPipe`-ის whitelist-ს ავუვლით — attribute-ის კოდები წინასწარ
 // უცნობია, DTO-თი ვერ აღიწერება), ამიტომ ტიპი მარტივი string-map-ია.
 export type CategoryFiltersQuery = Record<string, string>;
+
+// ერთი query მნიშვნელობის მაქსიმალური სიგრძე (მაგ. `brand=a,b,c`) და search-ის
+// ცალკე, უფრო მკაცრი ლიმიტი — search 6-ჯერადი ILIKE '%…%'-ია JSONB-ზე (ინდექსს
+// ვერ იყენებს) და ყოველ filterable attribute-ზე მეორდება getFilters-ში.
+const MAX_FILTER_VALUE_LENGTH = 500;
+const MAX_SEARCH_LENGTH = 100;
+
+// Express-ის query parser-ი `?brand=a&brand=b`-ს მასივად აქცევს, `?a[b]=1`-ს
+// კი ობიექტად — `Record<string, string>` ტიპი ამას არ ასახავდა და
+// `raw.split(',')` / `findOne({ slug: [...] })` 500-ს აგდებდა. ყველაფერს
+// სტრიქონად ვაქცევთ (მასივი → მძიმით), დანარჩენს ვაგდებთ და სიგრძეს/ფასს
+// ვამოწმებთ, სანამ query builder-ს მიაღწევს.
+function normalizeFiltersQuery(
+  raw: Record<string, unknown>,
+): CategoryFiltersQuery {
+  const result: CategoryFiltersQuery = {};
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    const str = Array.isArray(value)
+      ? value.filter((v) => typeof v === 'string').join(',')
+      : typeof value === 'string'
+        ? value
+        : undefined;
+    if (str === undefined) continue;
+    const max = key === 'search' ? MAX_SEARCH_LENGTH : MAX_FILTER_VALUE_LENGTH;
+    if (str.length > max) {
+      throw new BadRequestException(
+        `query პარამეტრი "${key}" ძალიან გრძელია (მაქს. ${max} სიმბოლო)`,
+      );
+    }
+    result[key] = str;
+  }
+  for (const key of ['minPrice', 'maxPrice']) {
+    if (result[key] !== undefined && !Number.isFinite(Number(result[key]))) {
+      throw new BadRequestException(`${key} უნდა იყოს რიცხვი`);
+    }
+  }
+  return result;
+}
 
 @Injectable()
 export class CategoryService {
@@ -365,14 +404,37 @@ export class CategoryService {
           `კატეგორია "${query.subcategory}" არ არის "${baseCategory.slug}"-ის ქვეკატეგორია`,
         );
       }
+      // თავად აქტიურია, მაგრამ შუალედური წინაპარი (base-სა და sub-ს შორის)
+      // დეაქტივირებულია — storefront-ისთვის არ არსებობს.
+      const activeBaseIds = await this.getActiveSubtreeIds(baseCategory);
+      if (!activeBaseIds.includes(sub.id)) {
+        throw new NotFoundException(
+          `ქვეკატეგორია slug-ით "${query.subcategory}" ვერ მოიძებნა`,
+        );
+      }
       root = sub;
     }
 
     // storefront-ის ეს ორი endpoint (getFilters/getProductsForCategory)
     // ADMIN-ისთვის ცალკე ვარიანტს არ ითვალისწინებს — დეაქტივირებული
     // ქვეკატეგორია (და მისი subtree) ყოველთვის გამორიცხულია.
-    const descendants = await this.treeRepository.findDescendants(root);
-    return descendants.filter((d) => d.isActive).map((d) => d.id);
+    return this.getActiveSubtreeIds(root);
+  }
+
+  // root-ის subtree-ის აქტიური კატეგორიები — დეაქტივირებულ კვანძზე მთელ
+  // ტოტს ვჭრით. აქამდე findDescendants() ბრტყელ სიას აბრუნებდა და მხოლოდ
+  // თითოეულის საკუთარ isActive-ს ვამოწმებდით: A → B (გამორთული) → C
+  // (ჩართული) შემთხვევაში C-ს პროდუქტები მაინც ჩანდა A-ში.
+  private async getActiveSubtreeIds(root: Category): Promise<string[]> {
+    const tree = await this.treeRepository.findDescendantsTree(root);
+    const ids: string[] = [];
+    const walk = (node: Category) => {
+      if (!node.isActive) return;
+      ids.push(node.id);
+      for (const child of node.children ?? []) walk(child);
+    };
+    walk(tree);
+    return ids;
   }
 
   // `categoryIds` subtree-ს (+ ბაზური კატეგორიის წინაპრების) ფარგლებში
@@ -435,7 +497,7 @@ export class CategoryService {
           OR product.translations -> 'en' ->> 'description' ILIKE :search
           OR product.translations -> 'ru' ->> 'description' ILIKE :search
         )`,
-        { search: `%${query.search}%` },
+        { search: `%${escapeLike(query.search)}%` },
       );
     }
     if (query.minPrice !== undefined) {
@@ -560,9 +622,10 @@ export class CategoryService {
   // სხვა (ამ attribute-ის გარდა) აქტიური ფილტრების გათვალისწინებით.
   async getFilters(
     slug: string,
-    query: CategoryFiltersQuery,
+    rawQuery: CategoryFiltersQuery,
     locale: Locale = 'ka',
   ) {
+    const query = normalizeFiltersQuery(rawQuery);
     const category = await this.findBySlug(slug);
     // storefront-ის endpoint-ია, ADMIN-variant არაა — დეაქტივირებული
     // კატეგორია "ვერ მოიძებნა"-დაა ჩათვლილი, ისევე როგორც subtree-ს
@@ -713,8 +776,9 @@ export class CategoryService {
   // buildFilteredProductsQuery-ის იმავე attribute/search/price ლოგიკით.
   async getProductsForCategory(
     slug: string,
-    query: CategoryFiltersQuery,
+    rawQuery: CategoryFiltersQuery,
   ): Promise<PaginatedResponseDto<Product>> {
+    const query = normalizeFiltersQuery(rawQuery);
     const category = await this.findBySlug(slug);
     if (!category.isActive) {
       throw new NotFoundException(`კატეგორია slug-ით "${slug}" ვერ მოიძებნა`);

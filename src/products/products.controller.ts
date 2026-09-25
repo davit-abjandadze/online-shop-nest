@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -353,7 +354,7 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
   updateAdditionalInfo(
     @Param('id', ParseIntPipe) id: number,
-    @Param('infoId') infoId: string,
+    @Param('infoId', ParseUUIDPipe) infoId: string,
     @Body() updateDto: UpdateProductAdditionalInfoDto,
   ) {
     return this.productsService.updateAdditionalInfo(id, infoId, updateDto);
@@ -368,7 +369,7 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'ბლოკი ან პროდუქტი ვერ მოიძებნა' })
   removeAdditionalInfo(
     @Param('id', ParseIntPipe) id: number,
-    @Param('infoId') infoId: string,
+    @Param('infoId', ParseUUIDPipe) infoId: string,
   ) {
     return this.productsService.removeAdditionalInfo(id, infoId);
   }

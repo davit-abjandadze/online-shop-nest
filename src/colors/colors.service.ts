@@ -3,6 +3,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Color } from './entities/color.entity';
 import { ProductColor } from '../products/entities/product-color.entity';
+import { ProductVariant } from '../products/entities/product-variant.entity';
 import { CreateColorDto } from './dto/create-color.dto';
 import { UpdateColorDto } from './dto/update-color.dto';
 import { mergeTranslations } from '../common/utils/merge-translations.util';
@@ -63,24 +64,33 @@ export class ColorsService {
     // restockOrderItems-ის იგივე პატერნი, თითო პროდუქტზე ცალკე
     // find+update round-trip-ის მაგივრად.
     return this.dataSource.transaction(async (manager) => {
-      const affected = await manager.find(ProductColor, {
-        where: { colorId: id },
-      });
-      const productIds = [...new Set(affected.map((pc) => pc.productId))];
+      // ფერი ProductVariant-შიც (ფერი+ზომა) მონაწილეობს და იქიდანაც CASCADE-ით
+      // იშლება — ვარიანტიანი პროდუქტის stock ვარიანტების ჯამია, ამიტომ მათაც
+      // ვითვლით (აქამდე მხოლოდ product_color-ს ითვალისწინებდა და ვარიანტიანი
+      // პროდუქტის stock გადაჭარბებული რჩებოდა).
+      const [affectedColors, affectedVariants] = await Promise.all([
+        manager.find(ProductColor, { where: { colorId: id } }),
+        manager.find(ProductVariant, { where: { colorId: id } }),
+      ]);
+      const productIds = [
+        ...new Set([
+          ...affectedColors.map((pc) => pc.productId),
+          ...affectedVariants.map((pv) => pv.productId),
+        ]),
+      ];
 
       await manager.remove(Color, color);
 
       if (productIds.length > 0) {
+        // ვარიანტები რჩება → მათი ჯამი; თორემ დარჩენილი ფერების ჯამი (ან 0).
         await manager.query(
           `UPDATE "product" AS p
-           SET stock = COALESCE(agg.total, 0)
-           FROM (
-             SELECT ids.id, SUM(pc.stock) AS total
-             FROM unnest($1::int[]) AS ids(id)
-             LEFT JOIN "product_color" pc ON pc."productId" = ids.id
-             GROUP BY ids.id
-           ) AS agg
-           WHERE p.id = agg.id`,
+           SET stock = COALESCE(
+             (SELECT SUM(pv.stock) FROM "product_variant" pv WHERE pv."productId" = p.id),
+             (SELECT SUM(pc.stock) FROM "product_color" pc WHERE pc."productId" = p.id),
+             0
+           )
+           WHERE p.id = ANY($1::int[])`,
           [productIds],
         );
       }

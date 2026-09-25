@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -56,9 +57,9 @@ export class FavoritesController {
   @ApiResponse({ status: 409, description: 'პროდუქტი უკვე ფავორიტებშია' })
   addFavorite(
     @CurrentUser() user: { userId: number },
-    @Param('productId') productId: string,
+    @Param('productId', ParseIntPipe) productId: number,
   ) {
-    return this.favoritesService.addFavorite(user.userId, +productId);
+    return this.favoritesService.addFavorite(user.userId, productId);
   }
 
   @Delete(':productId')
@@ -67,8 +68,8 @@ export class FavoritesController {
   @ApiResponse({ status: 404, description: 'ფავორიტებში ვერ მოიძებნა' })
   removeFavorite(
     @CurrentUser() user: { userId: number },
-    @Param('productId') productId: string,
+    @Param('productId', ParseIntPipe) productId: number,
   ) {
-    return this.favoritesService.removeFavorite(user.userId, +productId);
+    return this.favoritesService.removeFavorite(user.userId, productId);
   }
 }

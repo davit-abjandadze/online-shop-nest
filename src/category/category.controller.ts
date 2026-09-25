@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -146,7 +147,7 @@ export class CategoryController {
   @ApiResponse({ status: 200, description: 'კატეგორია' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
   async findOne(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Locale() locale: LocaleType,
     @CurrentUser() user?: { role: UserRole },
   ) {
@@ -180,7 +181,7 @@ export class CategoryController {
   })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
     return this.categoryService.update(id, updateCategoryDto);
@@ -195,7 +196,7 @@ export class CategoryController {
     status: 409,
     description: 'აქვს შვილები ან მიბმული პროდუქტები',
   })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.categoryService.remove(id);
   }
 
@@ -208,7 +209,7 @@ export class CategoryController {
   })
   @ApiResponse({ status: 200, description: 'attribute set' })
   @ApiResponse({ status: 404, description: 'კატეგორია ვერ მოიძებნა' })
-  findAttributes(@Param('id') id: string) {
+  findAttributes(@Param('id', ParseUUIDPipe) id: string) {
     return this.categoryService.findAttributesForCategory(id);
   }
 
@@ -226,7 +227,7 @@ export class CategoryController {
     description: 'ეს მახასიათებელი უკვე მიბმულია ამ კატეგორიაზე',
   })
   addAttribute(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() addCategoryAttributeDto: AddCategoryAttributeDto,
   ) {
     return this.categoryService.addAttributeToCategory(
@@ -244,8 +245,8 @@ export class CategoryController {
     description: 'ეს მახასიათებელი პირდაპირ მიბმული არ არის ამ კატეგორიაზე',
   })
   removeAttribute(
-    @Param('id') id: string,
-    @Param('attributeId') attributeId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attributeId', ParseUUIDPipe) attributeId: string,
   ) {
     return this.categoryService.removeAttributeFromCategory(id, attributeId);
   }

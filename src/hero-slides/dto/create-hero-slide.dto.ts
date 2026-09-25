@@ -9,6 +9,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { HeroSlideTranslationsDto } from '../../common/dto/translations.dto';
+import { IsSafeLink } from '../../common/decorators/is-safe-link.decorator';
 
 export class CreateHeroSlideDto {
   @ApiProperty({
@@ -32,6 +33,7 @@ export class CreateHeroSlideDto {
   })
   @IsOptional()
   @IsString()
+  @IsSafeLink()
   buttonLink?: string;
 
   @ApiPropertyOptional({ description: 'მიბმული პროდუქტის ID', example: 1 })

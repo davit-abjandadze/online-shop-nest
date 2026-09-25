@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -127,7 +128,7 @@ export class ProductSlidersController {
   })
   @ApiResponse({ status: 200, description: 'ბლოკი' })
   @ApiResponse({ status: 404, description: 'ბლოკი ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productSlidersService.findOne(id);
   }
 
@@ -153,7 +154,7 @@ export class ProductSlidersController {
   })
   @ApiResponse({ status: 409, description: 'ეს key უკვე დაკავებულია' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductSliderDto: UpdateProductSliderDto,
   ) {
     return this.productSlidersService.update(id, updateProductSliderDto);
@@ -170,7 +171,7 @@ export class ProductSlidersController {
     description: 'ბლოკი ან პროდუქტ(ებ)ი ვერ მოიძებნა',
   })
   setItems(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() setProductSliderItemsDto: SetProductSliderItemsDto,
   ) {
     return this.productSlidersService.setItems(
@@ -184,7 +185,7 @@ export class ProductSlidersController {
   @ApiOperation({ summary: 'ბლოკის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ბლოკი წაიშალა' })
   @ApiResponse({ status: 404, description: 'ბლოკი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.productSlidersService.remove(id);
   }
 }

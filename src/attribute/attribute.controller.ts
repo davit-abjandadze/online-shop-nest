@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -68,7 +69,10 @@ export class AttributeController {
   @ApiOperation({ summary: 'კონკრეტული მახასიათებლის მიღება (options-ითურთ)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
-  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Locale() locale: LocaleType,
+  ) {
     const attribute = await this.attributeService.findOne(id);
     return enrichAttribute(attribute, locale);
   }
@@ -90,7 +94,7 @@ export class AttributeController {
   @ApiResponse({ status: 200, description: 'მახასიათებელი განახლდა' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateAttributeDto: UpdateAttributeDto,
   ) {
     return this.attributeService.update(id, updateAttributeDto);
@@ -101,7 +105,7 @@ export class AttributeController {
   @ApiOperation({ summary: 'მახასიათებლის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'მახასიათებელი წაიშალა' })
   @ApiResponse({ status: 404, description: 'მახასიათებელი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.attributeService.remove(id);
   }
 
@@ -119,7 +123,7 @@ export class AttributeController {
     description: 'code უკვე დაკავებულია ამ მახასიათებელზე',
   })
   addOption(
-    @Param('id') attributeId: string,
+    @Param('id', ParseUUIDPipe) attributeId: string,
     @Body() createOptionDto: CreateAttributeOptionDto,
   ) {
     return this.attributeService.addOption(attributeId, createOptionDto);
@@ -131,8 +135,8 @@ export class AttributeController {
   @ApiResponse({ status: 200, description: 'ოფცია განახლდა' })
   @ApiResponse({ status: 404, description: 'ოფცია ვერ მოიძებნა' })
   updateOption(
-    @Param('id') attributeId: string,
-    @Param('optionId') optionId: string,
+    @Param('id', ParseUUIDPipe) attributeId: string,
+    @Param('optionId', ParseUUIDPipe) optionId: string,
     @Body() updateOptionDto: UpdateAttributeOptionDto,
   ) {
     return this.attributeService.updateOption(
@@ -148,8 +152,8 @@ export class AttributeController {
   @ApiResponse({ status: 200, description: 'ოფცია წაიშალა' })
   @ApiResponse({ status: 404, description: 'ოფცია ვერ მოიძებნა' })
   removeOption(
-    @Param('id') attributeId: string,
-    @Param('optionId') optionId: string,
+    @Param('id', ParseUUIDPipe) attributeId: string,
+    @Param('optionId', ParseUUIDPipe) optionId: string,
   ) {
     return this.attributeService.removeOption(attributeId, optionId);
   }

@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -49,7 +50,10 @@ export class SizesController {
   @ApiOperation({ summary: 'კონკრეტული ზომის მიღება' })
   @ApiResponse({ status: 200, description: 'ზომა' })
   @ApiResponse({ status: 404, description: 'ზომა ვერ მოიძებნა' })
-  async findOne(@Param('id') id: string, @Locale() locale: LocaleType) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Locale() locale: LocaleType,
+  ) {
     const size = await this.sizesService.findOne(id);
     return enrichSize(size, locale);
   }
@@ -69,7 +73,10 @@ export class SizesController {
   @ApiOperation({ summary: 'ზომის განახლება (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ზომა განახლდა' })
   @ApiResponse({ status: 404, description: 'ზომა ვერ მოიძებნა' })
-  update(@Param('id') id: string, @Body() updateSizeDto: UpdateSizeDto) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateSizeDto: UpdateSizeDto,
+  ) {
     return this.sizesService.update(id, updateSizeDto);
   }
 
@@ -78,7 +85,7 @@ export class SizesController {
   @ApiOperation({ summary: 'ზომის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'ზომა წაიშალა' })
   @ApiResponse({ status: 404, description: 'ზომა ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.sizesService.remove(id);
   }
 }

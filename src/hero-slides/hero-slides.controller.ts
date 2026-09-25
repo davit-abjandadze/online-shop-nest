@@ -9,6 +9,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -92,7 +93,7 @@ export class HeroSlidesController {
   })
   @ApiResponse({ status: 200, description: 'სლაიდი' })
   @ApiResponse({ status: 404, description: 'სლაიდი ვერ მოიძებნა' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.heroSlidesService.findOne(id);
   }
 
@@ -113,7 +114,7 @@ export class HeroSlidesController {
   @ApiResponse({ status: 200, description: 'სლაიდი განახლდა' })
   @ApiResponse({ status: 404, description: 'სლაიდი ან პროდუქტი ვერ მოიძებნა' })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateHeroSlideDto: UpdateHeroSlideDto,
   ) {
     return this.heroSlidesService.update(id, updateHeroSlideDto);
@@ -124,7 +125,7 @@ export class HeroSlidesController {
   @ApiOperation({ summary: 'სლაიდის წაშლა (ADMIN)' })
   @ApiResponse({ status: 200, description: 'სლაიდი წაიშალა' })
   @ApiResponse({ status: 404, description: 'სლაიდი ვერ მოიძებნა' })
-  remove(@Param('id') id: string) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.heroSlidesService.remove(id);
   }
 }

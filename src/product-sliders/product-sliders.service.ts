@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, EntityManager } from 'typeorm';
 import { ProductSlider } from './entities/product-slider.entity';
 import { ProductSliderItem } from './entities/product-slider-item.entity';
 import { Product } from '../products/entities/product.entity';
@@ -25,10 +25,6 @@ export class ProductSlidersService {
   constructor(
     @InjectRepository(ProductSlider)
     private productSliderRepository: Repository<ProductSlider>,
-    @InjectRepository(ProductSliderItem)
-    private productSliderItemRepository: Repository<ProductSliderItem>,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
   ) {}
 
   // storefront-ისთვის — ყველა აქტიური ბლოკი, sortOrder-ის მიხედვით
@@ -126,16 +122,24 @@ export class ProductSlidersService {
   ): Promise<ProductSlider> {
     await this.ensureKeyIsFree(createProductSliderDto.key);
 
+    // ბლოკი და მისი items ერთ ტრანზაქციაშია: აქამდე ბლოკი ჯერ ინახებოდა და
+    // არარსებული productId-ის 404-ის შემდეგ ცარიელი ბლოკი რჩებოდა — ხელახალი
+    // ცდა კი იმავე key-ზე 409-ს იღებდა.
     const { productIds, ...rest } = createProductSliderDto;
-    const productSlider = await this.productSliderRepository.save(
-      this.productSliderRepository.create(rest),
-    );
+    const productSliderId =
+      await this.productSliderRepository.manager.transaction(
+        async (manager) => {
+          const productSlider = await manager.save(
+            manager.create(ProductSlider, rest),
+          );
+          if (productIds?.length) {
+            await this.replaceItems(manager, productSlider.id, productIds);
+          }
+          return productSlider.id;
+        },
+      );
 
-    if (productIds?.length) {
-      await this.replaceItems(productSlider.id, productIds);
-    }
-
-    return this.findOne(productSlider.id);
+    return this.findOne(productSliderId);
   }
 
   async update(
@@ -163,11 +167,12 @@ export class ProductSlidersService {
       )!;
     }
 
-    await this.productSliderRepository.save(productSlider);
-
-    if (productIds !== undefined) {
-      await this.replaceItems(id, productIds);
-    }
+    await this.productSliderRepository.manager.transaction(async (manager) => {
+      await manager.save(productSlider);
+      if (productIds !== undefined) {
+        await this.replaceItems(manager, id, productIds);
+      }
+    });
 
     return this.findOne(id);
   }
@@ -182,16 +187,24 @@ export class ProductSlidersService {
   // პატერნი).
   async setItems(id: string, productIds: number[]): Promise<ProductSlider> {
     await this.findOne(id); // შეამოწმებს, არსებობს თუ არა
-    await this.replaceItems(id, productIds);
+    await this.productSliderRepository.manager.transaction((manager) =>
+      this.replaceItems(manager, id, productIds),
+    );
     return this.findOne(id);
   }
 
+  // გამომძახებლის ტრანზაქციაში — delete+insert ერთად უნდა წარმატდეს ან
+  // ჩავარდეს, თორემ insert-ის ჩავარდნისას ბლოკი ცარიელი რჩებოდა.
   private async replaceItems(
+    manager: EntityManager,
     productSliderId: string,
-    productIds: number[],
+    requestedProductIds: number[],
   ): Promise<void> {
+    // დუბლიკატი (productSliderId, productId) unique-ს არღვევდა → 500;
+    // პირველი შემთხვევის პოზიცია (sortOrder) ნარჩუნდება.
+    const productIds = [...new Set(requestedProductIds)];
     if (productIds.length) {
-      const products = await this.productRepository.find({
+      const products = await manager.find(Product, {
         where: { id: In(productIds) },
       });
       const foundIds = new Set(products.map((product) => product.id));
@@ -203,19 +216,19 @@ export class ProductSlidersService {
       }
     }
 
-    await this.productSliderItemRepository.delete({ productSliderId });
+    await manager.delete(ProductSliderItem, { productSliderId });
     if (!productIds.length) {
       return;
     }
 
     const entities = productIds.map((productId, index) =>
-      this.productSliderItemRepository.create({
+      manager.create(ProductSliderItem, {
         productSliderId,
         productId,
         sortOrder: index,
       }),
     );
-    await this.productSliderItemRepository.save(entities);
+    await manager.save(entities);
   }
 
   private async ensureKeyIsFree(key: string): Promise<void> {
