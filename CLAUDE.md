@@ -4,18 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-NestJS backend being converted from a copied referendum/polling-platform project into an **online shop**
-backend. The referendum-specific domain (`question`, `answer`, `user-answer`, `favorite`, `stats`) and the
-unrelated tutorial leftover (`tasks`) have been removed; only the generic, reusable infrastructure was
-kept: `auth`, `users`, `category` (currently just a bare name/description entity, no longer linked to
-`question` — intended to become the product-category module), and `common/` (pagination, roles guard,
-email service). Shop domain modules (products, orders, cart, payments, etc.) still need to be designed and
-built from scratch. Postgres via TypeORM. Georgian-language comments are the norm throughout `src/` — match
-that style in new code/comments unless told otherwise.
+NestJS **online shop** backend, originally copied from a referendum/polling-platform project (it still
+shares that project's git history). The referendum domain is gone; the shop domain is built: catalog
+(`products`, `category` tree with filterable `attribute`s, `colors`, `sizes`/product variants, `companies`,
+`branches`), storefront content (`hero-slides`, `product-sliders`, `notifications`, `favorites`), commerce
+(`cart`, `orders`, `payments`, `addresses`), `stats` (admin dashboard), plus `auth`, `users`, `otp` and
+`common/`. Postgres via TypeORM. Georgian-language comments are the norm throughout `src/` — match that style
+in new code/comments unless told otherwise.
 
-An OpenAPI document is still generated to `swagger.json` on every boot (see "Swagger / OpenAPI" below) in
-case a frontend is wired up again later, but there is currently no known consuming frontend repo — update
-this section once one exists.
+Payments run against `MockPaymentProvider` until the company is legally registered with BOG (Bank of
+Georgia); `BogPaymentProvider` is implemented and selected with `PAYMENT_PROVIDER=bog`. Refunds and callback
+amount verification are deliberately deferred to that switch.
+
+An OpenAPI document is generated to `swagger.json` on every non-production boot (see "Swagger / OpenAPI"
+below) for frontend codegen.
 
 ## Commands
 
@@ -35,10 +37,20 @@ yarn test:cov          # jest --coverage
 npx jest path/to/file.spec.ts        # single unit test file
 npx jest -t "test name substring"    # single test by name
 
-yarn test:e2e          # jest --config ./test/jest-e2e.json (test/*.e2e-spec.ts)
+yarn test:e2e          # jest --config ./test/jest-e2e.json (test/*.e2e-spec.ts) — needs a DB; boots
+                       # AppModule with synchronize, so point DB_DATABASE at a scratch db, not shop_db
+
+yarn migration:run                                      # apply src/migrations (data-source.ts)
+yarn typeorm migration:generate src/migrations/Name     # generate from entity diff
+yarn typeorm migration:generate src/migrations/X --check  # exit 1 if entities ≠ migrations (CI uses this)
 ```
 
-Postgres is provided via `docker-compose.yml` (postgres:16-alpine, mapped to host port `5434`, container
+CI (`.github/workflows/ci.yml`, checks only — no deploy) runs build, `eslint` without `--fix`, unit tests,
+and the migration chain on an empty Postgres followed by `migration:generate --check`. Lint is at 0
+errors — keep it there. `yarn lint` runs `eslint --fix`; on Windows prettier/eslint may rewrite line
+endings of untouched files, so stage only files with real diffs (`git diff --ignore-cr-at-eol`).
+
+Postgres is provided via `docker-compose.yml` (postgres:16-alpine, mapped to `127.0.0.1:5434`, container
 `shop_postgres`, db `shop_db`) — run `docker compose up -d` before starting the app locally if you don't
 already have a Postgres instance matching `.env`'s `DB_*` vars. **Deliberately different from the original
 referendum project's `nest_postgres`/`nest_db`/`5433`** — this repo was copied from that project and still
@@ -53,8 +65,8 @@ finish bootstrapping.
 
 ### Module structure
 Each domain is a self-contained Nest module under `src/<domain>/` with the usual `*.module.ts` /
-`*.controller.ts` / `*.service.ts` / `dto/` / `entities/` layout. Currently only `auth`, `users`, and
-`category` exist — everything else (products, orders, cart, etc.) is yet to be built. Cross-cutting pieces
+`*.controller.ts` / `*.service.ts` / `dto/` / `entities/` layout (see Project overview for the list).
+`AppController` serves `GET /` and `GET /health` (DB ping, 503 when the DB is down). Cross-cutting pieces
 live in `src/common/`: `guards/roles.guard.ts`, `decorators/roles.decorator.ts` and
 `current-user.decorator.ts`, `dto/pagination.dto.ts` + `paginated-response.dto.ts` (shared pagination
 envelope: `{ data: T[], meta: { total, page, limit, totalPages, hasNext, hasPrevious } }`), and
@@ -62,22 +74,37 @@ envelope: `{ data: T[], meta: { total, page, limit, totalPages, hasNext, hasPrev
 placeholder `"Online Shop"` — rename once the shop has a real name). `AppModule` wires
 `TypeOrmModule.forRootAsync` (reads `DB_HOST`/`DB_PORT`/`DB_USERNAME`/`DB_PASSWORD`/`DB_DATABASE` from
 `ConfigModule`, `autoLoadEntities: true`, `synchronize` true outside `production`) and
-`ScheduleModule.forRoot()`, kept registered for future cron jobs (e.g. expiring unpaid orders) — there are
-no `@Cron` jobs left in the codebase right now. `src/migrations/` now holds real shop migrations (18 files,
-spanning products/categories through addresses, branches, companies, and content translations) —
-`migrationsRun: true` applies them automatically in `production`; `synchronize: true` still handles schema
-sync in dev/test instead of running migrations there. Confirm CI/staging actually exercises
-`migration:run` against a prod-like schema before merging, since local dev never runs that path.
+`ScheduleModule.forRoot()` — `OrdersService.handleExpiredOrders` (`@Cron` every minute) expires unpaid
+PENDING orders and restocks them.
+
+**Migrations:** `src/migrations/` is the only thing that builds the production schema
+(`migrationsRun: true` in `production`); dev/test use `synchronize: true` and never run them, so the chain
+silently drifted from the entities once already (fixed by `1788110000000-SyncSchemaWithEntities`). Every
+entity change needs a migration — generate it with `migration:generate` against a DB built by
+`migration:run` (not against `shop_db`, which synchronize keeps in sync), and keep migrations idempotent
+(`IF NOT EXISTS` / `pg_constraint` checks) since some DBs were built by synchronize. CI's `--check` step
+catches drift. Production DB TLS verifies the server cert only when `DB_SSL_CA` is set.
+
+**Orders/stock concurrency:** every order status change goes through
+`OrdersService.transitionStatusInTransaction`, which locks the order row (`FOR UPDATE`) and re-reads
+status/`stockRestored` under the lock — admin cancel, the expiry cron and the payment callback all rely on
+it; don't change status with a plain `update` outside it. Lock order is order → payment everywhere
+(avoid deadlocks). Checkout locks the cart row and each product row (ascending id).
 
 ### Auth
 JWT-based, via `@nestjs/passport` + `@nestjs/jwt` + `passport-jwt`. `AuthService.login`/`register` verify
 credentials with bcrypt and return `{ access_token, user: { id, email, firstName, lastName, role, gender,
 age } }` — this exact shape is what the frontend's NextAuth `CredentialsProvider` expects from
 `POST /auth/login`. `AuthController` also exposes `POST /auth/google` and `POST /auth/facebook`
-(`AuthService.googleLogin`/`facebookLogin`), which look up or create a user by email and return the same
-token shape — the frontend calls these from its OAuth `signIn` callbacks to mint a backend session, they
-don't do real Google/Facebook token verification server-side. `JwtStrategy` (`src/auth/jwt.strategy.ts`)
-validates the bearer token against `JWT_SECRET` and returns `{ userId, email, role }` as `request.user`.
+(`AuthService.googleLogin`/`facebookLogin`; the Facebook route is currently commented out). Google verifies
+the ID token server-side (`GOOGLE_CLIENT_ID` audience + `email_verified`); if an existing account's email
+was never verified, OAuth login resets its password and invalidates old sessions (account-takeover guard).
+Emails are normalized to lowercase (`@NormalizeEmail()`), `findByEmail` is case-insensitive. Phone OTP
+(`OtpService`, verify.ge) is bound to the number it was sent to and single-use via `consumeVerifiedOtp`;
+login has a per-email failure lockout on top of the per-IP throttle (both in-memory — need Redis once there
+is more than one instance). `JwtStrategy` (`src/auth/jwt.strategy.ts`)
+validates the bearer token against `JWT_SECRET` (lifetime `JWT_EXPIRES_IN`, default 7d), re-reads the role
+from the DB and returns `{ userId, email, role }` (`AuthenticatedUser`) as `request.user`.
 `JwtAuthGuard` (`src/auth/jwt-auth.guard.ts`) enforces authentication; layer `RolesGuard` +
 `@Roles(UserRole.ADMIN)` on top for admin-only endpoints (guard order matters — `JwtAuthGuard` must run
 before `RolesGuard` so `request.user` is populated). Use `@CurrentUser()` to pull the decoded user off the
@@ -96,8 +123,7 @@ the installed version in `node_modules` before chasing one. Enums are modeled as
 
 ### Swagger / OpenAPI
 `src/main.ts` builds the OpenAPI document with `@nestjs/swagger`'s `DocumentBuilder` (bearer auth enabled),
-serves it at `/api` outside `production`, and — on every single app startup — writes it to `swagger.json`
-at the project root via `writeFileSync`. This was originally consumed by a sibling frontend's codegen
+serves it at `/api` and writes it to `swagger.json` at the project root — both only outside `production`. This was originally consumed by a sibling frontend's codegen
 script; that wiring is no longer known-current for this project — reconnect it once a frontend exists. CORS
 in `main.ts` is currently limited to a hardcoded allowlist of localhost/LAN origins via `CORS_ORIGINS` (env)
 — add new frontend origins there if needed. A global `ValidationPipe` runs with `whitelist: true`,
@@ -107,8 +133,11 @@ body/query. **Accepted exception:** `GET /categories/:slug/filters` and `GET /ca
 (`CategoryFiltersQuery`), not a DTO — the filterable attribute codes (e.g. `?brand=..&amperage_min=..`)
 are admin-configured data, not known at compile time, so they can't be statically declared on a class and
 the global whitelist has nothing to check them against. Validation/parsing for these two routes happens by
-hand inside `CategoryService` instead. This is intentional, not drift — don't "fix" it by trying to force a
-static DTO here.
+hand inside `CategoryService` instead (`normalizeFiltersQuery`: arrays from repeated keys are joined,
+lengths and prices are validated, LIKE wildcards escaped via `escapeLike`). This is intentional, not drift —
+don't "fix" it by trying to force a static DTO here. Catalog controllers are `@SkipThrottle()` on purpose
+(shoppers behind NAT share one IP) — protect them with input caps instead. `helmet` sets security headers
+(CSP off, `crossOriginResourcePolicy: cross-origin` so `/uploads/notifications` images load from the frontend).
 
 ### Request/response conventions
 Entities and DTOs use **camelCase** properties throughout (`firstName`, `createdAt`, `categoryId`, etc.) —
