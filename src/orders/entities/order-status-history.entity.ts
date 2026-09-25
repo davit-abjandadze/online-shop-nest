@@ -31,6 +31,7 @@ export class OrderStatusHistory {
 
   @Index()
   @ManyToOne(() => Order, (order) => order.statusHistory, {
+    nullable: false,
     onDelete: 'CASCADE',
   })
   @JoinColumn()

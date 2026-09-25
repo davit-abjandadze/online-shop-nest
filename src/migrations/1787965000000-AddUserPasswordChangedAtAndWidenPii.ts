@@ -26,6 +26,16 @@ export class AddUserPasswordChangedAtAndWidenPii1787965000000 implements Migrati
     await queryRunner.query(
       `ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "passwordChangedAt" TIMESTAMP`,
     );
+    // personalNumber/phoneNumber არცერთ ადრინდელ მიგრაციას არ შეუქმნია (dev-ში
+    // `synchronize`-მა დაამატა) — ცარიელ ბაზაზე ქვემოთ ALTER COLUMN TYPE
+    // "column does not exist"-ით ჩავარდებოდა. IF NOT EXISTS — უკვე არსებულ
+    // ბაზებზე no-op-ია.
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "personalNumber" character varying`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "phoneNumber" character varying`,
+    );
     await queryRunner.query(
       `ALTER TABLE "user" ALTER COLUMN "personalNumber" TYPE character varying`,
     );

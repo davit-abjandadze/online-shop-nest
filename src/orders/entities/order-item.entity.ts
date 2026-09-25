@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Order } from './order.entity';
 import { Product } from '../../products/entities/product.entity';
@@ -43,6 +44,7 @@ export class OrderItem {
   // პროდუქტის წაშლა/გადანიშვნა არ უნდა ანგრევდეს სტატისტიკაში კომპანიის
   // მიხედვით ისტორიულ ფილტრაციას). ცალკე relation არ სჭირდება — მხოლოდ
   // filter/group-by-ისთვის გამოიყენება (იხ. StatsService).
+  @Index('IDX_order_item_companyId')
   @Column({ type: 'uuid', nullable: true })
   companyId?: string | null;
 
