@@ -1,8 +1,14 @@
-import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { CreateUserDto } from './create-user.dto';
 
-export class UpdateUserDto extends PartialType(CreateUserDto) {
+// password განზრახ ამოღებულია: PATCH /users/:id მას hash-ის, ძველი პაროლის
+// შემოწმებისა და passwordChangedAt-ის გარეშე ინახავდა — მოპარული token-ით
+// ნებისმიერ bcrypt hash-ს დააყენებდნენ და ძველი სესიებიც არ უქმდებოდა.
+// პაროლი მხოლოდ POST /auth/change-password და /auth/reset-password-ით იცვლება.
+export class UpdateUserDto extends PartialType(
+  OmitType(CreateUserDto, ['password'] as const),
+) {
   // ელფოსტის შეცვლისას სავალდებულოა — POST /otp/send-email + POST /otp/verify-email-ის
   // შედეგად მიღებული requestId/code (იხ. UsersService.update). არ ინახება — UsersService
   // წაშლის, სანამ ცვლილება ბაზაში ჩაიწერება.

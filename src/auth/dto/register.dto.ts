@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender } from '../../users/entities/user.entity';
+import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
 import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 
 export class RegisterDto {
@@ -21,6 +22,7 @@ export class RegisterDto {
   @IsNotEmpty()
   lastName: string;
 
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

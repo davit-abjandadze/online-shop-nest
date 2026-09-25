@@ -3,11 +3,18 @@ import {
   BadRequestException,
   InternalServerErrorException,
   HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
+import { normalizePhoneForCompare } from '../common/utils/phone.util';
+
+interface IssuedOtp {
+  phone: string;
+  expiresAt: number;
+}
 
 // verify.ge-ს (https://verify.ge) REST API-ის თხელი wrapper-ი — მობილურის OTP-ით
 // დადასტურებისთვის (რეგისტრაციის ან სხვა მგრძნობიარე მოქმედების წინ).
@@ -19,6 +26,21 @@ import { AxiosError } from 'axios';
 export class OtpService {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+
+  // requestId → რომელ ნომერზე გაიცა. verify.ge-ს verify endpoint-ი ნომერს არ
+  // ამოწმებს (მხოლოდ requestId+code-ს), ამიტომ ამის გარეშე ერთი, საკუთარ
+  // ნომერზე მიღებული კოდით ნებისმიერი (მაგ. სხვისი) ნომრის „დამოწმება"
+  // შეიძლებოდა register/PATCH /users-ზე. ჩანაწერი consumeVerifiedOtp-ზე იშლება,
+  // ანუ ერთი კოდი ერთხელ გამოიყენება.
+  // ⚠️ In-memory — იგივე შეზღუდვა, რაც EmailOtpService-ს (restart შლის,
+  // მრავალინსტანციან გარემოში Redis დასჭირდება).
+  private readonly issued = new Map<string, IssuedOtp>();
+  // ნომერზე ბოლო გაგზავნების დროები — per-IP throttle-ს IP-ების როტაციით
+  // გვერდს უვლიან, ამიტომ ერთ ნომერზე დამატებით ლიმიტი გვაქვს.
+  private readonly sendsByPhone = new Map<string, number[]>();
+  private readonly ISSUED_TTL_MS = 15 * 60 * 1000; // 15 წუთი
+  private readonly SEND_WINDOW_MS = 60 * 60 * 1000; // 1 საათი
+  private readonly MAX_SENDS_PER_WINDOW = 5;
 
   constructor(
     private readonly httpService: HttpService,
@@ -38,6 +60,21 @@ export class OtpService {
         'VERIFY_GE_API_KEY არ არის დაყენებული — SMS ვერიფიკაცია არ არის კონფიგურირებული',
       );
     }
+
+    this.cleanupExpired();
+    const phoneKey = normalizePhoneForCompare(phoneNumber);
+    const now = Date.now();
+    const recentSends = (this.sendsByPhone.get(phoneKey) ?? []).filter(
+      (sentAt) => now - sentAt < this.SEND_WINDOW_MS,
+    );
+    if (recentSends.length >= this.MAX_SENDS_PER_WINDOW) {
+      throw new HttpException(
+        'ამ ნომერზე კოდის გაგზავნის ლიმიტი ამოწურულია — სცადეთ მოგვიანებით',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    recentSends.push(now);
+    this.sendsByPhone.set(phoneKey, recentSends);
 
     try {
       const response = await firstValueFrom(
@@ -67,9 +104,55 @@ export class OtpService {
         );
       }
 
+      this.issued.set(requestId, {
+        phone: phoneKey,
+        expiresAt: Date.now() + this.ISSUED_TTL_MS,
+      });
       return { requestId };
     } catch (error) {
       this.handleError(error, 'OTP-ის გაგზავნა ვერ მოხერხდა');
+    }
+  }
+
+  // register/PATCH /users-ისთვის: ამოწმებს, რომ requestId სწორედ `phoneNumber`-ზე
+  // გაიცა, კოდი სწორია და requestId ჯერ არ გამოყენებულა — წარმატებისას მას
+  // მოიხმარს (ხელახლა ვეღარ გამოიყენება). POST /otp/verify (UI-ის feedback)
+  // კვლავ verifyOtp-ს იძახებს და requestId-ს არ მოიხმარს.
+  async consumeVerifiedOtp(
+    requestId: string,
+    code: string,
+    phoneNumber: string,
+  ): Promise<boolean> {
+    const entry = this.issued.get(requestId);
+    if (
+      !entry ||
+      Date.now() > entry.expiresAt ||
+      entry.phone !== normalizePhoneForCompare(phoneNumber)
+    ) {
+      return false;
+    }
+
+    // ჩანაწერს await-მდე ვშლით, რომ ორმა პარალელურმა მოთხოვნამ ერთი და იგივე
+    // requestId ორჯერ ვერ მოიხმაროს; წარუმატებლობისას ვაბრუნებთ.
+    this.issued.delete(requestId);
+    let verified = false;
+    try {
+      verified = await this.verifyOtp(requestId, code);
+    } finally {
+      if (!verified) this.issued.set(requestId, entry);
+    }
+    return verified;
+  }
+
+  private cleanupExpired() {
+    const now = Date.now();
+    for (const [requestId, entry] of this.issued) {
+      if (now > entry.expiresAt) this.issued.delete(requestId);
+    }
+    for (const [phone, sends] of this.sendsByPhone) {
+      if (sends.every((sentAt) => now - sentAt >= this.SEND_WINDOW_MS)) {
+        this.sendsByPhone.delete(phone);
+      }
     }
   }
 

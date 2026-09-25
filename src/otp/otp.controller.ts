@@ -1,5 +1,17 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { OtpService } from './otp.service';
 import { EmailOtpService } from './email-otp.service';
@@ -8,6 +20,7 @@ import { SendOtpResponseDto } from './dto/send-otp-response.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { SendEmailOtpDto } from './dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from './dto/verify-email-otp.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 // მობილურის ნომრის SMS-ვერიფიკაციის endpoint-ები (verify.ge ინტეგრაცია).
 // გამოიყენება რეგისტრაციის წინ: 1) POST /otp/send, 2) POST /otp/verify,
@@ -47,7 +60,12 @@ export class OtpController {
     return { verified };
   }
 
+  // JwtAuthGuard: ეს ნაკადი მხოლოდ პროფილში ელფოსტის შეცვლისთვისაა (რეგისტრაცია
+  // ელფოსტას არ ამოწმებს). public-ად ყოფნისას ნებისმიერს შეეძლო სხვის ელფოსტაზე
+  // კოდების სპამი და 5 არასწორი კოდით ამ ელფოსტის 15 წუთით დაბლოკვა.
   @Post('send-email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 მოთხოვნა წუთში — email-spam-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'OTP კოდის გაგზავნა მითითებულ ელფოსტაზე' })
@@ -62,6 +80,8 @@ export class OtpController {
   }
 
   @Post('verify-email')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 მოთხოვნა წუთში — კოდის brute-force-ისგან დასაცავად
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'ელფოსტაზე გაგზავნილი OTP კოდის დადასტურება' })

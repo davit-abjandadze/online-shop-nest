@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Raw, Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -79,7 +79,26 @@ export class UsersService {
         ? hashForSearch(createUserDto.phoneNumber)
         : undefined,
     });
-    return this.userRepository.save(newUser);
+    try {
+      return await this.userRepository.save(newUser);
+    } catch (error) {
+      // ზემოთ შემოწმება და ჩაწერა ატომური არ არის — ერთდროულმა რეგისტრაციებმა
+      // ერთი ელფოსტით/ნომრით ორივე შემოწმება გაიარეს და unique-შეზღუდვაზე
+      // (23505) ჩავარდნა 500-ად ბრუნდებოდა. ვაბრუნებთ იმავე 409-ს.
+      const driverError = (
+        error as { driverError?: { code?: string; detail?: string } }
+      ).driverError;
+      if (error instanceof QueryFailedError && driverError?.code === '23505') {
+        const isPhone = driverError.detail?.includes('phoneNumberHash');
+        throw new ConflictException({
+          message: isPhone
+            ? 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს'
+            : 'ამ ელფოსტით მომხმარებელი უკვე არსებობს',
+          errorCode: isPhone ? 'PHONE_DUPLICATE' : 'EMAIL_DUPLICATE',
+        });
+      }
+      throw error;
+    }
   }
 
   // გაფართოებული ძიება: firstName/lastName/email-ში თავისუფალი ტექსტით
@@ -118,8 +137,15 @@ export class UsersService {
     return user;
   }
 
+  // case-insensitive: ახალი ელფოსტები DTO-ში უკვე lowercase-ად ნორმალიზდება
+  // (@NormalizeEmail), მაგრამ ბაზაში შეიძლება ძველი, შერეული რეგისტრის
+  // ჩანაწერები იყოს — ისინიც უნდა მოიძებნოს და დუბლიკატად ჩაითვალოს.
   async findByEmail(email: string) {
-    return this.userRepository.findOne({ where: { email } });
+    return this.userRepository.findOne({
+      where: {
+        email: Raw((alias) => `LOWER(${alias}) = LOWER(:email)`, { email }),
+      },
+    });
   }
 
   async findByPhoneNumber(phoneNumber: string) {
@@ -214,8 +240,9 @@ export class UsersService {
         otpCode: phoneOtpCode,
         userId: id,
         findExisting: (value) => this.findByPhoneNumber(value),
+        // ნომერზე მიბმული და ერთჯერადი (იხ. OtpService.consumeVerifiedOtp)
         verifyOtp: (requestId, code) =>
-          this.otpService.verifyOtp(requestId, code),
+          this.otpService.consumeVerifiedOtp(requestId, code, phoneNumber),
         duplicateErrorCode: 'PHONE_DUPLICATE',
         duplicateMessage: 'ამ ტელეფონის ნომრით მომხმარებელი უკვე არსებობს',
         missingOtpMessage:
@@ -350,6 +377,18 @@ export class UsersService {
     await this.userRepository.update(userId, {
       password: hashedPassword,
       passwordChangedAt: new Date(),
+    });
+  }
+
+  // OAuth-ით (Google/Facebook) ელფოსტის მფლობელობა დადასტურდა ანგარიშზე, რომლის
+  // ელფოსტაც აქამდე დაუმოწმებელი იყო — წინა პაროლი (შესაძლოა სხვისი, ვინც ეს
+  // ელფოსტა ჩვენამდე დაარეგისტრირა) უქმდება და ყველა ძველი სესია ბათილდება
+  // (passwordChangedAt). იხ. AuthService.googleLogin.
+  async claimAccountByVerifiedEmail(userId: number, hashedPassword: string) {
+    await this.userRepository.update(userId, {
+      password: hashedPassword,
+      passwordChangedAt: new Date(),
+      isEmailVerified: true,
     });
   }
 }

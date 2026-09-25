@@ -1,9 +1,12 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
@@ -20,8 +23,31 @@ import { OtpService } from '../otp/otp.service';
 import { OAuth2Client } from 'google-auth-library';
 import { maskPersonalNumber, maskPhoneNumber } from '../common/utils/mask.util';
 import { isTokenIssuedBeforePasswordChange } from '../common/utils/token-freshness.util';
+
+interface LoginFailures {
+  count: number;
+  windowStart: number;
+}
+
+// OAuth-ით შექმნილი/მიბმული ანგარიშის პაროლი — მომხმარებელმა ის არ იცის
+// (პაროლით შესვლისთვის forgot-password-ს გაივლის). Math.random კრიპტოგრაფიულად
+// უსაფრთხო არ არის და 8-ზე მოკლე სტრიქონსაც იძლეოდა.
+function generateRandomPassword(): string {
+  return randomBytes(32).toString('hex');
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
+  // ელფოსტაზე წარუმატებელი login-ების მთვლელი. ThrottlerGuard მხოლოდ IP-ით
+  // ზღუდავს (5/წთ) — IP-ების როტაციით ერთ ანგარიშზე შეუზღუდავი პაროლის
+  // გამოცნობა შეიძლებოდა. ⚠️ In-memory: ერთ instance-ზე მუშაობს; რამდენიმე
+  // instance-ზე გადასვლისას Redis-ზე გადატანა სჭირდება.
+  private readonly loginFailures = new Map<string, LoginFailures>();
+  private readonly LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000; // 15 წუთი
+  private readonly MAX_LOGIN_FAILURES = 10;
+
   // Google-ის ID Token-ების ვერიფიკაციისთვის (googleLogin) — client secret არ სჭირდება,
   // მხოლოდ client id-ს (aud claim-ის შესამოწმებლად) და Google-ის public key-ებს, რომლებსაც
   // ეს კლიენტი თავად იტვირთავს/ქეშავს. ერთხელ ვკითხულობთ configService-იდან და ვინახავთ —
@@ -65,9 +91,13 @@ export class AuthService {
         );
       }
 
-      const verified = await this.otpService.verifyOtp(
+      // consumeVerifiedOtp — requestId უნდა იყოს გაცემული სწორედ ამ ნომერზე და
+      // ერთჯერადია (იხ. OtpService), თორემ საკუთარ ნომერზე მიღებული ერთი კოდით
+      // სხვისი ნომრის „დამოწმება" და მრავალჯერ გამოყენება შეიძლებოდა.
+      const verified = await this.otpService.consumeVerifiedOtp(
         registerDto.otpRequestId,
         registerDto.otpCode,
+        registerDto.phoneNumber,
       );
       if (!verified) {
         throw new BadRequestException('OTP კოდი არასწორია ან ვადაგასულია');
@@ -97,9 +127,14 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
+    this.assertLoginNotLocked(loginDto.email);
+
     // ვიპოვოთ მომხმარებელი email-ით
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
+      // არარსებულ ელფოსტაზეც ვითვლით — თორემ ლიმიტის ქცევა გაამჟღავნებდა,
+      // რომელი ელფოსტაა დარეგისტრირებული.
+      this.registerLoginFailure(loginDto.email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -109,10 +144,45 @@ export class AuthService {
       user.password,
     );
     if (!isPasswordValid) {
+      this.registerLoginFailure(loginDto.email);
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    this.loginFailures.delete(loginDto.email);
     return this.generateToken(user);
+  }
+
+  private assertLoginNotLocked(email: string) {
+    const entry = this.loginFailures.get(email);
+    if (!entry) return;
+    if (Date.now() - entry.windowStart > this.LOGIN_FAILURE_WINDOW_MS) {
+      this.loginFailures.delete(email);
+      return;
+    }
+    if (entry.count >= this.MAX_LOGIN_FAILURES) {
+      throw new HttpException(
+        'ძალიან ბევრი წარუმატებელი მცდელობა — სცადეთ 15 წუთში ან აღადგინეთ პაროლი',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private registerLoginFailure(email: string) {
+    const now = Date.now();
+    const entry = this.loginFailures.get(email);
+    if (entry && now - entry.windowStart <= this.LOGIN_FAILURE_WINDOW_MS) {
+      entry.count += 1;
+    } else {
+      this.loginFailures.set(email, { count: 1, windowStart: now });
+    }
+    // Map-ის შეუზღუდავი ზრდისგან დაცვა (ყოველი ოდესმე ცდილი ელფოსტა).
+    if (this.loginFailures.size > 10_000) {
+      for (const [key, value] of this.loginFailures) {
+        if (now - value.windowStart > this.LOGIN_FAILURE_WINDOW_MS) {
+          this.loginFailures.delete(key);
+        }
+      }
+    }
   }
 
   // ← ახალი მეთოდი: პაროლის შეცვლა
@@ -200,7 +270,7 @@ export class AuthService {
     }
 
     const profile = {
-      email: payload.email,
+      email: payload.email.toLowerCase(),
       firstName: payload.given_name ?? '',
       lastName: payload.family_name ?? '',
     };
@@ -208,10 +278,25 @@ export class AuthService {
     // 1. ვეძებთ მომხმარებელს email-ით (ახლა Google-ის მიერ დამოწმებული email-ით)
     let user = await this.usersService.findByEmail(profile.email);
 
+    // 1a. ანგარიში არსებობს, მაგრამ ელფოსტა არასდროს დამოწმებულა — რეგისტრაცია
+    // ელფოსტას არ ამოწმებს, ანუ ნებისმიერს შეეძლო victim@gmail.com-ით საკუთარი
+    // პაროლით დაერეგისტრირებინა; მსხვერპლი Google-ით შემოსვლისას ამ ანგარიშში
+    // აღმოჩნდებოდა, თავდამსხმელი კი პაროლით წვდომას შეინარჩუნებდა (და ხედავდა
+    // შეკვეთებს/მისამართებს). Google ახლა ადასტურებს, რომ ელფოსტა მსხვერპლს
+    // ეკუთვნის — წინა პაროლს ვაუქმებთ (passwordChangedAt ყველა ძველ სესიას
+    // აბათილებს, იხ. JwtStrategy) და ელფოსტას დამოწმებულად ვნიშნავთ.
+    if (user && !user.isEmailVerified) {
+      const hashedPassword = await bcrypt.hash(generateRandomPassword(), 10);
+      await this.usersService.claimAccountByVerifiedEmail(
+        user.id,
+        hashedPassword,
+      );
+      user.isEmailVerified = true;
+    }
+
     // 2. თუ არ არსებობს, ვქმნით ახალს
     if (!user) {
-      const randomPassword = Math.random().toString(36).slice(-8); // შემთხვევითი პაროლი
-      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      const hashedPassword = await bcrypt.hash(generateRandomPassword(), 10);
 
       user = await this.usersService.create(
         {
@@ -293,7 +378,7 @@ export class AuthService {
     }
 
     const profile = {
-      email: profileData.email,
+      email: profileData.email.toLowerCase(),
       firstName: profileData.first_name ?? '',
       lastName: profileData.last_name ?? '',
     };
@@ -301,10 +386,19 @@ export class AuthService {
     // 1. ვეძებთ მომხმარებელს email-ით (Facebook-ის მიერ დამოწმებული email-ით)
     let user = await this.usersService.findByEmail(profile.email);
 
+    // 1a. იგივე account-takeover-ის დაცვა, რაც googleLogin-ში (იხ. იქ).
+    if (user && !user.isEmailVerified) {
+      const hashedPassword = await bcrypt.hash(generateRandomPassword(), 10);
+      await this.usersService.claimAccountByVerifiedEmail(
+        user.id,
+        hashedPassword,
+      );
+      user.isEmailVerified = true;
+    }
+
     // 2. თუ არ არსებობს, ვქმნით ახალს
     if (!user) {
-      const randomPassword = Math.random().toString(36).slice(-8);
-      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      const hashedPassword = await bcrypt.hash(generateRandomPassword(), 10);
 
       user = await this.usersService.create(
         {
@@ -342,8 +436,17 @@ export class AuthService {
       { expiresIn: '1h' },
     );
 
-    // ⭐ აქ ვაგზავნით რეალურ მეილს!
-    await this.emailService.sendPasswordResetEmail(user.email, resetToken);
+    // განზრახ await-ის გარეშე: არსებულ ელფოსტაზე Gmail-ის გაგზავნა წამებს
+    // იღებს (ჩავარდნისას კი 500-ს აგდებდა), არარსებულზე პასუხი მყისიერი იყო —
+    // პასუხის დროით/სტატუსით ირკვეოდა, რომელი ელფოსტაა დარეგისტრირებული.
+    this.emailService
+      .sendPasswordResetEmail(user.email, resetToken)
+      .catch((error: unknown) => {
+        this.logger.error(
+          `პაროლის აღდგენის ელფოსტა ვერ გაიგზავნა (userId=${user.id})`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      });
 
     return successMessage;
   }
@@ -352,7 +455,12 @@ export class AuthService {
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
     try {
       // ვერიფიკაცია token-ის
-      const payload = this.jwtService.verify(resetPasswordDto.token);
+      const payload = this.jwtService.verify<{
+        sub: number;
+        email?: string;
+        type?: string;
+        iat?: number;
+      }>(resetPasswordDto.token);
 
       // შევამოწმოთ, რომ ეს მართლაც reset token-ია
       if (payload.type !== 'reset') {
@@ -363,6 +471,17 @@ export class AuthService {
       const user = await this.usersService.findById(payload.sub);
       if (!user) {
         throw new BadRequestException('მომხმარებელი ვერ მოიძებნა');
+      }
+
+      // ელფოსტის შეცვლის შემდეგ ძველ მისამართზე გაგზავნილი ბმული აღარ უნდა
+      // მუშაობდეს — ელფოსტის ცვლილება passwordChangedAt-ს არ ეხება.
+      if (
+        typeof payload.email !== 'string' ||
+        payload.email.toLowerCase() !== user.email.toLowerCase()
+      ) {
+        throw new BadRequestException(
+          'ეს ბმული აღარ არის აქტუალური — ელფოსტა შეიცვალა',
+        );
       }
 
       // ⚠️ 2026-09-04: reset token თავისი 1სთ ვადის განმავლობაში მრავალჯერ

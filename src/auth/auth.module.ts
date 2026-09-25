@@ -20,7 +20,9 @@ import { OtpModule } from '../otp/otp.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: '7d' as const, // ← as const დაამატე
+          // JWT_EXPIRES_IN (.env.example) აქამდე იგნორირდებოდა — 7d hardcode-ული იყო.
+          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ||
+            '7d') as '7d',
         },
       }),
     }),

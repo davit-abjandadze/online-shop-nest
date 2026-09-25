@@ -9,6 +9,7 @@ import {
   Min,
   Matches,
 } from 'class-validator';
+import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
 import { UserRole, Gender } from '../entities/user.entity';
 
 export class CreateUserDto {
@@ -24,6 +25,7 @@ export class CreateUserDto {
   @IsNotEmpty()
   password!: string;
 
+  @NormalizeEmail()
   @IsEmail()
   @IsNotEmpty()
   email!: string;
