@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter;
+  private transporter: nodemailer.Transporter;
 
   constructor(private configService: ConfigService) {
     // ვქმნით ტრანსპორტიორს Gmail-ისთვის

@@ -11,6 +11,6 @@ import { defaults, types } from 'pg';
 const TIMESTAMP_WITHOUT_TZ_OID = 1114;
 
 types.setTypeParser(TIMESTAMP_WITHOUT_TZ_OID, (value: string) =>
-  value === null ? (null as unknown as Date) : new Date(value.replace(' ', 'T') + 'Z'),
+  value === null ? null : new Date(value.replace(' ', 'T') + 'Z'),
 );
 defaults.parseInputDatesAsUTC = true;

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
@@ -12,7 +8,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   // `err` (მაგ. passport-jwt-ის TokenExpiredError) ჩვეულებრივ Error-ად
   // "გავარდება" და გლობალური exception filter-ი მას 500-ად აქცევს 401-ის
   // ნაცვლად.
-  handleRequest(err: any, user: any, info: any) {
+  handleRequest<TUser = unknown>(
+    err: Error | null | undefined,
+    user: TUser | false | null | undefined,
+    info: { message?: string } | null | undefined,
+  ): TUser {
     if (err || !user) {
       throw new UnauthorizedException(
         info?.message || err?.message || 'Unauthorized',

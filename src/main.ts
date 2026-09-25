@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import express from 'express';
+import helmet from 'helmet';
 import type { Application } from 'express';
 import { AppModule } from './app.module';
 import { NOTIFICATIONS_UPLOAD_DIR } from './notifications/utils/notification-image-storage.util';
@@ -46,6 +47,23 @@ async function bootstrap() {
   // ვერიფიკაციისთვის; parse-ილი JSON-ის ხელახლა serialize-ვა ველების
   // თანმიმდევრობას არღვევს და ხელმოწერას ბათილს ხდის.
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // SIGTERM-ზე (deploy/restart) Nest-ი onModuleDestroy/beforeApplicationShutdown
+  // hook-ებს უშვებს — TypeORM-ის pool იხურება და მიმდინარე მოთხოვნები
+  // სრულდება, ნაცვლად პროცესის უეცარი მოკვლისა შუა ტრანზაქციაში.
+  app.enableShutdownHooks();
+
+  // უსაფრთხოების HTTP header-ები (X-Content-Type-Options, HSTS, frameguard
+  // და სხვ.). CSP API-სთვის არარელევანტურია და dev-ში Swagger UI-ის inline
+  // სკრიპტებს დაბლოკავდა — გამორთულია. crossOriginResourcePolicy:
+  // cross-origin — /uploads/notifications სურათები frontend-ის სხვა origin-იდან
+  // იტვირთება.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   // ⚠️ ThrottlerGuard (per-IP rate limit, იხ. AppModule) კლიენტის IP-ს Express-ის
   // req.ip-იდან იღებს. reverse proxy-ის (nginx/CDN) უკან req.ip ყოველთვის proxy-ის

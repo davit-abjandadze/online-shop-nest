@@ -4,6 +4,21 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "allowJs": true,
+          "module": "commonjs",
+          "moduleResolution": "node10",
+          "resolvePackageJsonExports": false,
+          "resolvePackageJsonImports": false,
+          "isolatedModules": true
+        }
+      }
+    ]
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!.*(htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)/)"
+  ]
 }

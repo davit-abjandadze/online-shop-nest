@@ -35,11 +35,11 @@ describe('OrdersService.updateStatus', () => {
     };
 
     const service = new OrdersService(
-      orderRepository as any,
-      {} as any,
-      dataSource as any,
-      {} as any,
-      {} as any,
+      orderRepository as never,
+      {} as never,
+      dataSource as never,
+      {} as never,
+      {} as never,
     );
     const restockOrderItemsSpy = jest
       .spyOn(
@@ -185,11 +185,11 @@ describe('OrdersService.expireStaleOrders', () => {
       find: jest.fn().mockResolvedValue([{ id: lockedOrder.id }]),
     };
     const service = new OrdersService(
-      orderRepository as any,
-      {} as any,
-      dataSource as any,
-      {} as any,
-      {} as any,
+      orderRepository as never,
+      {} as never,
+      dataSource as never,
+      {} as never,
+      {} as never,
     );
     const restockSpy = jest
       .spyOn(

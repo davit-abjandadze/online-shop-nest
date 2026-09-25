@@ -18,11 +18,11 @@ describe('AuthService', () => {
       ),
     };
     const service = new AuthService(
-      usersService as any,
-      jwtService as any,
-      {} as any,
-      {} as any,
-      configService as any,
+      usersService as never,
+      jwtService as never,
+      {} as never,
+      {} as never,
+      configService as never,
     );
     return { service, usersService };
   };
@@ -78,14 +78,15 @@ describe('AuthService', () => {
 
   describe('googleLogin', () => {
     const mockGoogle = (service: AuthService) => {
-      (service as any).googleOAuthClient = {
-        verifyIdToken: jest.fn().mockResolvedValue({
-          getPayload: () => ({
-            email: 'Victim@Gmail.com',
-            email_verified: true,
+      (service as unknown as { googleOAuthClient: unknown }).googleOAuthClient =
+        {
+          verifyIdToken: jest.fn().mockResolvedValue({
+            getPayload: () => ({
+              email: 'Victim@Gmail.com',
+              email_verified: true,
+            }),
           }),
-        }),
-      };
+        };
     };
 
     it('დაუდასტურებელ ანგარიშზე პაროლს აუქმებს და ელფოსტას ადასტურებს', async () => {

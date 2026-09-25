@@ -27,6 +27,7 @@ import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { GoogleLoginDto } from './dto/google-login.dto';
 // import { FacebookLoginDto } from './dto/facebook-login.dto'; // ⚠️ იხ. Facebook endpoint-ის კომენტარი ქვემოთ
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -118,7 +119,7 @@ export class AuthController {
     description: 'არ ხართ ავტორიზებული',
   })
   changePassword(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(user.userId, changePasswordDto);

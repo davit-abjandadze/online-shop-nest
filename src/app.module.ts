@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
+import { readFileSync } from 'fs';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -23,6 +24,28 @@ import { ProductSlidersModule } from './product-sliders/product-sliders.module';
 import { StatsModule } from './stats/stats.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EmailService } from './common/email/email.service';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+// DB_SSL_CA (PEM ტექსტი ან ფაილის გზა, მაგ. RDS-ის global-bundle.pem) —
+// მითითებისას სერვერის სერტიფიკატი მოწმდება. მის გარეშე production-ში
+// დაშიფრულია, მაგრამ სერტიფიკატი არ მოწმდება (rejectUnauthorized: false) —
+// ქსელის გზაზე მყოფს MITM-ით ყველა მონაცემის (password hash-ები, PII)
+// წაკითხვა/შეცვლა შეუძლია. ამიტომ ხმამაღლა ვაფრთხილებთ.
+function resolveDbSsl(): false | { ca?: string; rejectUnauthorized: boolean } {
+  if (process.env.NODE_ENV !== 'production') return false;
+  const ca = process.env.DB_SSL_CA;
+  if (ca) {
+    return {
+      ca: ca.includes('-----BEGIN') ? ca : readFileSync(ca, 'utf8'),
+      rejectUnauthorized: true,
+    };
+  }
+  new Logger('AppModule').warn(
+    'DB_SSL_CA არ არის მითითებული — ბაზის TLS სერტიფიკატი არ მოწმდება (MITM-ის რისკი)',
+  );
+  return { rejectUnauthorized: false };
+}
 
 @Module({
   imports: [
@@ -76,11 +99,7 @@ import { EmailService } from './common/email/email.service';
         migrationsRun: process.env.NODE_ENV === 'production',
         // RDS-ის default parameter group-ს rds.force_ssl=1 აქვს (SSL-ის გარეშე
         // კავშირს pg_hba.conf საერთოდ არ უშვებს) — production-ში ვრთავთ SSL-ს.
-        // rejectUnauthorized: false, რადგან RDS-ის CA bundle-ს არ ვამატებთ.
-        ssl:
-          process.env.NODE_ENV === 'production'
-            ? { rejectUnauthorized: false }
-            : false,
+        ssl: resolveDbSsl(),
       }),
     }),
 
@@ -104,7 +123,11 @@ import { EmailService } from './common/email/email.service';
     StatsModule,
     NotificationsModule,
   ],
+  // AppController: GET / და GET /health (load balancer-ის probe) — აქამდე
+  // საერთოდ არ იყო რეგისტრირებული (e2e ტესტიც ამიტომ ვარდებოდა).
+  controllers: [AppController],
   providers: [
+    AppService,
     EmailService, // ← დარეგისტრირება
     { provide: APP_GUARD, useClass: ThrottlerGuard }, // გლობალური rate limiting
   ],

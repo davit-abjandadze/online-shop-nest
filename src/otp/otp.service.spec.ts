@@ -24,7 +24,10 @@ describe('OtpService', () => {
         key === 'VERIFY_GE_API_KEY' ? 'test-key' : undefined,
       ),
     };
-    const service = new OtpService(httpService as any, configService as any);
+    const service = new OtpService(
+      httpService as never,
+      configService as never,
+    );
     return { service, httpService };
   };
 

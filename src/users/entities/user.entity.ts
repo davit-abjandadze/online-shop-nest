@@ -4,7 +4,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
 } from 'typeorm';
-import { ApiHideProperty } from '@nestjs/swagger';
 import { encryptedColumnTransformer } from '../../common/utils/encryption.util';
 
 // 1. შევქმნათ როლების Enum

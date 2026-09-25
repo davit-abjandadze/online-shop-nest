@@ -5,10 +5,14 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # ლოკალური dev-ისთვის default postgres; სხვაგან გამოყენებისას .env-ში
+      # POSTGRES_PASSWORD დააყენეთ (უკვე შექმნილ volume-ს პაროლს არ უცვლის).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: shop_db
     ports:
-      - '5434:5432' # 5433 არის დამოკავშირებული ორიგინალ (referendum) პროექტის nest_postgres კონტეინერზე — განზრახ სხვა პორტი, რომ ორივე პარალელურად, ერთმანეთის მონაცემების გარეშე დგებოდეს.
+      # 127.0.0.1 — მხოლოდ ლოკალურ მანქანაზე; 0.0.0.0-ზე default პაროლით ბაზა
+      # ქსელიდან (სერვერზე გაშვებისას — ინტერნეტიდანაც) ხელმისაწვდომი იყო.
+      - '127.0.0.1:5434:5432' # 5433 არის დამოკავშირებული ორიგინალ (referendum) პროექტის nest_postgres კონტეინერზე — განზრახ სხვა პორტი, რომ ორივე პარალელურად, ერთმანეთის მონაცემების გარეშე დგებოდეს.
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

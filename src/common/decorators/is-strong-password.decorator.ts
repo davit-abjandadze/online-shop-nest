@@ -1,8 +1,4 @@
-import {
-  registerDecorator,
-  ValidationOptions,
-  ValidationArguments,
-} from 'class-validator';
+import { registerDecorator, ValidationOptions } from 'class-validator';
 
 /**
  * პაროლის სირთულის ვალიდაცია: მინიმუმ 8 სიმბოლო, ერთი დიდი ასო,
@@ -21,10 +17,10 @@ export function IsStrongPassword(validationOptions?: ValidationOptions) {
       propertyName,
       options: validationOptions,
       validator: {
-        validate(value: unknown, _args: ValidationArguments) {
+        validate(value: unknown) {
           return typeof value === 'string' && STRONG_PASSWORD_REGEX.test(value);
         },
-        defaultMessage(_args: ValidationArguments) {
+        defaultMessage() {
           return 'პაროლი უნდა შეიცავდეს მინიმუმ 8 სიმბოლოს, ერთ დიდ ასოს, ერთ პატარა ასოს და ერთ ციფრს';
         },
       },

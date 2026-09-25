@@ -1,0 +1,62 @@
+# შემოწმებები ყოველ push/PR-ზე — deploy-ს არ აკეთებს.
+# მთავარი მიზეზი: ლოკალურ dev-ში `synchronize: true` schema-ს თავად აწყობს,
+# production კი მხოლოდ migration-ებით მუშაობს — ამიტომ migration-ების ჯაჭვი
+# entity-ებს ჩუმად ჩამორჩებოდა (იხ. 1788110000000-SyncSchemaWithEntities).
+# "migrations" job ცარიელ ბაზაზე მთელ ჯაჭვს უშვებს და ამოწმებს, რომ
+# entity-ებთან სხვაობა არ რჩება.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn build
+      - name: Lint (--fix-ის გარეშე)
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+      - run: yarn test
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shop_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: shop_ci
+      ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - name: ყველა migration ცარიელ ბაზაზე
+        run: yarn migration:run
+      - name: entity-ებსა და migration-ებს შორის სხვაობა არ უნდა იყოს
+        run: yarn typeorm migration:generate src/migrations/Drift --check

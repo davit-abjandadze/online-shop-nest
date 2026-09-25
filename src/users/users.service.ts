@@ -353,11 +353,11 @@ export class UsersService {
 
     try {
       return await this.userRepository.remove(user);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // FK ვიოლაცია (მაგ. მომხმარებელს აქვს შეკვეთები) — orders.user-ს
       // onDelete არ აქვს დაყენებული განზრახ, რადგან შეკვეთების ისტორია
       // არ უნდა წაიშალოს ავტომატურად. 500-ის ნაცვლად გასაგები 409-ს ვაბრუნებთ.
-      if (error?.code === '23503') {
+      if ((error as { code?: string } | null)?.code === '23503') {
         throw new ConflictException(
           'მომხმარებლის წაშლა შეუძლებელია — მას გააჩნია დაკავშირებული შეკვეთები',
         );

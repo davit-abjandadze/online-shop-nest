@@ -14,7 +14,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/create-login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangePasswordResponseDto } from './dto/change-password-response.dto';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { EmailService } from '../common/email/email.service';
@@ -341,7 +341,9 @@ export class AuthService {
           accessToken,
         )}&access_token=${encodeURIComponent(appAccessToken)}`,
       );
-      const debugJson = await debugRes.json();
+      const debugJson = (await debugRes.json()) as {
+        data?: typeof debugData;
+      } | null;
       debugData = debugJson?.data ?? {};
     } catch {
       throw new UnauthorizedException(
@@ -364,7 +366,7 @@ export class AuthService {
           accessToken,
         )}`,
       );
-      profileData = await profileRes.json();
+      profileData = (await profileRes.json()) as typeof profileData;
     } catch {
       throw new UnauthorizedException(
         'Facebook პროფილის წამოღება ვერ მოხერხდა',
@@ -519,7 +521,7 @@ export class AuthService {
     }
   }
 
-  private generateToken(user: any) {
+  private generateToken(user: User) {
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),

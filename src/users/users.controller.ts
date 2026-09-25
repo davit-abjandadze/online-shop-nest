@@ -22,6 +22,8 @@ import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { maskPersonalNumber, maskPhoneNumber } from '../common/utils/mask.util';
 import { isAdminUser } from '../common/utils/is-admin.util';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { User } from './entities/user.entity';
 
 // ⚠️ უსაფრთხოების ფიქსი: აქამდე ეს კონტროლერი მთლიანად guard-ის გარეშე იყო —
 // ნებისმიერს (ტოკენის გარეშეც) შეეძლო GET /users-ით ყველა მომხმარებლის მონაცემის
@@ -41,12 +43,14 @@ import { isAdminUser } from '../common/utils/is-admin.util';
 // 9/11-ციფრიან regex-ს ვერ აკმაყოფილებდა (ველი წითლდებოდა). ნიღბვა მხოლოდ მაშინ არის საჭირო,
 // როცა ვინმე სხვის მონაცემებს ხედავს (ადმინი) — საკუთარი თავისთვის ყოველთვის სრული სახით უნდა
 // დაბრუნდეს.
-function sanitizeUser(
-  user: any,
+function sanitizeUser<T extends Partial<User>>(
+  user: T,
   { maskPii = true }: { maskPii?: boolean } = {},
 ) {
   if (!user) return user;
-  const { password, ...rest } = user;
+  // password-ს ვაცილებთ პასუხიდან
+  const rest: Partial<User> = { ...user };
+  delete rest.password;
   if (!maskPii) return rest;
   return {
     ...rest,
@@ -111,7 +115,7 @@ export class UsersController {
   @Get(':id')
   async findOne(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: any,
+    @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     const { isSelf } = this.assertSelfOrAdmin(currentUser, id);
     const user = await this.usersService.findOne(id);
@@ -124,7 +128,7 @@ export class UsersController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
-    @CurrentUser() currentUser: any,
+    @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     const { isSelf } = this.assertSelfOrAdmin(currentUser, id);
 
@@ -141,14 +145,17 @@ export class UsersController {
   @Delete(':id')
   async remove(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() currentUser: any,
+    @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     this.assertSelfOrAdmin(currentUser, id);
     const user = await this.usersService.remove(id);
     return sanitizeUser(user);
   }
 
-  private assertSelfOrAdmin(currentUser: any, targetId: number) {
+  private assertSelfOrAdmin(
+    currentUser: AuthenticatedUser | undefined,
+    targetId: number,
+  ) {
     const isAdmin = isAdminUser(currentUser);
     const isSelf = currentUser?.userId === targetId;
     if (!isAdmin && !isSelf) {

@@ -17,10 +17,10 @@ describe('PaymentsService.assertPaymentMatchesOrderForMockComplete', () => {
     };
 
     const service = new PaymentsService(
-      paymentRepository as any,
-      {} as any,
-      {} as any,
-      {} as any,
+      paymentRepository as never,
+      {} as never,
+      {} as never,
+      {} as never,
     );
 
     return { service, paymentRepository };

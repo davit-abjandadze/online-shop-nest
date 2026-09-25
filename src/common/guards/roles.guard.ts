@@ -8,6 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { UserRole } from '../../users/entities/user.entity';
+import { AuthenticatedUser } from '../types/authenticated-user.type';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -26,7 +27,9 @@ export class RolesGuard implements CanActivate {
     }
 
     // 2. ვიღებთ მომხმარებელს request-იდან (რომელიც JwtAuthGuard-მა ჩაწერა)
-    const { user } = context.switchToHttp().getRequest();
+    const { user } = context
+      .switchToHttp()
+      .getRequest<{ user?: AuthenticatedUser }>();
 
     // თუ user არ არსებობს, ესეიგი JwtAuthGuard არ გაშვებულა ამ route-ზე —
     // ვაბრუნებთ სუფთა 401-ს raw TypeError-ის ნაცვლად

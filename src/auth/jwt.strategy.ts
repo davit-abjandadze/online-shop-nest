@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { isTokenIssuedBeforePasswordChange } from '../common/utils/token-freshness.util';
+import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -23,7 +24,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // მაინც სწორია. ამიტომ ყოველ authenticated request-ზე დამატებით ვამოწმებთ,
   // რომ token-ში მითითებული user ჯერ კიდევ არსებობს ბაზაში; წინააღმდეგ
   // შემთხვევაში 401-ს ვაბრუნებთ და ფრონტი ამ სიგნალზე გამოაგდებს მომხმარებელს.
-  async validate(payload: any) {
+  async validate(payload: {
+    sub: number;
+    email: string;
+    iat?: number;
+    type?: string;
+  }): Promise<AuthenticatedUser> {
     // ⚠️ 2026-09-04: password-reset ტოკენები იმავე secret-ით/სქემით იწერება, რაც
     // login ტოკენები (განსხვავება მხოლოდ payload-ის `type: 'reset'` claim-შია, 1სთ
     // ვადით) — ადრე ეს strategy ამ claim-ს არ ამოწმებდა, ანუ ვინც reset ბმულს

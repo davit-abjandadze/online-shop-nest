@@ -12,7 +12,9 @@ const DEFAULT_LOCALE: LocaleType = 'ka';
 // default 'ka'.
 export const Locale = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): LocaleType => {
-    const request = ctx.switchToHttp().getRequest();
+    const request = ctx
+      .switchToHttp()
+      .getRequest<{ headers?: Record<string, string | undefined> }>();
     const header: string | undefined = request.headers?.['accept-language'];
     if (!header) {
       return DEFAULT_LOCALE;
