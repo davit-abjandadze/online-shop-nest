@@ -231,7 +231,12 @@ export class CategoryService {
       )!;
     }
 
-    if (parentId !== undefined) {
+    if (parentId === null) {
+      // ქვეკატეგორიის root-ზე დაბრუნება — ადრე null ვერ გადიოდა (findOne(null)),
+      // ამიტომ ერთხელ მშობელზე მიბმული კატეგორია root-ად ვეღარ იქცეოდა.
+      // closure-table-ის წინაპრების ჩანაწერებს TypeORM save-ისას თავად შლის.
+      category.parent = null;
+    } else if (parentId !== undefined) {
       if (parentId === id) {
         throw new BadRequestException(
           'კატეგორია ვერ გახდება საკუთარი თავის მშობელი',

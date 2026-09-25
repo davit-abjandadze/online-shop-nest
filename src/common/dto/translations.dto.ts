@@ -142,17 +142,19 @@ function buildPartialTranslationsDto<T>(EntryDto: new () => T) {
     @Type(() => EntryDto)
     ka?: T;
 
-    @ApiPropertyOptional({ type: () => EntryDto })
+    // en/ru-ზე null — ამ ენის თარგმანის მთლიანად წაშლა (იხ. mergeTranslations);
+    // ka სავალდებულოა და null-ით ვერ წაიშლება.
+    @ApiPropertyOptional({ type: () => EntryDto, nullable: true })
     @IsOptional()
     @ValidateNested()
     @Type(() => EntryDto)
-    en?: T;
+    en?: T | null;
 
-    @ApiPropertyOptional({ type: () => EntryDto })
+    @ApiPropertyOptional({ type: () => EntryDto, nullable: true })
     @IsOptional()
     @ValidateNested()
     @Type(() => EntryDto)
-    ru?: T;
+    ru?: T | null;
   }
   return PartialTranslationsDtoBase;
 }

@@ -226,16 +226,17 @@ export class ProductsService {
     const { categoryId, companyId, price, weight, length, width, ...rest } =
       createProductDto;
     await this.assertCompanyExists(companyId);
-    if (categoryId !== undefined) {
+    // null (DTO ახლა update-ისთვის null-ს იღებს) შექმნისას "მითითების გარეშე"-ს უდრის
+    if (categoryId != null) {
       await this.categoryService.findOne(categoryId, true); // admin — არსებობის შემოწმება (404 თუ არა)
     }
     const product = this.productRepository.create({
       ...rest,
       price: price.toString(),
-      ...(weight !== undefined ? { weight: weight.toString() } : {}),
-      ...(length !== undefined ? { length: length.toString() } : {}),
-      ...(width !== undefined ? { width: width.toString() } : {}),
-      ...(categoryId !== undefined ? { category: { id: categoryId } } : {}),
+      ...(weight != null ? { weight: weight.toString() } : {}),
+      ...(length != null ? { length: length.toString() } : {}),
+      ...(width != null ? { width: width.toString() } : {}),
+      ...(categoryId != null ? { category: { id: categoryId } } : {}),
       company: { id: companyId } as Company,
     });
     return this.productRepository.save(product);
@@ -266,16 +267,20 @@ export class ProductsService {
     if (price !== undefined) {
       product.price = price.toString();
     }
+    // null — ველის გასუფთავება ადმინის ფორმიდან (ადრე null.toString() 500-ს
+    // აგდებდა, ამიტომ ერთხელ შევსებული წონა/ზომა ვეღარ იშლებოდა).
     if (weight !== undefined) {
-      product.weight = weight.toString();
+      product.weight = weight === null ? null : weight.toString();
     }
     if (length !== undefined) {
-      product.length = length.toString();
+      product.length = length === null ? null : length.toString();
     }
     if (width !== undefined) {
-      product.width = width.toString();
+      product.width = width === null ? null : width.toString();
     }
-    if (categoryId !== undefined) {
+    if (categoryId === null) {
+      product.category = null;
+    } else if (categoryId !== undefined) {
       await this.categoryService.findOne(categoryId, true); // admin — არსებობის შემოწმება (404 თუ არა)
       product.category = { id: categoryId } as Category;
     }

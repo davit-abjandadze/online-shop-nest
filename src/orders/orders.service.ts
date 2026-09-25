@@ -80,10 +80,40 @@ export class OrdersService {
   // კალათიდან შეკვეთის შექმნა — ტრანზაქციაში, პროდუქტების row-level ლოქით
   // (pessimistic_write), რომ ორ პარალელურ checkout-ს ერთი და იმავე პროდუქტის
   // ბოლო ერთეულზე ორივემ ვერ გაიაროს stock-შემოწმება ერთდროულად.
+  private async assertUserCanPurchase(userId: number): Promise<void> {
+    const user = await this.dataSource.getRepository(User).findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        personalNumber: true,
+      },
+    });
+    if (!user) {
+      throw new BadRequestException('მომხმარებელი ვერ მოიძებნა');
+    }
+    const missing: string[] = [];
+    if (!user.isEmailVerified) missing.push('ელფოსტის დადასტურება');
+    if (!user.isPhoneVerified) missing.push('მობილურის დადასტურება');
+    if (!user.personalNumber?.trim()) missing.push('პირადი ნომრის შევსება');
+    if (missing.length) {
+      throw new BadRequestException(
+        `შეკვეთის გასაფორმებლად საჭიროა: ${missing.join(', ')}`,
+      );
+    }
+  }
+
   async createFromCart(
     userId: number,
     createOrderDto: CreateOrderDto,
   ): Promise<Order> {
+    // ყიდვის წინაპირობები — ადრე მხოლოდ ფრონტის checkout ამოწმებდა, რაც API-ის
+    // პირდაპირი გამოძახებით (ან შეუნახავი ველით ფრონტზე) გვერდს უვლიდა.
+    // profile/checkout-ის იგივე წესი: დადასტურებული ელფოსტა და მობილური +
+    // შევსებული პირადი ნომერი.
+    await this.assertUserCanPurchase(userId);
+
     const deliveryMethod =
       createOrderDto.deliveryMethod ?? DeliveryMethod.COURIER;
 
@@ -350,6 +380,12 @@ export class OrdersService {
               ? resolveTranslation(productVariant.size.translations, 'ka')?.name
               : undefined,
             unitPrice: roundedUnitPrice.toFixed(2),
+            // ფასდაკლებამდელი ფასი და პროცენტი შეკვეთის მომენტისთვის — ფრონტი
+            // გადახაზულ ფასს აქედან აჩვენებს და არა პროდუქტის ცოცხალი
+            // (მოგვიანებით შეცვლილი) price/discountPercent-იდან.
+            originalUnitPrice:
+              discountPercent > 0 ? basePrice.toFixed(2) : null,
+            discountPercent: discountPercent > 0 ? discountPercent : null,
             quantity: cartItem.quantity,
           }),
         );

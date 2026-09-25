@@ -10,6 +10,7 @@ import {
   Matches,
 } from 'class-validator';
 import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
+import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 import { UserRole, Gender } from '../entities/user.entity';
 
 export class CreateUserDto {
@@ -21,8 +22,11 @@ export class CreateUserDto {
   @IsNotEmpty()
   lastName!: string;
 
+  // ადმინის მიერ შექმნილ მომხმარებელზეც რეგისტრაციის/პაროლის შეცვლის
+  // იგივე წესი — ადრე აქ მხოლოდ @IsNotEmpty იყო და "1"-იც გადიოდა.
   @IsString()
   @IsNotEmpty()
+  @IsStrongPassword()
   password!: string;
 
   @NormalizeEmail()

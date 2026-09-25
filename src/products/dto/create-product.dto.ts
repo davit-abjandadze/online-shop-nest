@@ -75,26 +75,38 @@ export class CreateProductDto {
   )
   videoUrl?: string;
 
-  @ApiPropertyOptional({ description: 'წონა (კგ)', example: 1.5 })
+  @ApiPropertyOptional({
+    description: 'წონა (კგ); რედაქტირებისას null — გასუფთავება',
+    example: 1.5,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'წონა უნდა იყოს რიცხვი' })
   @Min(0, { message: 'წონა არ შეიძლება იყოს უარყოფითი' })
-  weight?: number;
+  weight?: number | null;
 
-  @ApiPropertyOptional({ description: 'სიგრძე (სმ)', example: 20 })
+  @ApiPropertyOptional({
+    description: 'სიგრძე (სმ); რედაქტირებისას null — გასუფთავება',
+    example: 20,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'სიგრძე უნდა იყოს რიცხვი' })
   @Min(0, { message: 'სიგრძე არ შეიძლება იყოს უარყოფითი' })
-  length?: number;
+  length?: number | null;
 
-  @ApiPropertyOptional({ description: 'სიგანე (სმ)', example: 10 })
+  @ApiPropertyOptional({
+    description: 'სიგანე (სმ); რედაქტირებისას null — გასუფთავება',
+    example: 10,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'სიგანე უნდა იყოს რიცხვი' })
   @Min(0, { message: 'სიგანე არ შეიძლება იყოს უარყოფითი' })
-  width?: number;
+  width?: number | null;
 
   @ApiPropertyOptional({
     description: 'აქტიურია თუ არა პროდუქტი',
@@ -110,7 +122,7 @@ export class CreateProductDto {
   })
   @IsOptional()
   @IsUUID()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @ApiProperty({
     description: 'მფლობელი კომპანიის ID (წინასწარ /companies-ზე შექმნილი)',

@@ -49,13 +49,13 @@ export class Product {
   // გაბარიტები (კგ/სმ) — არასავალდებულო, ძირითადად მიწოდების ღირებულების
   // გამოსათვლელად ან პროდუქტის დეტალურ ინფორმაციაში საჩვენებლად.
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
-  weight?: string;
+  weight?: string | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
-  length?: string;
+  length?: string | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
-  width?: string;
+  width?: string | null;
 
   @Column({ default: true })
   isActive!: boolean;
@@ -70,7 +70,7 @@ export class Product {
     nullable: true,
   })
   @JoinColumn()
-  category?: Category;
+  category?: Category | null;
 
   // რომელ კომპანიას ეკუთვნის ეს პროდუქტი — CreateProductDto-ში სავალდებულოა
   // (ბიზნეს-წესი), მაგრამ FK column nullable-ია (category-ის იგივე SET NULL

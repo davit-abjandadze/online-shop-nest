@@ -36,12 +36,14 @@ export class CreateCategoryDto {
   slug!: string;
 
   @ApiPropertyOptional({
-    description: 'მშობელი კატეგორიის ID (ცარიელი — root კატეგორია)',
+    description:
+      'მშობელი კატეგორიის ID (ცარიელი — root კატეგორია; რედაქტირებისას null — root-ზე გადატანა)',
     example: 'e3b0c442-98fc-1c14-9afc-2c963f66afa6',
+    nullable: true,
   })
   @IsOptional()
   @IsUUID()
-  parentId?: string;
+  parentId?: string | null;
 
   @ApiPropertyOptional({
     description: 'აქტიურია თუ არა კატეგორია',

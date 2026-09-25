@@ -11,7 +11,7 @@ import { Translations } from '../types/translations.type';
 // არსებულს, ხოლო გაუთითებელი locale-ები უცვლელი რჩება.
 export function mergeTranslations<T extends object>(
   existing: Translations<T> | undefined | null,
-  incoming: Translations<T> | undefined,
+  incoming: Partial<Record<keyof Translations<T>, T | null>> | undefined,
 ): Translations<T> | undefined {
   if (!incoming) {
     return existing ?? undefined;
@@ -22,6 +22,12 @@ export function mergeTranslations<T extends object>(
   for (const locale of Object.keys(incoming) as (keyof Translations<T>)[]) {
     const incomingEntry = incoming[locale];
     if (incomingEntry === undefined) {
+      continue;
+    }
+    // null — ამ ენის თარგმანის წაშლა (ადმინმა en/ru ველები გაასუფთავა).
+    // ka ძირითადი/სავალდებულო ენაა და null-ით არ იშლება.
+    if (incomingEntry === null) {
+      if (locale !== 'ka') delete result[locale];
       continue;
     }
     result[locale] = {

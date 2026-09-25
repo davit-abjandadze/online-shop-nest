@@ -69,6 +69,16 @@ export class OrderItem {
   @Column('decimal', { precision: 10, scale: 2 })
   unitPrice!: string;
 
+  // ფასდაკლებამდელი ერთეულის ფასი შეკვეთის მომენტში (ვარიანტის ფასის
+  // გათვალისწინებით) — null, თუ ფასდაკლება არ მოქმედებდა. unitPrice-ის
+  // მსგავსად snapshot-ია, პროდუქტის შემდგომი ცვლილება მასზე არ მოქმედებს.
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  originalUnitPrice?: string | null;
+
+  // შეკვეთის მომენტში მოქმედი ფასდაკლების პროცენტი (null — ფასდაკლების გარეშე)
+  @Column('int', { nullable: true })
+  discountPercent?: number | null;
+
   @Column('int')
   quantity!: number;
 }
