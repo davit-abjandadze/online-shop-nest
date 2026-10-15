@@ -79,3 +79,7 @@ infra/*.tfstate
 infra/*.tfstate.*
 infra/*.tfplan
 infra/terraform.tfvars
+
+# DB dumps (pg_dump) — ნამდვილ მომხმარებელთა მონაცემებს/პაროლის ჰეშებს შეიცავს
+*.dump
+*.sql.gz
