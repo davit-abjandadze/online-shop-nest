@@ -9,7 +9,12 @@ import {
   Min,
   Matches,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
+import {
+  GEORGIAN_MOBILE_REGEX,
+  stripPhoneSeparators,
+} from '../../common/utils/phone.util';
 import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
 import { UserRole, Gender } from '../entities/user.entity';
 
@@ -65,6 +70,10 @@ export class CreateUserDto {
   // AuthService.googleLogin-იც, სადაც ტელეფონის ნომერი უბრალოდ არ არსებობს.
   @ApiPropertyOptional({ description: 'მომხმარებლის ტელეფონის ნომერი' })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => stripPhoneSeparators(value))
   @IsString()
+  @Matches(GEORGIAN_MOBILE_REGEX, {
+    message: 'მიუთითეთ ვალიდური ქართული მობილურის ნომერი (5XXXXXXXX)',
+  })
   phoneNumber?: string;
 }

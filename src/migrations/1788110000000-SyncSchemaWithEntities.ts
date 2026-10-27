@@ -259,9 +259,39 @@ export class SyncSchemaWithEntities1788110000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // სახელების გადარქმევას და enum-ის მნიშვნელობას განზრახ არ ვაბრუნებთ:
-    // Postgres-ში enum-იდან მნიშვნელობის ამოღება მთელი ტიპის ხელახლა შექმნას
-    // მოითხოვს, სახელების დაბრუნება კი ფუნქციურად არაფერს ცვლის.
+    // enum-ის მნიშვნელობას განზრახ არ ვაბრუნებთ: Postgres-ში enum-იდან
+    // მნიშვნელობის ამოღება მთელი ტიპის ხელახლა შექმნას მოითხოვს.
+    //
+    // სახელებს კი ვაბრუნებთ — წინა მიგრაციების down() ობიექტებს ძველი
+    // (ხელით დარქმეული) სახელებით შლის (მაგ. "FK_product_branch_color"), ამიტომ
+    // მათ გარეშე revert ამ მიგრაციაზე ადრე ვერ გადიოდა. idempotent-ია: მხოლოდ
+    // მაშინ ვარქმევთ, თუ ახალი სახელი არსებობს და ძველი — არა.
+    for (const [table, oldName, newName] of CONSTRAINT_RENAMES) {
+      await queryRunner.query(
+        `DO $$ BEGIN
+           IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '${newName}')
+              AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '${oldName}') THEN
+             ALTER TABLE "${table}" RENAME CONSTRAINT "${newName}" TO "${oldName}";
+           END IF;
+         END $$`,
+      );
+    }
+    for (const [oldName, newName] of INDEX_RENAMES) {
+      await queryRunner.query(
+        `DO $$ BEGIN
+           IF to_regclass('"public"."${oldName}"') IS NULL THEN
+             ALTER INDEX IF EXISTS "public"."${newName}" RENAME TO "${oldName}";
+           END IF;
+         END $$`,
+      );
+    }
+    await queryRunner.query(
+      `ALTER TABLE "user" DROP CONSTRAINT IF EXISTS "UQ_941d1f0970973de9a0bc69ac12e"`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_user_phoneNumberHash" ON "user" ("phoneNumberHash")`,
+    );
+
     await queryRunner.query(
       `ALTER TABLE "order_item" ADD CONSTRAINT "FK_order_item_company" FOREIGN KEY ("companyId") REFERENCES "company"("id") ON DELETE SET NULL`,
     );

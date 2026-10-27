@@ -14,7 +14,10 @@ import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { paginate } from '../common/utils/paginate.util';
 import { EmailOtpService } from '../otp/email-otp.service';
 import { OtpService } from '../otp/otp.service';
-import { hashForSearch } from '../common/utils/encryption.util';
+import {
+  hashPhoneForSearch,
+  normalizePhoneForCompare,
+} from '../common/utils/phone.util';
 
 // sortBy პარამეტრი პირდაპირ user-ისგან მოდის query string-იდან — თუ პირდაპირ
 // orderBy-ში ჩავსვამთ, SQL injection-ის რისკია. ამიტომ ვუშვებთ მხოლოდ
@@ -76,7 +79,7 @@ export class UsersService {
       // phoneNumber ახლა non-deterministic (AES-256-GCM) ciphertext-ად ინახება —
       // ტოლობითი ძებნისა/unique-შეზღუდვისთვის ცალკე blind-index (hash) გვჭირდება.
       phoneNumberHash: createUserDto.phoneNumber
-        ? hashForSearch(createUserDto.phoneNumber)
+        ? hashPhoneForSearch(createUserDto.phoneNumber)
         : undefined,
     });
     try {
@@ -154,7 +157,7 @@ export class UsersService {
     // იგივე plaintext ყოველ დაშიფვრაზე სხვადასხვა ciphertext-ს იძლევა).
     // ტოლობის შესამოწმებლად ცალკე blind-index (phoneNumberHash) სვეტი გვაქვს.
     return this.userRepository.findOne({
-      where: { phoneNumberHash: hashForSearch(phoneNumber) },
+      where: { phoneNumberHash: hashPhoneForSearch(phoneNumber) },
     });
   }
 
@@ -240,6 +243,8 @@ export class UsersService {
         otpCode: phoneOtpCode,
         userId: id,
         findExisting: (value) => this.findByPhoneNumber(value),
+        // იგივე ნომერი სხვა ფორმატით (`+995...` ↔ `5...`) ცვლილებად არ ითვლება
+        normalize: normalizePhoneForCompare,
         // ნომერზე მიბმული და ერთჯერადი (იხ. OtpService.consumeVerifiedOtp)
         verifyOtp: (requestId, code) =>
           this.otpService.consumeVerifiedOtp(requestId, code, phoneNumber),
@@ -258,7 +263,7 @@ export class UsersService {
     // და unique-შეზღუდვა მასზეა დამოკიდებული, არა თავად ciphertext-ზე).
     const phoneNumberHashPatch =
       userFields.phoneNumber !== undefined
-        ? { phoneNumberHash: hashForSearch(userFields.phoneNumber) }
+        ? { phoneNumberHash: hashPhoneForSearch(userFields.phoneNumber) }
         : {};
 
     const user = await this.userRepository.preload({
@@ -286,6 +291,7 @@ export class UsersService {
     otpCode: string | undefined;
     userId: number;
     findExisting: (value: string) => Promise<{ id: number } | null>;
+    normalize?: (value: string) => string;
     verifyOtp: (requestId: string, code: string) => boolean | Promise<boolean>;
     duplicateErrorCode: string;
     duplicateMessage: string;
@@ -299,13 +305,17 @@ export class UsersService {
       otpCode,
       userId,
       findExisting,
+      normalize = (value: string) => value,
       verifyOtp,
       duplicateErrorCode,
       duplicateMessage,
       missingOtpMessage,
     } = params;
 
-    if (newValue !== currentValue) {
+    const changed =
+      currentValue === undefined ||
+      normalize(newValue) !== normalize(currentValue);
+    if (changed) {
       const existing = await findExisting(newValue);
       if (existing && existing.id !== userId) {
         throw new ConflictException({

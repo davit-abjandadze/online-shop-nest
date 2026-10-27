@@ -9,6 +9,11 @@ import {
   Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import {
+  GEORGIAN_MOBILE_REGEX,
+  stripPhoneSeparators,
+} from '../../common/utils/phone.util';
 import { Gender } from '../../users/entities/user.entity';
 import { NormalizeEmail } from '../../common/decorators/normalize-email.decorator';
 import { IsStrongPassword } from '../../common/decorators/is-strong-password.decorator';
@@ -51,8 +56,15 @@ export class RegisterDto {
   })
   personalNumber?: string;
 
+  // იგივე წესი, რაც POST /otp/send-ზე (SendOtpDto) — ფორმატის გარეშე
+  // ნებისმიერი სტრიქონი ნორმალიზაციისას (hashPhoneForSearch) ცარიელ ან
+  // შემთხვევით ციფრებად იქცეოდა.
+  @Transform(({ value }: { value: unknown }) => stripPhoneSeparators(value))
   @IsString()
   @IsNotEmpty({ message: 'ტელეფონის ნომერი სავალდებულოა' })
+  @Matches(GEORGIAN_MOBILE_REGEX, {
+    message: 'მიუთითეთ ვალიდური ქართული მობილურის ნომერი (5XXXXXXXX)',
+  })
   phoneNumber!: string;
 
   @ApiPropertyOptional({
