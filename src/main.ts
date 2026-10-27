@@ -91,7 +91,11 @@ async function bootstrap() {
   // 3100 — ფრონტის Playwright e2e-ის ცალკე dev სერვერი (online-shop-next/e2e).
   const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3100'];
+    : [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3100',
+      ];
 
   app.enableCors({
     origin: allowedOrigins,
