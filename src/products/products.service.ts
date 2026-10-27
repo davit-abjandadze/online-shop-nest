@@ -586,6 +586,41 @@ export class ProductsService {
     });
   }
 
+  // getColors/getVariants-ის batch ვერსია — პროდუქტების სიის/სლაიდერის
+  // ბარათებს თითოეულზე ცალ-ცალკე 2 მოთხოვნა სჭირდებოდათ (N+1), ახლა 3
+  // query-ა ნებისმიერი რაოდენობის id-სთვის. არარსებული (ან non-ADMIN-ისთვის
+  // დეაქტივირებული) პროდუქტი 404-ის ნაცვლად უბრალოდ შედეგში აღარ ჩნდება —
+  // ბარათების სია ერთი წაშლილი პროდუქტის გამო არ უნდა ჩავარდეს.
+  async getOptionsForProducts(
+    productIds: number[],
+    isAdmin = false,
+  ): Promise<{
+    products: Pick<Product, 'id' | 'price'>[];
+    colors: ProductColor[];
+    variants: ProductVariant[];
+  }> {
+    const uniqueIds = [...new Set(productIds)];
+    const products = await this.productRepository.find({
+      select: { id: true, price: true },
+      where: { id: In(uniqueIds), ...(isAdmin ? {} : { isActive: true }) },
+    });
+    if (products.length === 0) {
+      return { products, colors: [], variants: [] };
+    }
+    const visibleIds = products.map((product) => product.id);
+    const [colors, variants] = await Promise.all([
+      this.productColorRepository.find({
+        where: { productId: In(visibleIds) },
+        relations: { color: true },
+      }),
+      this.productVariantRepository.find({
+        where: { productId: In(visibleIds) },
+        relations: { color: true, size: true },
+      }),
+    ]);
+    return { products, colors, variants };
+  }
+
   // bulk set — setColors-ის იგივე delete+recreate პატერნი, მაგრამ
   // syncProductRelation-ის ვერ იყენებს (ის მხოლოდ ერთი refId სვეტის
   // დუბლირებას/არსებობას ამოწმებს — აქ კომბინირებული (colorId, sizeId)

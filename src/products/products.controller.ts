@@ -31,6 +31,7 @@ import { UpdateProductAdditionalInfoDto } from './dto/update-product-additional-
 import { SetProductColorsDto } from './dto/set-product-colors.dto';
 import { SetProductBranchesDto } from './dto/set-product-branches.dto';
 import { SetProductVariantsDto } from './dto/set-product-variants.dto';
+import { FindProductOptionsDto } from './dto/find-product-options.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminOnly } from '../common/decorators/admin-only.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -189,6 +190,65 @@ export class ProductsController {
       ...result,
       data: result.data.map((product) => enrichProduct(product, locale)),
     };
+  }
+
+  // ⚠️ `:id`-ზე ადრე უნდა იყოს დეკლარირებული — თორემ "options" `:id`-ად
+  // დაემთხვევა და ParseIntPipe 400-ს დააბრუნებს.
+  @Get('options')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'რამდენიმე პროდუქტის ფერები+ვარიანტები ერთი მოთხოვნით — ' +
+      '`GET :id/colors` + `GET :id/variants`-ის batch ვერსია ბარათების სიისთვის. ' +
+      'პასუხი productId-ით indexed ობიექტია; არარსებული/დეაქტივირებული id უბრალოდ გამოტოვებულია',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '{ [productId]: { colors, variants } }',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'ids არავალიდურია ან ზედმეტად ბევრია',
+  })
+  async getOptions(
+    @Query() findProductOptionsDto: FindProductOptionsDto,
+    @Locale() locale: LocaleType,
+    @CurrentUser() user?: { role: UserRole },
+  ) {
+    const isAdmin = isAdminUser(user);
+    const { products, colors, variants } =
+      await this.productsService.getOptionsForProducts(
+        findProductOptionsDto.ids,
+        isAdmin,
+      );
+    const result: Record<
+      string,
+      {
+        colors: ReturnType<typeof enrichProductColor>[];
+        variants: ReturnType<typeof enrichProductVariant>[];
+      }
+    > = {};
+    const priceById = new Map<number, string>();
+    products.forEach((product) => {
+      result[product.id] = { colors: [], variants: [] };
+      priceById.set(product.id, product.price);
+    });
+    colors.forEach((productColor) => {
+      result[productColor.productId]?.colors.push(
+        enrichProductColor(productColor, locale),
+      );
+    });
+    variants.forEach((variant) => {
+      result[variant.productId]?.variants.push(
+        enrichProductVariant(
+          variant,
+          locale,
+          priceById.get(variant.productId) as string,
+        ),
+      );
+    });
+    return result;
   }
 
   @Get(':id')
