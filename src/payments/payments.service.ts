@@ -14,7 +14,7 @@ import { OrderItem } from '../orders/entities/order-item.entity';
 import { PAYMENT_PROVIDER } from './providers/payment-provider.interface';
 import type { PaymentProviderClient } from './providers/payment-provider.interface';
 import { OrdersService } from '../orders/orders.service';
-import { OrderStatus } from '../orders/entities/order.entity';
+import { OrderStatus, PaymentMethod } from '../orders/entities/order.entity';
 import { UserRole } from '../users/entities/user.entity';
 
 // checkout-ის სიცოცხლე — BogPaymentProvider.createPayment-ის `ttl: 15`-ს
@@ -81,6 +81,15 @@ export class PaymentsService {
         // სტატუსშია (CANCELLED/EXPIRED) — არც ერთ შემთხვევაში აღარ იწყება.
         throw new BadRequestException(
           'გადახდის დაწყება შესაძლებელია მხოლოდ გადაუხდელი (PENDING) შეკვეთისთვის',
+        );
+      }
+
+      // ადგილზე გადახდის/გადარიცხვის შეკვეთაზე ბარათის checkout-ის გახსნა
+      // მის expiresAt-ს 15 წუთამდე შეამცირებდა (ქვემოთ) და გადარიცხვის
+      // ვადას გააუქმებდა — გადახდის მეთოდის შეცვლა ჯერ არ გვაქვს.
+      if (lockedOrder.paymentMethod !== PaymentMethod.CARD) {
+        throw new BadRequestException(
+          'ამ შეკვეთის გადახდის მეთოდი ბარათი არ არის',
         );
       }
 

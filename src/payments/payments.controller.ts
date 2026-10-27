@@ -22,6 +22,8 @@ import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { PaymentStatus } from './entities/payment.entity';
+import { PaymentMethodsResponseDto } from './dto/payment-methods-response.dto';
+import { getPaymentMethodsConfig } from './payment-methods.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
@@ -33,6 +35,17 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly configService: ConfigService,
   ) {}
+
+  // საჯაროა — checkout-ს (და შეკვეთის გვერდს გადარიცხვის რეკვიზიტებისთვის)
+  // სჭირდება. რეკვიზიტები ისედაც ყველა მყიდველს ეჩვენება.
+  @Get('methods')
+  @ApiOperation({
+    summary: 'ხელმისაწვდომი გადახდის მეთოდები და გადარიცხვის რეკვიზიტები',
+  })
+  @ApiResponse({ status: 200, type: PaymentMethodsResponseDto })
+  getMethods(): PaymentMethodsResponseDto {
+    return getPaymentMethodsConfig(this.configService);
+  }
 
   @Post(':orderId/initiate')
   @UseGuards(JwtAuthGuard)

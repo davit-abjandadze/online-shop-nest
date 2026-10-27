@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import {
   DataSource,
   EntityManager,
@@ -14,7 +15,12 @@ import {
   LessThan,
   IsNull,
 } from 'typeorm';
-import { Order, OrderStatus, DeliveryMethod } from './entities/order.entity';
+import {
+  Order,
+  OrderStatus,
+  DeliveryMethod,
+  PaymentMethod,
+} from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Product } from '../products/entities/product.entity';
@@ -34,10 +40,17 @@ import { BranchesService } from '../branches/branches.service';
 import { resolveTranslation } from '../common/utils/resolve-translation.util';
 import { maskPhoneNumber } from '../common/utils/mask.util';
 import { isAdminRole } from '../common/utils/is-admin.util';
+import { getPaymentMethodsConfig } from '../payments/payment-methods.util';
 
 // გადაუხდელი შეკვეთის default ვადა (წუთებში) — ამის შემდეგ cron (Phase 5)
 // EXPIRED-ში გადაჰყავს და მარაგს აბრუნებს.
 const DEFAULT_ORDER_TTL_MINUTES = 15;
+
+// საბანკო გადარიცხვით შეკვეთის ვადა (საათებში) — მომხმარებელს ჩარიცხვისთვის
+// და ადმინს მის დასადასტურებლად დრო სჭირდება; ამის შემდეგ cron იგივე
+// EXPIRED ლოგიკით აბრუნებს მარაგს. ადგილზე გადახდის შეკვეთას ვადა არ აქვს —
+// ადმინი ადასტურებს (PENDING → PROCESSING) ან აუქმებს.
+const BANK_TRANSFER_ORDER_TTL_HOURS = 48;
 
 // ერთ მომხმარებელზე ერთდროულად გადაუხდელი (PENDING) შეკვეთების მაქსიმუმი.
 const MAX_PENDING_ORDERS_PER_USER = 3;
@@ -64,6 +77,18 @@ const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.EXPIRED]: [],
 };
 
+// ადგილზე გადახდის შეკვეთა წინასწარ არასდროს იხდება — ადმინი მას PENDING-იდან
+// პირდაპირ PROCESSING-ში გადაიყვანს (თანხა DELIVERED-ისას, მიღებისას
+// გროვდება). ბარათის/გადარიცხვის შეკვეთებს ეს გზა დახურული აქვს, რომ
+// გადაუხდელი შეკვეთა შემთხვევით არ გაიგზავნოს.
+const EXTRA_TRANSITIONS_BY_PAYMENT_METHOD: Partial<
+  Record<PaymentMethod, Partial<Record<OrderStatus, OrderStatus[]>>>
+> = {
+  [PaymentMethod.CASH_ON_DELIVERY]: {
+    [OrderStatus.PENDING]: [OrderStatus.PROCESSING],
+  },
+};
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -75,6 +100,7 @@ export class OrdersService {
     private dataSource: DataSource,
     private cartService: CartService,
     private branchesService: BranchesService,
+    private configService: ConfigService,
   ) {}
 
   // კალათიდან შეკვეთის შექმნა — ტრანზაქციაში, პროდუქტების row-level ლოქით
@@ -116,6 +142,17 @@ export class OrdersService {
 
     const deliveryMethod =
       createOrderDto.deliveryMethod ?? DeliveryMethod.COURIER;
+
+    const paymentMethod = createOrderDto.paymentMethod ?? PaymentMethod.CARD;
+    if (
+      !getPaymentMethodsConfig(this.configService).methods.includes(
+        paymentMethod,
+      )
+    ) {
+      throw new BadRequestException(
+        'არჩეული გადახდის მეთოდი ამჟამად მიუწვდომელია',
+      );
+    }
 
     // pickup-ის შემთხვევაში ფილიალის არსებობას წინასწარ ვამოწმებთ
     // ტრანზაქციის გარეთ — DTO-ს @ValidateIf branchId-ის არსებობას მხოლოდ
@@ -391,9 +428,15 @@ export class OrdersService {
         );
       }
 
-      const expiresAt = new Date(
-        Date.now() + DEFAULT_ORDER_TTL_MINUTES * 60 * 1000,
-      );
+      const expiresAt =
+        paymentMethod === PaymentMethod.CASH_ON_DELIVERY
+          ? undefined
+          : new Date(
+              Date.now() +
+                (paymentMethod === PaymentMethod.BANK_TRANSFER
+                  ? BANK_TRANSFER_ORDER_TTL_HOURS * 60 * 60 * 1000
+                  : DEFAULT_ORDER_TTL_MINUTES * 60 * 1000),
+            );
 
       const order = manager.create(Order, {
         user: { id: userId },
@@ -401,6 +444,7 @@ export class OrdersService {
         status: OrderStatus.PENDING,
         totalAmount: totalAmount.toFixed(2),
         deliveryMethod,
+        paymentMethod,
         branch: branch ? { id: branch.id } : undefined,
         shippingAddress,
         expiresAt,
@@ -523,7 +567,12 @@ export class OrdersService {
       return { changed: false, previousStatus };
     }
 
-    const allowedNext = ALLOWED_STATUS_TRANSITIONS[previousStatus] ?? [];
+    const allowedNext = [
+      ...(ALLOWED_STATUS_TRANSITIONS[previousStatus] ?? []),
+      ...(EXTRA_TRANSITIONS_BY_PAYMENT_METHOD[order.paymentMethod]?.[
+        previousStatus
+      ] ?? []),
+    ];
     if (!allowedNext.includes(status)) {
       throw new BadRequestException(
         `სტატუსის ცვლილება "${previousStatus}" → "${status}" დაუშვებელია`,

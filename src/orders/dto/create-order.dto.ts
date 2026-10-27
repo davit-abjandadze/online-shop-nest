@@ -8,9 +8,19 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { DeliveryMethod } from '../entities/order.entity';
+import { DeliveryMethod, PaymentMethod } from '../entities/order.entity';
 
 export class CreateOrderDto {
+  @ApiPropertyOptional({
+    description:
+      'გადახდის მეთოდი — ბარათი, ადგილზე გადახდა ან საბანკო გადარიცხვა',
+    enum: PaymentMethod,
+    default: PaymentMethod.CARD,
+  })
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
   @ApiPropertyOptional({
     description: 'მიწოდების ხერხი — საკურიერო ან ფილიალიდან გატანა',
     enum: DeliveryMethod,

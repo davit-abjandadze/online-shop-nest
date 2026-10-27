@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
-import { Order, OrderStatus } from './entities/order.entity';
+import { Order, OrderStatus, PaymentMethod } from './entities/order.entity';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 
@@ -38,6 +38,7 @@ describe('OrdersService.updateStatus', () => {
       orderRepository as never,
       {} as never,
       dataSource as never,
+      {} as never,
       {} as never,
       {} as never,
     );
@@ -144,6 +145,42 @@ describe('OrdersService.updateStatus', () => {
     expect(restockOrderItemsSpy).not.toHaveBeenCalled();
   });
 
+  it('ადგილზე გადახდის შეკვეთას PENDING -> PROCESSING-ზე უშვებს', async () => {
+    const order = {
+      id: 11,
+      status: OrderStatus.PENDING,
+      paymentMethod: PaymentMethod.CASH_ON_DELIVERY,
+      stockRestored: false,
+    } as Order;
+    const { service, manager } = buildService(order);
+
+    await service.updateStatus(11, OrderStatus.PROCESSING, 3);
+
+    expect(manager.update).toHaveBeenCalledWith(Order, 11, {
+      status: OrderStatus.PROCESSING,
+    });
+  });
+
+  it('ბარათის/გადარიცხვის შეკვეთას PENDING -> PROCESSING-ზე არ უშვებს', async () => {
+    for (const paymentMethod of [
+      PaymentMethod.CARD,
+      PaymentMethod.BANK_TRANSFER,
+    ]) {
+      const order = {
+        id: 12,
+        status: OrderStatus.PENDING,
+        paymentMethod,
+        stockRestored: false,
+      } as Order;
+      const { service, manager } = buildService(order);
+
+      await expect(
+        service.updateStatus(12, OrderStatus.PROCESSING, 3),
+      ).rejects.toThrow(BadRequestException);
+      expect(manager.update).not.toHaveBeenCalled();
+    }
+  });
+
   it('PAID -> CANCELLED-ზე ნიშნავს Payment-ს REFUNDED-ად', async () => {
     const order = {
       id: 9,
@@ -188,6 +225,7 @@ describe('OrdersService.expireStaleOrders', () => {
       orderRepository as never,
       {} as never,
       dataSource as never,
+      {} as never,
       {} as never,
       {} as never,
     );

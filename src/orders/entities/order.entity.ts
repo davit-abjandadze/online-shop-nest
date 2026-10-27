@@ -27,6 +27,16 @@ export enum DeliveryMethod {
   PICKUP = 'pickup',
 }
 
+// გადახდის მეთოდი — ბარათი (BOG redirect), ადგილზე გადახდა (კურიერთან ან
+// ფილიალში მიღებისას) ან საბანკო გადარიცხვა (ადმინი ხელით ადასტურებს
+// ჩარიცხვას). ხელმისაწვდომი მეთოდები PAYMENT_METHODS env-ით იმართება — იხ.
+// payments/payment-methods.util.ts.
+export enum PaymentMethod {
+  CARD = 'card',
+  CASH_ON_DELIVERY = 'cash_on_delivery',
+  BANK_TRANSFER = 'bank_transfer',
+}
+
 @Entity()
 export class Order {
   @PrimaryGeneratedColumn()
@@ -65,6 +75,14 @@ export class Order {
     default: DeliveryMethod.COURIER,
   })
   deliveryMethod!: DeliveryMethod;
+
+  // default CARD — ამ სვეტამდე შექმნილი ყველა შეკვეთა ბარათით იყო.
+  @Column({
+    type: 'enum',
+    enum: PaymentMethod,
+    default: PaymentMethod.CARD,
+  })
+  paymentMethod!: PaymentMethod;
 
   // "ფილიალიდან გატანა"-ს შემთხვევაში აქ ინახება არჩეული ფილიალი — nullable,
   // რადგან საკურიერო შეკვეთებს ფილიალი არ სჭირდება. onDelete SET NULL,
